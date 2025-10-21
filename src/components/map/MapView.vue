@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
-import maplibregl from 'maplibre-gl'
+import { computed } from 'vue'
+import { useTheme } from '@/composables/useTheme'
+import { MglMap, MglMarker, MglPopup } from '@indoorequal/vue-maplibre-gl'
 
 interface Candidate {
   lat: number
   lng: number
   name: string
   similarity?: number
+  game_count?: number
 }
 
 interface Props {
@@ -17,98 +19,114 @@ const props = withDefaults(defineProps<Props>(), {
   candidates: () => [],
 })
 
-const mapContainer = ref<HTMLElement>()
-let map: maplibregl.Map | undefined
-// Using any to avoid Json type recursion issues with maplibregl.Marker[]
-const markers = ref<any[]>([])
+const { resolvedTheme } = useTheme()
 
-onMounted(() => {
-  if (!mapContainer.value)
-    return
+// Map configuration - theme-aware styles
+const mapStyle = computed(() => {
+  const isDark = resolvedTheme.value === 'dark'
 
-  map = new maplibregl.Map({
-    container: mapContainer.value,
-    style: 'https://raw.githubusercontent.com/go2garret/maps/main/src/assets/json/openStreetMap.json',
-    center: [0, 20],
-    zoom: 3,
+  return isDark
+    ? 'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json'
+    : 'https://tiles.stadiamaps.com/styles/alidade_smooth.json'
+})
+
+const mapCenter = [0, 20] as [number, number]
+const mapZoom = 3
+
+// Computed properties for markers
+const markers = computed(() => {
+  return props.candidates.map((candidate, index) => {
+    const isGameContext = candidate.similarity !== undefined
+    const backgroundColor = isGameContext ? '#ef4444' : '#3b82f6' // red-500 : blue-500
+    const opacity = isGameContext ? 0.4 + (candidate.similarity! * 0.6) : 1
+
+    let popupContent = `<strong>${candidate.name}</strong>`
+    if (isGameContext) {
+      popupContent += `<br><span style="font-size: 0.8em;">Match: ${Math.round(candidate.similarity! * 100)}%</span>`
+    }
+    else if (candidate.game_count && candidate.game_count > 0) {
+      popupContent += `<br><span style="font-size: 0.8em;">Played ${candidate.game_count} time${candidate.game_count === 1 ? '' : 's'}</span>`
+    }
+
+    return {
+      id: `marker-${index}`,
+      coordinates: [candidate.lng, candidate.lat] as [number, number],
+      backgroundColor,
+      opacity,
+      popupContent,
+      name: candidate.name,
+      similarity: candidate.similarity,
+      game_count: candidate.game_count,
+    }
   })
-
-  // Add markers if candidates exist
-  if (props.candidates.length > 0) {
-    updateMarkers()
-  }
 })
 
-onUnmounted(() => {
-  clearMarkers()
-  map?.remove()
+// Calculate bounds for all markers with padding
+const bounds = computed(() => {
+  if (props.candidates.length === 0) return
+
+  const lngs = props.candidates.map(c => c.lng)
+  const lats = props.candidates.map(c => c.lat)
+
+  const minLng = Math.min(...lngs)
+  const maxLng = Math.max(...lngs)
+  const minLat = Math.min(...lats)
+  const maxLat = Math.max(...lats)
+
+  // Add 15% padding to bounds to avoid markers on the edge
+  const lngPadding = (maxLng - minLng) * 0.15
+  const latPadding = (maxLat - minLat) * 0.15
+
+  // Return bounds in the format expected by MapLibre GL JS [[lng, lat], [lng, lat]]
+  return [
+    [minLng - lngPadding, minLat - latPadding],
+    [maxLng + lngPadding, maxLat + latPadding],
+  ] as [[number, number], [number, number]]
 })
 
-watch(() => props.candidates, () => {
-  updateMarkers()
-}, { deep: true })
-
-function clearMarkers() {
-  for (const marker of markers.value) marker.remove()
-  markers.value = []
-}
-
-function updateMarkers() {
-  if (!map)
-    return
-
-  clearMarkers()
-
-  if (props.candidates.length === 0)
-    return
-
-  // Add new markers with opacity based on similarity
-  for (let i = 0; i < props.candidates.length; i++) {
-    const candidate = props.candidates[i]
-    if (!candidate) continue
-
-    // Calculate opacity based on confidence (or position if no confidence)
-    let opacity = 1
-    if (candidate.similarity !== undefined) {
-      // Scale confidence (0-1) to opacity (0.4-1.0) for visibility
-      opacity = 0.4 + (candidate.similarity * 0.6)
-    }
-    else if (props.candidates.length > 1) {
-      // Fallback: use position (first is most opaque)
-      opacity = 1 - (i / props.candidates.length) * 0.5
-    }
-
-    const el = document.createElement('div')
-    el.className = 'w-6 h-6 bg-red-500 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform'
-    el.style.opacity = opacity.toString()
-    el.title = candidate.name
-    // Add ARIA attributes for accessibility
-    el.setAttribute('role', 'button')
-    el.setAttribute('aria-label', `View ${candidate.name}${candidate.similarity ? ` - ${Math.round(candidate.similarity * 100)}% match` : ''}`)
-
-    const marker = new maplibregl.Marker({ element: el })
-      .setLngLat([candidate.lng, candidate.lat])
-      .setPopup(
-        new maplibregl.Popup({ offset: 25 })
-          .setHTML(`<strong>${candidate.name}</strong>${candidate.similarity ? `<br><span style="font-size: 0.8em;">Match: ${Math.round(candidate.similarity * 100)}%</span>` : ''}`),
-      )
-      .addTo(map!)
-
-    markers.value.push(marker)
-  }
-
-  // Fit map to show all markers
-  if (props.candidates.length > 0) {
-    const bounds = new maplibregl.LngLatBounds()
-    for (const candidate of props.candidates) bounds.extend([candidate.lng, candidate.lat])
-    map.fitBounds(bounds, { padding: 100, maxZoom: 10 })
-  }
-}
 </script>
 
 <template>
-  <div
-    ref="mapContainer"
+  <MglMap
+    :map-style="mapStyle"
+    :center="mapCenter"
+    :zoom="mapZoom"
+    :bounds="bounds"
     class="!absolute inset-0"
-  />
+  >
+    <MglMarker
+      v-for="marker in markers"
+      :key="marker.id"
+      :coordinates="marker.coordinates"
+    >
+      <template #marker>
+        <div
+          class="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform"
+          :style="{ backgroundColor: marker.backgroundColor, opacity: marker.opacity }"
+          role="button"
+          :aria-label="`View ${marker.name}${marker.similarity ? ` - ${Math.round(marker.similarity * 100)}% match` : ''}`"
+        />
+      </template>
+
+      <MglPopup :close-button="false">
+        <div
+          class="rounded-lg shadow-lg p-3 border bg-card text-card-foreground"
+        >
+          <strong>{{ marker.name }}</strong>
+          <div
+            v-if="marker.similarity !== undefined"
+            class="text-xs mt-1"
+          >
+            Match: {{ Math.round(marker.similarity * 100) }}%
+          </div>
+          <div
+            v-else-if="marker.game_count && marker.game_count > 0"
+            class="text-xs mt-1"
+          >
+            Played {{ marker.game_count }} time{{ marker.game_count === 1 ? '' : 's' }}
+          </div>
+        </div>
+      </MglPopup>
+    </MglMarker>
+  </MglMap>
 </template>

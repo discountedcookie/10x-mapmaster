@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { Icon } from '@iconify/vue'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
 import type { Tables } from '@/types/database'
 import { LOW_CONFIDENCE_MIN, LOW_CONFIDENCE_MAX } from '@/stores/game'
 
@@ -23,6 +27,8 @@ const emit = defineEmits<{
   incorrect: []
   playAgain: []
 }>()
+
+const showAnalysis = ref(false)
 
 const confidencePercent = computed(() => {
   if (!props.guess?.composite_confidence) return
@@ -46,10 +52,15 @@ const spatialPercent = computed(() => {
 </script>
 
 <template>
-  <Card class="w-full max-w-2xl">
+  <Card class="w-full max-w-2xl animate-slide-up-fade" style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);">
     <CardHeader>
-      <CardTitle class="text-2xl">
+      <CardTitle class="text-2xl flex items-center gap-2">
         {{ guess && !isLowConfidence ? 'Is this your place?' : guess && isLowConfidence ? 'I\'m narrowing it down...' : 'No matches found' }}
+        <Icon
+          v-if="guess && !isLowConfidence"
+          icon="radix-icons:target"
+          class="h-6 w-6 text-primary"
+        />
       </CardTitle>
       <CardDescription v-if="!guess">
         We couldn't find a matching place. Please tell us what you were thinking of.
@@ -59,7 +70,7 @@ const spatialPercent = computed(() => {
       </CardDescription>
     </CardHeader>
     <CardContent v-if="guess">
-      <div class="space-y-3">
+      <div class="space-y-4">
         <div>
           <h3 class="text-xl font-semibold">
             {{ guess.name }}
@@ -69,94 +80,142 @@ const spatialPercent = computed(() => {
           </p>
         </div>
 
-        <!-- Low confidence: show detailed breakdown -->
-        <div
-          v-if="isLowConfidence"
-          class="space-y-2 p-3 bg-muted rounded-md"
-        >
-          <div class="text-sm font-medium">
-            Match Analysis
-          </div>
-          <div class="space-y-1">
-            <div class="flex justify-between text-sm">
-              <span class="text-muted-foreground">Description match:</span>
-              <span class="font-medium">{{ semanticPercent }}%</span>
-            </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-muted-foreground">Location clustering:</span>
-              <span class="font-medium">{{ spatialPercent }}%</span>
-            </div>
-            <div class="flex justify-between text-sm border-t pt-1 mt-1">
-              <span class="text-muted-foreground">Overall confidence:</span>
-              <span class="font-semibold">{{ confidencePercent }}%</span>
-            </div>
-          </div>
+        <!-- Confidence Badge -->
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-muted-foreground">Overall match:</span>
+          <ConfidenceBadge :confidence="guess.composite_confidence" />
         </div>
 
-        <!-- High confidence: simple display -->
-        <p
-          v-else-if="confidencePercent !== undefined"
-          class="text-sm text-muted-foreground"
-        >
-          Match confidence: {{ confidencePercent }}%
-        </p>
+        <!-- Collapsible Match Analysis -->
+        <Collapsible v-model:open="showAnalysis">
+          <CollapsibleTrigger as-child>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="w-full justify-between p-2"
+            >
+              <span class="text-sm font-medium">
+                <Icon
+                  icon="radix-icons:bar-chart"
+                  class="inline h-4 w-4 mr-1"
+                />
+                Match Analysis
+              </span>
+              <Icon
+                :icon="showAnalysis ? 'radix-icons:chevron-up' : 'radix-icons:chevron-down'"
+                class="h-4 w-4 transition-transform"
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent class="space-y-3 pt-3">
+            <div class="space-y-3">
+              <!-- Description Match -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-sm">
+                  <span class="text-muted-foreground">Description match</span>
+                  <span class="font-medium">{{ semanticPercent }}%</span>
+                </div>
+                <Progress
+                  :model-value="semanticPercent"
+                  class="h-2"
+                />
+              </div>
+
+              <!-- Location Clustering -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-sm">
+                  <span class="text-muted-foreground">Location clustering</span>
+                  <span class="font-medium">{{ spatialPercent }}%</span>
+                </div>
+                <Progress
+                  :model-value="spatialPercent"
+                  class="h-2"
+                />
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </CardContent>
     <CardFooter class="flex gap-4">
       <template v-if="guess && !isLowConfidence">
         <Button
-          class="flex-1"
+          class="flex-1 transition-playful"
           size="lg"
           :disabled="disabled"
           @click="emit('correct')"
         >
+          <Icon
+            icon="radix-icons:check"
+            class="h-5 w-5 mr-2"
+          />
           Yes, that's it!
         </Button>
         <Button
-          class="flex-1"
+          class="flex-1 transition-playful"
           size="lg"
           variant="outline"
           :disabled="disabled"
           @click="emit('incorrect')"
         >
+          <Icon
+            icon="radix-icons:cross-2"
+            class="h-5 w-5 mr-2"
+          />
           No, that's not it
         </Button>
       </template>
       <template v-else-if="guess && isLowConfidence">
         <Button
-          class="flex-1"
+          class="flex-1 transition-playful"
           size="lg"
           :disabled="disabled"
           @click="emit('correct')"
         >
+          <Icon
+            icon="radix-icons:check"
+            class="h-5 w-5 mr-2"
+          />
           Yes, it's this one
         </Button>
         <Button
-          class="flex-1"
+          class="flex-1 transition-playful"
           size="lg"
           variant="outline"
           :disabled="disabled"
           @click="emit('incorrect')"
         >
+          <Icon
+            icon="radix-icons:question-mark"
+            class="h-5 w-5 mr-2"
+          />
           No, keep asking questions
         </Button>
       </template>
       <template v-else>
         <Button
-          class="flex-1"
+          class="flex-1 transition-playful"
           size="lg"
           :disabled="disabled"
           @click="emit('incorrect')"
         >
+          <Icon
+            icon="radix-icons:pencil-1"
+            class="h-5 w-5 mr-2"
+          />
           Tell us the place
         </Button>
         <Button
-          class="flex-1"
+          class="flex-1 transition-playful"
           size="lg"
           variant="outline"
           :disabled="disabled"
           @click="emit('playAgain')"
         >
+          <Icon
+            icon="radix-icons:reload"
+            class="h-5 w-5 mr-2"
+          />
           Play Again
         </Button>
       </template>

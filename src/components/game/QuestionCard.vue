@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
 
 interface Props {
   question: string
@@ -17,49 +19,48 @@ const emit = defineEmits<{
   answer: [value: boolean]
 }>()
 
-const confidencePercent = computed(() => {
-  if (props.confidence === undefined) return
-  return Math.round(props.confidence * 100)
-})
-
-const confidenceColor = computed(() => {
-  if (!props.confidence) return 'text-muted-foreground'
-  if (props.confidence >= 0.7) return 'text-green-600'
-  if (props.confidence >= 0.4) return 'text-yellow-600'
-  return 'text-red-600'
+/** Progress percentage (0-100) */
+const progressPercent = computed(() => {
+  return (props.questionNumber / props.totalQuestions) * 100
 })
 </script>
 
 <template>
-  <Card class="w-full max-w-2xl">
+  <Card class="w-full max-w-2xl animate-slide-up-fade" style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);">
     <CardHeader>
-      <CardDescription>Question {{ questionNumber }} of {{ totalQuestions }}</CardDescription>
+      <div class="flex items-center justify-between mb-2">
+        <CardDescription>Question {{ questionNumber }} of {{ totalQuestions }}</CardDescription>
+        <Progress
+          :model-value="progressPercent"
+          class="w-32 h-2"
+        />
+      </div>
       <CardTitle class="text-2xl">
         {{ question }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="space-y-2">
+    <CardContent class="space-y-3">
       <p class="text-sm text-muted-foreground">
         {{ candidatesCount }} possible {{ candidatesCount === 1 ? 'place' : 'places' }} remaining
       </p>
-      <p
-        v-if="confidencePercent !== undefined"
-        class="text-sm"
-        :class="confidenceColor"
+      <div
+        v-if="confidence !== undefined"
+        class="flex items-center gap-2"
       >
-        Top match confidence: {{ confidencePercent }}%
-      </p>
+        <span class="text-sm text-muted-foreground">Top match:</span>
+        <ConfidenceBadge :confidence="confidence" />
+      </div>
     </CardContent>
     <CardFooter class="flex gap-4">
       <Button
-        class="flex-1"
+        class="flex-1 transition-playful"
         size="lg"
         @click="emit('answer', true)"
       >
         Yes
       </Button>
       <Button
-        class="flex-1"
+        class="flex-1 transition-playful"
         size="lg"
         variant="outline"
         @click="emit('answer', false)"

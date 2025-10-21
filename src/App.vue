@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Toaster } from '@/components/ui/sonner'
+import MapLayout from '@/layouts/MapLayout.vue'
 
 const authStore = useAuthStore()
 
@@ -13,7 +14,11 @@ onMounted(() => {
 
 <template>
   <div>
-    <RouterView />
+    <!-- Map layout for all views -->
+    <MapLayout>
+      <RouterView />
+    </MapLayout>
+
     <Toaster />
   </div>
 </template>

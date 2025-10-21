@@ -1,13 +1,18 @@
 #!/usr/bin/env tsx
 
 /**
- * Generate embeddings for seed data (places and questions)
+ * Generate SQL migration file with embeddings for seed data (places and questions)
  * Hybrid approach: Local database + Production Edge Function
- * 
- * Usage: PROD_URL=https://xxx.supabase.co PROD_KEY=xxx npm run seed:embeddings:hybrid
+ *
+ * Reads seed data from local database, generates embeddings via production Edge Function,
+ * and outputs a reusable SQL migration file.
+ *
+ * Usage: PROD_URL=https://xxx.supabase.co PROD_KEY=xxx npm run generate:seed-migration
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { writeFile } from 'fs/promises'
+import { join } from 'path'
 import type { Database } from '../src/types/database'
 
 // Local database connection (where embeddings will be stored)
@@ -65,27 +70,29 @@ function embeddingToString(embedding: number[]): string {
 }
 
 /**
- * Generate embeddings for all places
+ * Generate embeddings and SQL statements for all places
  */
-async function generatePlaceEmbeddings() {
+async function generatePlaceEmbeddings(): Promise<string[]> {
     console.log('\n📍 Generating embeddings for places...')
 
-    // Fetch all places without embeddings from LOCAL database
+    const sqlStatements: string[] = []
+
+    // Fetch all places from LOCAL database
     const { data: places, error } = await localSupabase
         .from('places')
         .select('*')
-        .is('embedding', null)
+        .order('name')
 
     if (error) {
         throw new Error(`Failed to fetch places: ${error.message}`)
     }
 
     if (!places || places.length === 0) {
-        console.log('✅ All places already have embeddings')
-        return
+        console.log('⚠️  No places found in database')
+        return sqlStatements
     }
 
-    console.log(`Found ${places.length} places without embeddings`)
+    console.log(`Found ${places.length} places to process`)
 
     for (const place of places) {
         try {
@@ -111,95 +118,121 @@ async function generatePlaceEmbeddings() {
             // Generate embedding using PRODUCTION Edge Function
             const embedding = await generateEmbedding(text)
 
-            // Update place with embedding in LOCAL database
-            const { error: updateError } = await localSupabase
-                .from('places')
-                .update({ embedding: embeddingToString(embedding) as any })
-                .eq('id', place.id)
+            // Create SQL UPDATE statement
+            const escapedName = place.name.replace(/'/g, "''")
+            const sql = `UPDATE places SET embedding = '${embeddingToString(embedding)}'::vector WHERE name = '${escapedName}';`
+            sqlStatements.push(sql)
 
-            if (updateError) {
-                console.error(`❌ Failed to update place ${place.name}:`, updateError.message)
-                continue
-            } else {
-                console.log(`✅ Generated embedding for: ${place.name}`)
-            }
+            console.log(`✅ Generated embedding for: ${place.name}`)
 
             // Rate limiting - wait 100ms between requests
             await new Promise(resolve => setTimeout(resolve, 100))
         } catch (error) {
             console.error(`❌ Error processing place ${place.name}:`, error)
+            throw error // Stop on error to avoid partial migration
         }
     }
 
-    console.log('✅ Place embeddings generated')
+    console.log(`✅ Generated ${sqlStatements.length} place embedding statements`)
+    return sqlStatements
 }
 
 /**
- * Generate embeddings for all questions
+ * Generate embeddings and SQL statements for all questions
  */
-async function generateQuestionEmbeddings() {
+async function generateQuestionEmbeddings(): Promise<string[]> {
     console.log('\n❓ Generating embeddings for questions...')
 
-    // Fetch all questions without embeddings from LOCAL database
+    const sqlStatements: string[] = []
+
+    // Fetch all questions from LOCAL database
     const { data: questions, error } = await localSupabase
         .from('questions')
         .select('*')
-        .is('embedding', null)
+        .order('sequence')
 
     if (error) {
         throw new Error(`Failed to fetch questions: ${error.message}`)
     }
 
     if (!questions || questions.length === 0) {
-        console.log('✅ All questions already have embeddings')
-        return
+        console.log('⚠️  No questions found in database')
+        return sqlStatements
     }
 
-    console.log(`Found ${questions.length} questions without embeddings`)
+    console.log(`Found ${questions.length} questions to process`)
 
     for (const question of questions) {
         try {
             // Use question text directly for embedding
             const embedding = await generateEmbedding(question.text)
 
-            // Update question with embedding in LOCAL database
-            const { error: updateError } = await localSupabase
-                .from('questions')
-                .update({ embedding: embeddingToString(embedding) as any })
-                .eq('id', question.id)
+            // Create SQL UPDATE statement
+            const escapedText = question.text.replace(/'/g, "''")
+            const sql = `UPDATE questions SET embedding = '${embeddingToString(embedding)}'::vector WHERE text = '${escapedText}';`
+            sqlStatements.push(sql)
 
-            if (updateError) {
-                console.error(`❌ Failed to update question "${question.text}":`, updateError.message)
-            } else {
-                console.log(`✅ Generated embedding for: "${question.text}"`)
-            }
+            console.log(`✅ Generated embedding for: "${question.text}"`)
 
             // Rate limiting - wait 100ms between requests
             await new Promise(resolve => setTimeout(resolve, 100))
         } catch (error) {
             console.error(`❌ Error processing question "${question.text}":`, error)
+            throw error // Stop on error to avoid partial migration
         }
     }
 
-    console.log('✅ Question embeddings generated')
+    console.log(`✅ Generated ${sqlStatements.length} question embedding statements`)
+    return sqlStatements
 }
 
 /**
  * Main function
  */
 async function main() {
-    console.log('🚀 Starting hybrid seed embedding generation...')
+    console.log('🚀 Starting SQL migration generation for seed embeddings...')
     console.log(`Local Database: ${localUrl}`)
     console.log(`Production Edge Function: ${prodFunctionsUrl}/generate-embedding`)
 
     try {
-        await generatePlaceEmbeddings()
-        await generateQuestionEmbeddings()
+        const placeStatements = await generatePlaceEmbeddings()
+        const questionStatements = await generateQuestionEmbeddings()
 
-        console.log('\n✅ All embeddings generated successfully!')
-        console.log('You can now test the game locally with vector similarity search.')
+        // Build SQL migration file content
+        const migrationHeader = `-- Generated seed embeddings for places and questions
+-- This migration is generated by scripts/generate-seed-embeddings-hybrid.ts
+-- DO NOT manually edit this file - regenerate it using: npm run generate:seed-migration
+--
+-- Generated: ${new Date().toISOString()}
+-- Places: ${placeStatements.length}
+-- Questions: ${questionStatements.length}
+
+`
+
+        const placesSection = `-- Update embeddings for seed places
+${placeStatements.join('\n')}
+
+`
+
+        const questionsSection = `-- Update embeddings for seed questions
+${questionStatements.join('\n')}
+`
+
+        const migrationContent = migrationHeader + placesSection + questionsSection
+
+        // Write to migration file
+        const migrationPath = join(process.cwd(), 'supabase', 'migrations', '000003_seed_embeddings.sql')
+        await writeFile(migrationPath, migrationContent, 'utf-8')
+
+        console.log(`\n✅ Migration file generated successfully!`)
+        console.log(`📄 Location: ${migrationPath}`)
+        console.log(`📊 Total statements: ${placeStatements.length + questionStatements.length}`)
+        console.log(`\n🎯 Next steps:`)
+        console.log(`   1. Review the generated SQL file`)
+        console.log(`   2. Run: npx supabase db reset`)
+        console.log(`   3. Embeddings will be applied automatically via migration`)
     } catch (error) {
-        console.error('\n❌ Error generating embeddings:', error)
+        console.error('\n❌ Error generating migration:', error)
         process.exit(1)
     }
 }

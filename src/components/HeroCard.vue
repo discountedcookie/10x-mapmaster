@@ -1,31 +1,47 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { Icon } from '@iconify/vue'
+import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const handleGetStarted = () => {
-  router.push('/game')
+  if (authStore.isAuthenticated) {
+    router.push('/game')
+  }
+  else {
+    router.push('/login')
+  }
 }
 </script>
 
 <template>
-  <Card class="w-full max-w-md">
-    <CardHeader>
-      <CardTitle class="text-3xl">
-        10x-mapmaster
+  <Card class="w-full max-w-md animate-slide-up-fade" style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);">
+    <CardHeader class="bg-gradient-playful text-white rounded-t-xl">
+      <CardTitle class="text-4xl font-bold flex items-center gap-3">
+        <Icon
+          icon="radix-icons:globe"
+          class="h-10 w-10"
+        />
+        <span>10x-mapmaster</span>
       </CardTitle>
-      <CardDescription class="text-base">
+      <CardDescription class="text-base text-white/90 mt-2">
         An intelligent geography guessing game that learns from every session
       </CardDescription>
     </CardHeader>
-    <CardContent>
+    <CardContent class="pt-6">
       <Button
         size="lg"
-        class="w-full"
+        class="w-full transition-playful shadow-playful-sm hover:shadow-playful-lg"
         @click="handleGetStarted"
       >
+        <Icon
+          icon="radix-icons:rocket"
+          class="h-5 w-5 mr-2"
+        />
         Get Started
       </Button>
     </CardContent>

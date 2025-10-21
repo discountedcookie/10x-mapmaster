@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 import GameView from '@/views/GameView.vue'
+import LoginView from '@/views/LoginView.vue'
+import SignupView from '@/views/SignupView.vue'
+import StatisticsView from '@/views/StatisticsView.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -11,11 +15,48 @@ const router = createRouter({
       component: HomeView,
     },
     {
+      path: '/login',
+      name: 'login',
+      component: LoginView,
+      meta: { requiresGuest: true },
+    },
+    {
+      path: '/signup',
+      name: 'signup',
+      component: SignupView,
+      meta: { requiresGuest: true },
+    },
+    {
       path: '/game',
       name: 'game',
       component: GameView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/statistics',
+      name: 'statistics',
+      component: StatisticsView,
     },
   ],
+})
+
+// Navigation guard to protect routes
+router.beforeEach((to, from, next) => {
+  const authStore = useAuthStore()
+
+  // Check if route requires authentication
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    next('/login')
+    return
+  }
+
+  // Check if route requires guest (redirect authenticated users away from auth pages)
+  if (to.meta.requiresGuest && authStore.isAuthenticated) {
+    next('/game')
+    return
+  }
+
+  next()
 })
 
 export default router
