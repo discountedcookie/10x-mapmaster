@@ -1,31 +1,9 @@
 import { ref } from 'vue'
-
-/**
- * Get the edge function URL from environment variables.
- * Derives the functions URL from VITE_SUPABASE_URL.
- * For production: uses the production Supabase URL
- * For local dev: typically http://127.0.0.1:54321
- */
-function getEdgeFunctionUrl(): string {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  if (!supabaseUrl) {
-    throw new Error('Missing VITE_SUPABASE_URL environment variable')
-  }
-  return `${supabaseUrl}/functions/v1`
-}
+import { supabase } from '@/lib/supabase'
 
 export function useEmbeddings() {
     const loading = ref(false)
     const error = ref<string | undefined>(undefined)
-    
-    // Lazy evaluation: only get URL when needed
-    let edgeFunctionUrl: string | null = null
-    const getUrl = () => {
-      if (!edgeFunctionUrl) {
-        edgeFunctionUrl = getEdgeFunctionUrl()
-      }
-      return edgeFunctionUrl
-    }
 
     // Rate limiting state
     const lastRequestTime = ref<number>(0)
@@ -56,28 +34,20 @@ export function useEmbeddings() {
         loading.value = true
         error.value = undefined
         try {
-            const response = await fetch(`${getUrl()}/generate-embedding`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                },
-                body: JSON.stringify({ text }),
+            const { data, error: functionError } = await supabase.functions.invoke('generate-embedding', {
+                body: { text },
             })
 
-            if (!response.ok) {
-                // User-friendly error messages based on status code
-                if (response.status === 429) {
+            if (functionError) {
+                // User-friendly error messages based on error type
+                if (functionError.message?.includes('429') || functionError.message?.includes('rate limit')) {
                     throw new Error('Too many requests. Please try again in a moment.')
-                } else if (response.status >= 500) {
-                    throw new Error('Service temporarily unavailable. Please try again.')
                 } else {
                     throw new Error('Unable to process description. Please try again.')
                 }
             }
 
-            const data = await response.json()
-            if (!Array.isArray(data.embedding) || data.embedding.length !== 384) {
+            if (!data || !Array.isArray(data.embedding) || data.embedding.length !== 384) {
                 throw new Error('Received invalid response. Please try again.')
             }
 

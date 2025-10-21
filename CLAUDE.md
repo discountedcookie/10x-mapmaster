@@ -1,120 +1,94 @@
 # 10x-mapmaster Development Guide
 
-## START HERE
+## 🚀 START HERE
 
 **Before any task:**
+1. Read `AGENTS.md` for product vision
+2. Check Serena memories: `project-setup-and-current-state`, `mvp-task-breakdown-simple`
+3. Use MCP servers: Context7 (docs), Serena (code), Playwright (testing)
 
-1. **Read AGENTS.md** for product vision and architecture
-2. **Check Serena memories:**
-   ```
-   mcp__serena__list_memories
-   mcp__serena__read_memory project-setup-and-current-state
-   mcp__serena__read_memory mvp-task-breakdown-simple
-   ```
-3. **Use MCP servers** (see below)
+**After completing:**
+1. Update `project-setup-and-current-state` (overwrite outdated)
+2. Run `npm test` and `npm run lint`
+3. Document in `design-decisions-log` or `known-issues-and-gotchas` if significant
 
-**After completing a task:**
+## 💡 Core Principles
 
-1. **Update Serena:** `project-setup-and-current-state` (overwrite outdated sections)
-2. **Run tests:** `npm test` and `npm run lint`
-3. **Optionally document:**
-   - `design-decisions-log` (append, keep history) - significant architectural choices
-   - `known-issues-and-gotchas` (append) - problems + solutions
+**Tech Stack:** Vue 3 Composition API + TypeScript + Supabase + pgvector + MapLibre
+**Data Pattern:** PostgREST (DB does work, frontend filters)
+**Vector System:** `vector(384)` with gte-small, cached embeddings
+**File Structure:** `src/{components,composables,stores,lib,types,views}`
 
-## MCP Servers
+**Non-Negotiables:**
+- RLS policies always
+- Migrations only (never manual schema)
+- No `any` types
+- Async/await pattern
 
-Use these tools before searching externally:
+## ⚡ Serena: NEVER Read Entire Files!
 
-- **Context7**: API docs (Vue, Supabase, TypeScript, MapLibre, pgvector)
-- **Serena**: Code analysis, find symbols, research patterns (project activated)
-- **Playwright**: E2E testing, UI verification
+**The Pattern:** Overview → Symbol → References → Edit
 
-## Development Standards
-
-### Vue 3 + TypeScript
-- Composition API only (`<script setup lang="ts">`)
-- No `any`, prefer interfaces
-- Composables prefixed with `use`
-- Typed props and emits
-
-### Supabase
-- Always use RLS policies
-- Migrations only (no manual schema changes)
-- UUIDs for primary keys
-- Include `created_at` and `updated_at`
-
-### Vector Embeddings (Full System)
-- Store as `vector(384)` (gte-small)
-- Use cosine similarity (pgvector)
-- Cache embeddings to avoid redundant calls
-
-### Code Style
-- Meaningful variable names
-- Async/await over promise chains
-- Early returns
-- Comments explain "why" not "what"
-
-### File Organization
-```
-src/
-  components/
-    game/        # Game-specific
-    map/         # Map-related
-    ui/          # shadcn-vue
-  composables/   # Shared logic (use*)
-  stores/        # Pinia
-  lib/           # Utilities
-  types/         # TypeScript interfaces
-  views/         # Pages
-```
-
-## Current Implementation
-
-**Check Serena memory `project-setup-and-current-state` for:**
-- What's implemented
-- Current MVP scope vs full system
-- Files created
-- Next steps
-
-## Serena Workflow
-
-### Memory Types
-- **project-setup-and-current-state**: Current status (OVERWRITE outdated info)
-- **mvp-task-breakdown-simple**: Task plan (UPDATE as scope changes)
-- **design-decisions-log**: Architectural choices (APPEND with dates)
-- **known-issues-and-gotchas**: Problems + solutions (APPEND, never delete)
-
-### Commands
 ```typescript
-mcp__serena__list_memories
-mcp__serena__read_memory { memory_file_name: "name.md" }
-mcp__serena__write_memory { memory_name: "name", content: "..." }
+// 1. Get overview
+mcp__serena__get_symbols_overview("src/components/map/MapView.vue")
+
+// 2. Read specific symbol
+mcp__serena__find_symbol({
+  name_path: "MapView/setupMap",
+  relative_path: "src/components/map/MapView.vue",
+  include_body: true  // Only when editing
+})
+
+// 3. Check references before changing
+mcp__serena__find_referencing_symbols({
+  name_path: "fetchQuestions",
+  relative_path: "src/composables/useQuestions.ts"
+})
+
+// 4. Edit precisely
+mcp__serena__replace_symbol_body({
+  name_path: "MapView/updateMarkers",
+  relative_path: "src/components/map/MapView.vue",
+  body: `const updateMarkers = async () => { /* impl */ }`
+})
 ```
 
-## Common Patterns
+**Key Tools:**
+- `get_symbols_overview` - File structure
+- `find_symbol` - Specific code (use `substring_matching: true`, `relative_path`, LSP kinds)
+- `find_referencing_symbols` - Impact analysis
+- `search_for_pattern` - Non-code (TODOs, configs)
+- `insert_before_symbol` / `insert_after_symbol` - Add code
+- `think_about_collected_information` - After research
+- `think_about_task_adherence` - Before editing
 
-### PostgREST + Supabase
-All data operations via database queries, not application logic. Example: questions fetched from DB, filtering applied in frontend based on `filter_type`.
+**Memories:**
+- `project-setup-and-current-state` (OVERWRITE)
+- `design-decisions-log` (APPEND)
+- `known-issues-and-gotchas` (APPEND)
 
-### Nominatim Integration
-- Rate limit: 1 req/sec (debounce inputs)
-- Check for duplicates (coordinates ±0.001°)
-- Save descriptors as JSONB
+## 🗂️ Database & Embeddings
 
-### Map Integration
-- Lazy load markers
-- Cluster when zoomed out
-- Update candidates in real-time during game
+**Migrations (in order):**
+1. `000001_initial_schema.sql` - Schema, extensions, RLS, triggers
+2. `000002_seed_data.sql` - 20 places + 20 questions
+3. `000003_seed_embeddings.sql` - **Generated** embeddings (committed)
+4. `000004_database_functions.sql` - Search/filter functions
 
-## Testing
-- Playwright for E2E (existing: `e2e/home.spec.ts`)
-- Vitest for unit tests
-- Manual QA for map interactions
-- Test RLS policies in Supabase dashboard
+**Daily:** `npx supabase db reset`
+**When updating seed data:**
+1. Edit `000002_seed_data.sql`
+2. Run `npm run generate:seed-migration`
+3. Commit `000003_seed_embeddings.sql`
 
-## Key Constraints
-- Never bypass RLS in frontend
-- Respect Nominatim rate limits
-- Use migrations for all schema changes
-- Handle loading/error states
-- User-friendly error messages (no stack traces)
+**Why:** Embeddings stored in migrations = fast resets, no API calls, version control
+
+## 🌍 External Integrations
+
+**Nominatim:** 1 req/sec, dedupe by coordinates ±0.001°
+**MapLibre:** Lazy load, cluster markers, real-time candidate updates
+
+## ✅ Testing
+
+Playwright (E2E) + Vitest (unit) + Manual QA + RLS policy testing in Supabase dashboard

@@ -33,8 +33,16 @@ export const useAuthStore = defineStore('auth', () => {
       email,
       password,
     })
-    if (error)
-      throw error
+    if (error) {
+      // Provide more specific error messages
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error('Email not confirmed. Please check your email and click the verification link.')
+      }
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Invalid login credentials. Please check your email and password.')
+      }
+      throw new Error(error.message || 'Failed to sign in. Please try again.')
+    }
     return data
   }
 
@@ -43,8 +51,16 @@ export const useAuthStore = defineStore('auth', () => {
       email,
       password,
     })
-    if (error)
-      throw error
+    if (error) {
+      // Provide more specific error messages
+      if (error.message.includes('already registered')) {
+        throw new Error('An account with this email already exists. Please sign in instead.')
+      }
+      if (error.message.includes('Password')) {
+        throw new Error(error.message)
+      }
+      throw new Error(error.message || 'Failed to create account. Please try again.')
+    }
     return data
   }
 

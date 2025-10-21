@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useEmbeddings } from '@/composables/useEmbeddings'
 
-// Mock environment variables
-vi.stubEnv('VITE_SUPABASE_URL', 'http://test.supabase.co')
-vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key')
-
-// Mock fetch globally
-global.fetch = vi.fn()
+// Mock the Supabase client
+vi.mock('@/lib/supabase', () => {
+  const mockInvoke = vi.fn()
+  return {
+    supabase: {
+      functions: {
+        invoke: mockInvoke,
+      },
+    },
+  }
+})
 
 describe('useEmbeddings', () => {
   beforeEach(() => {
@@ -21,11 +26,12 @@ describe('useEmbeddings', () => {
   describe('generateEmbedding', () => {
     it('should generate embedding successfully', async () => {
       const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ embedding: mockEmbedding }),
-      } as Response)
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValueOnce({
+        data: { embedding: mockEmbedding },
+        error: null,
+      })
 
       const { generateEmbedding } = useEmbeddings()
       const result = await generateEmbedding('test description')
@@ -36,11 +42,12 @@ describe('useEmbeddings', () => {
 
     it('should enforce rate limiting between requests', async () => {
       const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ embedding: mockEmbedding }),
-      } as Response)
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValue({
+        data: { embedding: mockEmbedding },
+        error: null,
+      })
 
       const { generateEmbedding } = useEmbeddings()
 
@@ -53,11 +60,12 @@ describe('useEmbeddings', () => {
 
     it('should allow request after cooldown period', async () => {
       const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ embedding: mockEmbedding }),
-      } as Response)
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValue({
+        data: { embedding: mockEmbedding },
+        error: null,
+      })
 
       const { generateEmbedding } = useEmbeddings()
 
@@ -73,38 +81,39 @@ describe('useEmbeddings', () => {
     })
 
     it('should throw user-friendly error on 429 status', async () => {
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        json: async () => ({ error: 'Rate limit exceeded' }),
-      } as Response)
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Rate limit: 429' },
+      })
 
       const { generateEmbedding } = useEmbeddings()
 
       await expect(generateEmbedding('test')).rejects.toThrow('Too many requests')
     })
 
-    it('should throw user-friendly error on 500+ status', async () => {
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({ error: 'Internal server error' }),
-      } as Response)
+    it('should throw user-friendly error on server errors', async () => {
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Internal server error' },
+      })
 
       const { generateEmbedding } = useEmbeddings()
 
-      await expect(generateEmbedding('test')).rejects.toThrow('Service temporarily unavailable')
+      await expect(generateEmbedding('test')).rejects.toThrow('Unable to process description')
     })
 
     it('should enforce maximum requests per session', async () => {
       const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ embedding: mockEmbedding }),
-      } as Response)
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValue({
+        data: { embedding: mockEmbedding },
+        error: null,
+      })
 
       const { generateEmbedding } = useEmbeddings()
 
@@ -120,11 +129,12 @@ describe('useEmbeddings', () => {
 
     it('should reject invalid embedding dimensions', async () => {
       const invalidEmbedding = Array.from({ length: 256 }, () => 0.1) // Wrong size
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ embedding: invalidEmbedding }),
-      } as Response)
+      const { supabase } = await import('@/lib/supabase')
+      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
+      mockInvoke.mockResolvedValueOnce({
+        data: { embedding: invalidEmbedding },
+        error: null,
+      })
 
       const { generateEmbedding } = useEmbeddings()
 

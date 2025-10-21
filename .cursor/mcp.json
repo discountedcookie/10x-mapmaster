@@ -23,6 +23,13 @@
         "semgrep": {
             "type": "streamable-http",
             "url": "https://mcp.semgrep.ai/mcp"
+        },
+        "shadcnvue": {
+            "command": "npx",
+            "args": [
+                "shadcn-vue@latest",
+                "mcp"
+            ]
         }
     }
 }
