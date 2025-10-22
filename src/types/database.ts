@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -85,30 +90,30 @@ export type Database = {
           description: string | null
           description_embedding: string | null
           id: string
-          place_id: string
+          place_id: string | null
           question_count: number
           user_id: string
-          was_correct: boolean
+          was_correct: boolean | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           description_embedding?: string | null
           id?: string
-          place_id: string
+          place_id?: string | null
           question_count?: number
           user_id: string
-          was_correct: boolean
+          was_correct?: boolean | null
         }
         Update: {
           created_at?: string
           description?: string | null
           description_embedding?: string | null
           id?: string
-          place_id?: string
+          place_id?: string | null
           question_count?: number
           user_id?: string
-          was_correct?: boolean
+          was_correct?: boolean | null
         }
         Relationships: [
           {
@@ -123,40 +128,37 @@ export type Database = {
       places: {
         Row: {
           created_at: string
-          descriptor_text: string | null
           descriptors: Json
           embedding: string | null
           game_count: number
           geom: unknown | null
           id: string
-          lat: number
-          lng: number
+          lat: number | null
+          lng: number | null
           name: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          descriptor_text?: string | null
           descriptors?: Json
           embedding?: string | null
           game_count?: number
           geom?: unknown | null
           id?: string
-          lat: number
-          lng: number
+          lat?: number | null
+          lng?: number | null
           name: string
           updated_at?: string
         }
         Update: {
           created_at?: string
-          descriptor_text?: string | null
           descriptors?: Json
           embedding?: string | null
           game_count?: number
           geom?: unknown | null
           id?: string
-          lat?: number
-          lng?: number
+          lat?: number | null
+          lng?: number | null
           name?: string
           updated_at?: string
         }
@@ -167,9 +169,9 @@ export type Database = {
           created_at: string
           effectiveness_score: number
           embedding: string | null
-          filter_type: string
+          geographic_region: Json | null
           id: string
-          sequence: number
+          question_type: string
           text: string
           times_asked: number
         }
@@ -177,9 +179,9 @@ export type Database = {
           created_at?: string
           effectiveness_score?: number
           embedding?: string | null
-          filter_type: string
+          geographic_region?: Json | null
           id?: string
-          sequence: number
+          question_type?: string
           text: string
           times_asked?: number
         }
@@ -187,9 +189,9 @@ export type Database = {
           created_at?: string
           effectiveness_score?: number
           embedding?: string | null
-          filter_type?: string
+          geographic_region?: Json | null
           id?: string
-          sequence?: number
+          question_type?: string
           text?: string
           times_asked?: number
         }
@@ -493,14 +495,6 @@ export type Database = {
         Args: { geom1: unknown; geom2: unknown }
         Returns: boolean
       }
-      filter_candidates_by_question: {
-        Args: {
-          candidate_place_ids: string[]
-          question_text: string
-          user_answer: boolean
-        }
-        Returns: string[]
-      }
       filter_candidates_with_history: {
         Args: { candidate_place_ids: string[]; question_history: Json }
         Returns: {
@@ -738,6 +732,18 @@ export type Database = {
         Args: { "": string }
         Returns: unknown
       }
+      get_next_question: {
+        Args: { match_count?: number; session_id_param: string }
+        Returns: {
+          effectiveness_score: number
+          geographic_region: Json
+          id: string
+          question_type: string
+          semantic_similarity: number
+          text: string
+          times_asked: number
+        }[]
+      }
       get_proj4_from_srid: {
         Args: { "": number }
         Returns: string
@@ -834,16 +840,6 @@ export type Database = {
           name: string
           semantic_similarity: number
           spatial_confidence: number
-        }[]
-      }
-      match_questions: {
-        Args: { match_count?: number; query_embedding: string }
-        Returns: {
-          effectiveness_score: number
-          id: string
-          similarity: number
-          text: string
-          times_asked: number
         }[]
       }
       path: {
@@ -2314,4 +2310,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

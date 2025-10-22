@@ -52,7 +52,10 @@ const spatialPercent = computed(() => {
 </script>
 
 <template>
-  <Card class="w-full max-w-2xl animate-slide-up-fade" style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);">
+  <Card
+    class="w-full max-w-2xl animate-slide-up-fade"
+    style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
+  >
     <CardHeader>
       <CardTitle class="text-2xl flex items-center gap-2">
         {{ guess && !isLowConfidence ? 'Is this your place?' : guess && isLowConfidence ? 'I\'m narrowing it down...' : 'No matches found' }}

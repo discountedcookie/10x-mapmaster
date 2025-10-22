@@ -2,68 +2,102 @@
 -- Seed Data: Places and Questions
 -- ============================================================================
 -- Initial seed data for testing and gameplay
--- Embeddings will be added in the next migration
+-- Places start with only names (like user input) - enrichment happens via scripts
+-- Questions include type and geographic regions for dual-matching system
 
 -- ============================================================================
--- SEED PLACES (20 famous landmarks)
+-- SEED PLACES (20 famous landmarks - name only)
+-- ============================================================================
+-- Enrichment (lat/lng, descriptors, embeddings) will be added by generate-places-seed.ts
+
+INSERT INTO places (name) VALUES
+  ('Eiffel Tower'),
+  ('Big Ben, London'),
+  ('Tower Bridge'),
+  ('Colosseum'),
+  ('Sagrada Familia'),
+  ('Brandenburg Gate'),
+  ('Acropolis'),
+  ('Mount Everest'),
+  ('Lake Geneva'),
+  ('Mount Fuji'),
+  ('Grand Canyon'),
+  ('Niagara Falls'),
+  ('Statue of Liberty'),
+  ('Sydney Opera House'),
+  ('Taj Mahal'),
+  ('Great Wall of China'),
+  ('Machu Picchu'),
+  ('Christ the Redeemer'),
+  ('Burj Khalifa'),
+  ('Pyramids of Giza');
+
+-- ============================================================================
+-- SEED QUESTIONS
 -- ============================================================================
 
-INSERT INTO places (name, lat, lng, descriptors) VALUES
-  ('Eiffel Tower', 48.8584, 2.2945, '{"country_code":"fr","type":"tower","class":"tourism","address":{"city":"Paris","country":"France"},"continent":"europe"}'::jsonb),
-  ('Big Ben', 51.5007, -0.1246, '{"country_code":"gb","type":"tower","class":"tourism","address":{"city":"London","country":"United Kingdom"},"continent":"europe","is_capital_city":true}'::jsonb),
-  ('Tower Bridge', 51.5055, -0.0754, '{"country_code":"gb","type":"bridge","class":"tourism","address":{"city":"London","country":"United Kingdom"},"continent":"europe","is_capital_city":true}'::jsonb),
-  ('Colosseum', 41.8902, 12.4922, '{"country_code":"it","type":"monument","class":"tourism","address":{"city":"Rome","country":"Italy"},"continent":"europe","is_capital_city":true}'::jsonb),
-  ('Sagrada Familia', 41.4036, 2.1744, '{"country_code":"es","type":"place_of_worship","class":"tourism","address":{"city":"Barcelona","country":"Spain"},"continent":"europe"}'::jsonb),
-  ('Brandenburg Gate', 52.5163, 13.3777, '{"country_code":"de","type":"monument","class":"tourism","address":{"city":"Berlin","country":"Germany"},"continent":"europe","is_capital_city":true}'::jsonb),
-  ('Acropolis', 37.9715, 23.7267, '{"country_code":"gr","type":"monument","class":"tourism","address":{"city":"Athens","country":"Greece"},"continent":"europe","is_capital_city":true}'::jsonb),
-  ('Mount Everest', 27.9881, 86.9250, '{"country_code":"np","type":"peak","class":"natural","address":{"country":"Nepal"},"continent":"asia"}'::jsonb),
-  ('Lake Geneva', 46.4534, 6.5615, '{"country_code":"ch","type":"lake","class":"natural","address":{"country":"Switzerland"},"continent":"europe"}'::jsonb),
-  ('Mount Fuji', 35.3606, 138.7274, '{"country_code":"jp","type":"peak","class":"natural","address":{"country":"Japan"},"continent":"asia"}'::jsonb),
-  ('Grand Canyon', 36.1069, -112.1129, '{"country_code":"us","type":"canyon","class":"natural","address":{"state":"Arizona","country":"United States"},"continent":"north_america"}'::jsonb),
-  ('Niagara Falls', 43.0828, -79.0763, '{"country_code":"ca","type":"waterfall","class":"natural","address":{"country":"Canada"},"continent":"north_america"}'::jsonb),
-  ('Statue of Liberty', 40.6892, -74.0445, '{"country_code":"us","type":"monument","class":"tourism","address":{"city":"New York","country":"United States"},"continent":"north_america"}'::jsonb),
-  ('Sydney Opera House', -33.8568, 151.2153, '{"country_code":"au","type":"theatre","class":"tourism","address":{"city":"Sydney","country":"Australia"},"continent":"oceania"}'::jsonb),
-  ('Taj Mahal', 27.1751, 78.0421, '{"country_code":"in","type":"monument","class":"tourism","address":{"city":"Agra","country":"India"},"continent":"asia"}'::jsonb),
-  ('Great Wall of China', 40.4319, 116.5704, '{"country_code":"cn","type":"monument","class":"tourism","address":{"country":"China"},"continent":"asia"}'::jsonb),
-  ('Machu Picchu', -13.1631, -72.5450, '{"country_code":"pe","type":"monument","class":"tourism","address":{"country":"Peru"},"continent":"south_america"}'::jsonb),
-  ('Christ the Redeemer', -22.9519, -43.2105, '{"country_code":"br","type":"monument","class":"tourism","address":{"city":"Rio de Janeiro","country":"Brazil"},"continent":"south_america"}'::jsonb),
-  ('Burj Khalifa', 25.1972, 55.2744, '{"country_code":"ae","type":"tower","class":"tourism","address":{"city":"Dubai","country":"United Arab Emirates"},"continent":"asia"}'::jsonb),
-  ('Pyramids of Giza', 29.9792, 31.1342, '{"country_code":"eg","type":"monument","class":"tourism","address":{"city":"Cairo","country":"Egypt"},"continent":"africa","is_capital_city":true}'::jsonb);
+-- ----------------------------------------------------------------------------
+-- GEOGRAPHIC QUESTIONS (PostGIS spatial filtering with bounding boxes)
+-- ----------------------------------------------------------------------------
 
--- ============================================================================
--- SEED QUESTIONS (20 strategic questions)
--- ============================================================================
+-- Continents
+INSERT INTO questions (text, question_type, geographic_region) VALUES
+  ('Is it in Europe?', 'geographic', '{"bbox": [-10, 36, 40, 71]}'),
+  ('Is it in Asia?', 'geographic', '{"bbox": [26, -10, 180, 77]}'),
+  ('Is it in Africa?', 'geographic', '{"bbox": [-18, -35, 52, 37]}'),
+  ('Is it in North America?', 'geographic', '{"bbox": [-170, 15, -50, 72]}'),
+  ('Is it in South America?', 'geographic', '{"bbox": [-82, -56, -34, 13]}'),
+  ('Is it in Oceania?', 'geographic', '{"bbox": [110, -47, 180, -10]}');
 
-INSERT INTO questions (text, sequence, filter_type) VALUES
-  -- Continental questions
-  ('Is it in Europe?', 1, 'europe'),
-  ('Is it in Asia?', 2, 'asia'),
-  ('Is it in North America?', 3, 'north_america'),
-  ('Is it in South America?', 4, 'south_america'),
-  ('Is it in Africa?', 5, 'africa'),
-  ('Is it in Oceania?', 6, 'oceania'),
+-- Hemispheres
+INSERT INTO questions (text, question_type, geographic_region) VALUES
+  ('Is it in the Northern Hemisphere?', 'geographic', '{"bbox": [-180, 0, 180, 90]}'),
+  ('Is it in the Southern Hemisphere?', 'geographic', '{"bbox": [-180, -90, 180, 0]}'),
+  ('Is it in the Western Hemisphere?', 'geographic', '{"bbox": [-180, -90, 0, 90]}'),
+  ('Is it in the Eastern Hemisphere?', 'geographic', '{"bbox": [0, -90, 180, 90]}');
 
-  -- Feature type questions
-  ('Is it a natural feature?', 7, 'natural'),
-  ('Is it in a major city?', 8, 'city'),
-  ('Is it in a capital city?', 9, 'capital'),
-  ('Is it a bridge or tower?', 10, 'structure'),
+-- Sub-regions
+INSERT INTO questions (text, question_type, geographic_region) VALUES
+  ('Is it in the Mediterranean region?', 'geographic', '{"bbox": [-6, 30, 36, 46]}'),
+  ('Is it in the Middle East?', 'geographic', '{"bbox": [34, 12, 63, 42]}'),
+  ('Is it in Southeast Asia?', 'geographic', '{"bbox": [92, -11, 141, 28]}'),
+  ('Is it in Scandinavia?', 'geographic', '{"bbox": [4, 55, 31, 71]}'),
+  ('Is it in the Caribbean?', 'geographic', '{"bbox": [-85, 10, -60, 27]}'),
+  ('Is it in Central America?', 'geographic', '{"bbox": [-92, 7, -77, 18]}');
 
-  -- Geographic features
-  ('Is it near an ocean or sea?', 11, 'ocean'),
-  ('Is it near a river or lake?', 12, 'freshwater'),
-  ('Is it very tall (over 200 meters)?', 13, 'tall'),
+-- Climate/Latitude zones
+INSERT INTO questions (text, question_type, geographic_region) VALUES
+  ('Is it in the tropics (between the Tropics of Cancer and Capricorn)?', 'geographic', '{"bbox": [-180, -23.5, 180, 23.5]}'),
+  ('Is it in the Arctic region (above 66°N)?', 'geographic', '{"bbox": [-180, 66, 180, 90]}'),
+  ('Is it near the equator (within 10° latitude)?', 'geographic', '{"bbox": [-180, -10, 180, 10]}');
 
-  -- Historical period
-  ('Was it built in ancient times?', 14, 'ancient'),
-  ('Was it built in medieval times?', 15, 'medieval'),
-  ('Is it from the modern era (after 1800)?', 16, 'modern'),
+-- ----------------------------------------------------------------------------
+-- SEMANTIC QUESTIONS (pgvector similarity matching via embeddings)
+-- ----------------------------------------------------------------------------
+-- Embeddings will be generated by generate-questions-seed.ts
 
-  -- Characteristics
-  ('Is it a religious or spiritual site?', 17, 'religious'),
-  ('Is it made primarily of stone?', 18, 'stone'),
-  ('Is it made of metal or steel?', 19, 'metal'),
-  ('Can you climb to the top of it?', 20, 'climbable');
+-- Feature type
+INSERT INTO questions (text, question_type) VALUES
+  ('Is it a natural feature?', 'semantic'),
+  ('Is it in a major city?', 'semantic'),
+  ('Is it in a capital city?', 'semantic'),
+  ('Is it a bridge or tower?', 'semantic');
 
--- Add continent field to places (will help with filtering)
--- Note: Some places manually set in INSERT statements above
+-- Geographic features
+INSERT INTO questions (text, question_type) VALUES
+  ('Is it near an ocean or sea?', 'semantic'),
+  ('Is it near a river or lake?', 'semantic'),
+  ('Is it very tall (over 200 meters)?', 'semantic');
+
+-- Historical period
+INSERT INTO questions (text, question_type) VALUES
+  ('Was it built in ancient times?', 'semantic'),
+  ('Was it built in medieval times?', 'semantic'),
+  ('Is it from the modern era (after 1800)?', 'semantic');
+
+-- Characteristics
+INSERT INTO questions (text, question_type) VALUES
+  ('Is it a religious or spiritual site?', 'semantic'),
+  ('Is it made primarily of stone?', 'semantic'),
+  ('Is it made of metal or steel?', 'semantic'),
+  ('Can you climb to the top of it?', 'semantic');

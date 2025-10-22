@@ -1,3 +1,8 @@
+/**
+ * @deprecated This file is for documentation only.
+ * Seed data is now managed in SQL migrations (supabase/migrations/000002_seed_data.sql)
+ * Use the generate-places-seed.ts script to enrich and generate embeddings.
+ */
 export const seedPlaces = [
   {
     name: 'Eiffel Tower',

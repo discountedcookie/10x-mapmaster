@@ -1,113 +1,41 @@
 # Known Issues and Gotchas
 
-## Active Issues
-
-### Minor 406 Error During Place Lookup ⚠️ (LOW PRIORITY)
-
-**Status**: Cosmetic issue, non-blocking
-
-**Symptoms**:
-- Console shows 406 (Not Acceptable) error during `checkPlaceExists` query
-- Place saving completes successfully despite error
-- User experience unaffected
-
-**Root Cause** (suspected): PostgREST accept header mismatch or RLS policy evaluation quirk
-
-**Impact**: Purely cosmetic console error
-
----
-
-### Nominatim Rate Limiting ✅ (ACCEPTABLE FOR MVP)
-
-**Note**: OpenStreetMap Nominatim API has 1 request/second rate limit.
-
-**Current Implementation**: 
-- PlaceSearch component debounces input (500ms)
-- Works well for manual typing
-- Client respects rate limits
-
-**Status**: Acceptable for MVP
-
----
-
-### Client-Side Only Rate Limiting ⚠️ (PRODUCTION TODO)
-
-**Current State**: Rate limiting implemented client-side only (2s cooldown, 50 requests/session)
-
-**Risk**: Determined users could bypass by:
-- Opening multiple tabs
-- Clearing browser storage
-- Using developer tools
-
-**Recommendation**: Add server-side rate limiting to Edge Function before production deployment.
-
-**Implementation**: 
-- Track requests by IP or user ID
-- Return 429 status when limit exceeded
-- Client already handles 429 gracefully
-
----
-
-## Resolved Issues (Fixed)
-
-### ✅ TypeScript TS2589 Type Recursion (FIXED)
-
-**Issue**: `Type instantiation is excessively deep and possibly infinite` in game.ts
-
-**Cause**: Supabase `Json` type recursion when TypeScript infers complex array types
-
-**Fix**: 
-- Changed `ref<PlaceWithScore[]>([])` to `ref([] as PlaceWithScore[])`
-- Changed `ref<Array<{ ... }>>([])` to `ref([] as Array<{ ... }>)`
-- Used manual loop instead of `.map()` to avoid type inference
-
-**Files**: src/stores/game.ts
-
----
-
-### ✅ PostgreSQL Type Mismatch in Spatial Confidence (FIXED)
-
-**Issue**: SQL error 42804 - `numeric` vs `double precision` mismatch
-
-**Fix**: Migration `20251021000002_fix_spatial_confidence_types.sql` - cast all arithmetic to `::double precision`
-
----
-
-### ✅ Missing PostGIS Geometry Auto-Population (FIXED)
-
-**Issue**: New places saved without `geom`, excluded from searches
-
-**Fix**: Migration `20251021000003_auto_update_geom.sql` - trigger auto-syncs geom with lat/lng
-
----
-
-### ✅ Learning System RLS Policies (FIXED)
-
-**Issue**: 406/400 errors when updating questions table
-
-**Fix**: Migration `20251001000006_fix_question_updates.sql` - added UPDATE policy for authenticated users
-
----
-
-## Gotchas
-
-### Database Reset Removes Auth Users
-
-**Behavior**: `npx supabase db reset` clears ALL data including auth.users
-
-**Solution**: 
-- Sign out after reset: `authStore.signOut()`  
-- Or clear storage: `localStorage.clear()`
-- Or create new test account
-
----
-
-### Seed Embeddings After Reset
-
-**Required**: After `npx supabase db reset`, run embedding generation:
-
+## Database Reset and Embeddings
+After running `npx supabase db reset`, places and questions will have NULL embeddings and NULL geom fields. You must run the seed scripts to generate this data:
 ```bash
-set -a && source .env.local && set +a && npm run seed:embeddings:hybrid
+npm run seed:places
+npm run seed:questions
 ```
 
-**Why**: Migration 20251001000005 is just a placeholder
+## Question Selection Logic (UPDATED - October 22, 2025)
+**Intelligent Question Filtering**: The system uses a database function `get_next_questions()` to avoid asking redundant questions. 
+
+**How it works**:
+- After each answer, the frontend calls `get_next_questions(question_history, max_questions)` 
+- The database function uses PostGIS `ST_Intersects()` to check if geographic bounding boxes overlap
+- If you answer YES to "Is it in Europe?", the system only shows:
+  - Geographic questions whose bboxes overlap with Europe (e.g., Mediterranean, Scandinavia)
+  - All semantic questions (not geography-based)
+  - Skips non-overlapping continents (Asia, Africa, South America, Oceania)
+
+**Important**: Question groups are NOT hardcoded in frontend. They're determined by the database based on `question_type` and `geographic_region` fields in the `questions` table.
+
+## Geographic Filtering (FIXED - October 22, 2025)
+**Issue**: After answering "yes" to "Is it in Europe?", the game still showed Christ the Redeemer (South America) as a candidate.
+
+**Fix**: Updated `filter_candidates_with_history` to use PostGIS bounding box filtering instead of checking for a non-existent `continent` field. Geographic questions are defined with bounding boxes, and the function uses `ST_Within()` to check if places fall within the geographic region.
+
+## Spatial Filtering in match_places (FIXED - October 22, 2025)  
+**Issue**: The `match_places` function was returning 0 candidates even when semantic matches existed.
+
+**Fix**: Removed the overly aggressive spatial distance filter. All semantic matches above the threshold are now returned. Spatial confidence affects the composite score but doesn't eliminate candidates.
+
+## Environment Variables for Seed Scripts
+The seed scripts require:
+- `VITE_SUPABASE_URL` - Local Supabase URL
+- `VITE_SUPABASE_SERVICE_KEY` - Service role key (for local DB writes)
+- `VITE_SUPABASE_FUNCTIONS_URL_PROD` - Production edge function URL (for embedding generation)
+- `VITE_SUPABASE_ANON_KEY_PROD` - Production anon key
+
+## E2E Tests Disabled in CI
+Playwright E2E tests pass locally but are flaky in CI. The job is commented out in `.github/workflows/ci.yml` (lines 94-147). Run locally with `npm run test:e2e`.

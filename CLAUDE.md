@@ -72,17 +72,19 @@ mcp__serena__replace_symbol_body({
 
 **Migrations (in order):**
 1. `000001_initial_schema.sql` - Schema, extensions, RLS, triggers
-2. `000002_seed_data.sql` - 20 places + 20 questions
-3. `000003_seed_embeddings.sql` - **Generated** embeddings (committed)
-4. `000004_database_functions.sql` - Search/filter functions
+2. `000002_seed_data.sql` - Places (names only) + Questions (with types/regions)
+3. `000003_database_functions.sql` - Search/filter functions
 
 **Daily:** `npx supabase db reset`
-**When updating seed data:**
-1. Edit `000002_seed_data.sql`
-2. Run `npm run generate:seed-migration`
-3. Commit `000003_seed_embeddings.sql`
+**After reset (to enrich seed data):**
+1. Run `npm run seed:places` - Enriches places via Nominatim/APIs + generates embeddings
+2. Run `npm run seed:questions` - Generates embeddings for semantic questions
 
-**Why:** Embeddings stored in migrations = fast resets, no API calls, version control
+**When updating seed data:**
+1. Edit `000002_seed_data.sql` (places: names only; questions: text + type + region)
+2. Reset database and run seed scripts
+
+**Why:** Places start with just names (like user input), enrichment via scripts mirrors production flow
 
 ## 🌍 External Integrations
 

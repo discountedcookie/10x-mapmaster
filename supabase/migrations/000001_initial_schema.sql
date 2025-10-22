@@ -22,9 +22,9 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE places (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  lat DOUBLE PRECISION NOT NULL,
-  lng DOUBLE PRECISION NOT NULL,
-  geom geometry(Point, 4326),  -- PostGIS point geometry for spatial queries
+  lat DOUBLE PRECISION,  -- NULL until enriched via script or user submission
+  lng DOUBLE PRECISION,  -- NULL until enriched via script or user submission
+  geom geometry(Point, 4326),  -- PostGIS point geometry for spatial queries (auto-synced from lat/lng)
   descriptors JSONB NOT NULL DEFAULT '{}'::jsonb,
   embedding vector(384),  -- gte-small embeddings (384 dimensions)
   game_count INTEGER NOT NULL DEFAULT 0,
@@ -36,9 +36,9 @@ CREATE TABLE places (
 CREATE TABLE questions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   text TEXT NOT NULL,
-  sequence INTEGER NOT NULL UNIQUE,
-  filter_type TEXT NOT NULL,
-  embedding vector(384),  -- gte-small embeddings (384 dimensions)
+  question_type TEXT NOT NULL DEFAULT 'semantic' CHECK (question_type IN ('geographic', 'semantic')),
+  geographic_region JSONB,  -- For geographic questions: bbox array [min_lng, min_lat, max_lng, max_lat]
+  embedding vector(384),  -- gte-small embeddings (384 dimensions) - for semantic questions only
   times_asked INTEGER NOT NULL DEFAULT 0,
   effectiveness_score DOUBLE PRECISION NOT NULL DEFAULT 0.5,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -48,8 +48,8 @@ CREATE TABLE questions (
 CREATE TABLE game_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  place_id UUID NOT NULL REFERENCES places(id) ON DELETE CASCADE,
-  was_correct BOOLEAN NOT NULL,
+  place_id UUID REFERENCES places(id) ON DELETE CASCADE, -- Nullable: set at game end
+  was_correct BOOLEAN, -- Nullable: set at game end
   description TEXT,
   description_embedding vector(384),
   question_count INTEGER NOT NULL DEFAULT 0,
@@ -81,7 +81,6 @@ CREATE INDEX questions_embedding_idx ON questions USING hnsw (embedding vector_c
 
 -- Game and learning indexes
 CREATE INDEX idx_places_game_count ON places(game_count);
-CREATE INDEX idx_questions_sequence ON questions(sequence);
 CREATE INDEX idx_questions_effectiveness ON questions(effectiveness_score DESC);
 
 -- Session and answer indexes
@@ -175,7 +174,12 @@ CREATE TRIGGER update_places_updated_at
 CREATE OR REPLACE FUNCTION update_geom_from_latlng()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.geom = ST_SetSRID(ST_MakePoint(NEW.lng, NEW.lat), 4326);
+  -- Only create geometry if both lat and lng are present
+  IF NEW.lat IS NOT NULL AND NEW.lng IS NOT NULL THEN
+    NEW.geom = ST_SetSRID(ST_MakePoint(NEW.lng, NEW.lat), 4326);
+  ELSE
+    NEW.geom = NULL;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -191,11 +195,14 @@ CREATE TRIGGER sync_place_geom
 -- ============================================================================
 
 COMMENT ON TABLE places IS 'Geographic locations with embeddings and descriptors for vector similarity search';
-COMMENT ON TABLE questions IS 'Strategic yes/no questions ordered by effectiveness for the guessing game';
+COMMENT ON TABLE questions IS 'Strategic yes/no questions for the guessing game. Geographic questions use PostGIS spatial queries, semantic questions use pgvector similarity matching.';
 COMMENT ON TABLE game_sessions IS 'Player game sessions tracking descriptions and outcomes';
 COMMENT ON TABLE game_answers IS 'Individual question-answer pairs during gameplay';
 
 COMMENT ON COLUMN places.geom IS 'Geographic point for spatial queries. Automatically synced with lat/lng.';
 COMMENT ON COLUMN places.embedding IS 'Vector embedding (gte-small, 384 dimensions) for semantic similarity search';
 COMMENT ON COLUMN places.game_count IS 'Number of times this place has been played, used for learning rate calculation';
+COMMENT ON COLUMN questions.question_type IS 'Type of filtering: geographic (PostGIS spatial) or semantic (pgvector similarity)';
+COMMENT ON COLUMN questions.geographic_region IS 'For geographic questions: JSONB with bbox array [min_lng, min_lat, max_lng, max_lat]';
+COMMENT ON COLUMN questions.embedding IS 'Vector embeddings for semantic questions only. Geographic questions use PostGIS and do not need embeddings.';
 COMMENT ON COLUMN questions.effectiveness_score IS 'Effectiveness metric for question selection (0.0-1.0), updated through gameplay';

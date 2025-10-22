@@ -71,6 +71,8 @@ BEGIN
   END IF;
 
   -- Return candidates with confidence scores
+  -- Don't filter by spatial distance - let all semantic matches through
+  -- Spatial confidence affects the score but doesn't eliminate candidates
   RETURN QUERY
   SELECT
     tc.id,
@@ -83,10 +85,6 @@ BEGIN
     spatial_score as spatial_confidence,
     (tc.sem_similarity * 0.6 + spatial_score * 0.4) as composite_confidence
   FROM temp_candidates tc
-  WHERE
-    -- Keep if close to centroid OR very high semantic match
-    ST_Distance(tc.geom::geography, centroid_geom::geography) <= 500000
-    OR tc.sem_similarity >= 0.85
   ORDER BY (tc.sem_similarity * 0.6 + spatial_score * 0.4) DESC;
 
   -- Cleanup
@@ -97,39 +95,121 @@ $$;
 COMMENT ON FUNCTION match_places IS
 'Enhanced vector similarity search with PostGIS spatial clustering analysis.
 Returns candidates with semantic_similarity, spatial_confidence (based on geographic clustering),
-and composite_confidence (weighted combination). Filters geographic outliers unless semantic match is very high.';
+and composite_confidence (weighted combination).';
 
--- Match questions using vector similarity
-CREATE OR REPLACE FUNCTION match_questions(
-  query_embedding vector(384),
-  match_count int DEFAULT 10
+-- ============================================================================
+-- QUESTION MATCHING
+-- ============================================================================
+
+-- Get next question for a game session
+CREATE OR REPLACE FUNCTION get_next_question(
+  session_id_param UUID,
+  match_count INT DEFAULT 10
 )
 RETURNS TABLE (
   id uuid,
   text text,
+  question_type text,
+  geographic_region jsonb,
   times_asked int,
   effectiveness_score double precision,
-  similarity float
+  semantic_similarity float
 )
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  description_embedding vector(384);
+  answered_yes_bbox geometry;
+  answered_q_type TEXT;
+  answered_q_region JSONB;
 BEGIN
+  -- Get the description embedding from the game session
+  SELECT gs.description_embedding INTO description_embedding
+  FROM game_sessions gs
+  WHERE gs.id = session_id_param;
+  
+  IF description_embedding IS NULL THEN
+    RAISE EXCEPTION 'Session % not found or has no description embedding', session_id_param;
+  END IF;
+  
+  -- Find if there's a geographic question answered YES in this session
+  SELECT q.question_type, q.geographic_region
+  INTO answered_q_type, answered_q_region
+  FROM game_answers ga
+  JOIN questions q ON q.id = ga.question_id
+  WHERE ga.session_id = session_id_param
+    AND ga.answer = TRUE
+    AND q.question_type = 'geographic'
+    AND q.geographic_region IS NOT NULL
+  ORDER BY ga.sequence_number ASC
+  LIMIT 1;
+  
+  -- If a geographic question was answered YES, create its bbox for filtering
+  IF answered_q_type = 'geographic' AND answered_q_region IS NOT NULL THEN
+    answered_yes_bbox := ST_MakeEnvelope(
+      (answered_q_region->'bbox'->0)::text::float,
+      (answered_q_region->'bbox'->1)::text::float,
+      (answered_q_region->'bbox'->2)::text::float,
+      (answered_q_region->'bbox'->3)::text::float,
+      4326
+    );
+  END IF;
+  
+  -- Return questions matched by context, filtered by answer history and geographic constraints
   RETURN QUERY
-  SELECT
-    questions.id,
-    questions.text,
-    questions.times_asked,
-    questions.effectiveness_score,
-    1 - (questions.embedding <=> query_embedding) as similarity
-  FROM questions
-  WHERE questions.embedding IS NOT NULL
-  ORDER BY questions.effectiveness_score DESC, questions.embedding <=> query_embedding
+  SELECT 
+    q.id,
+    q.text,
+    q.question_type,
+    q.geographic_region,
+    q.times_asked,
+    q.effectiveness_score,
+    -- Semantic similarity only for questions with embeddings
+    CASE 
+      WHEN q.embedding IS NOT NULL THEN 1 - (q.embedding <=> description_embedding)
+      ELSE 0.0
+    END as semantic_similarity
+  FROM questions q
+  WHERE 
+    -- Exclude already answered questions in this session
+    q.id NOT IN (
+      SELECT question_id FROM game_answers WHERE session_id = session_id_param
+    )
+    AND (
+      -- Include all non-geographic questions that have embeddings
+      (q.question_type != 'geographic' AND q.embedding IS NOT NULL)
+      OR
+      -- Include geographic questions based on bbox logic
+      (q.question_type = 'geographic' AND (
+        -- Include if no YES geographic answer yet (all geographic questions valid)
+        answered_yes_bbox IS NULL
+        OR
+        -- Or if their bbox overlaps with the YES answer bbox
+        (q.geographic_region IS NOT NULL AND ST_Intersects(
+          answered_yes_bbox,
+          ST_MakeEnvelope(
+            (q.geographic_region->'bbox'->0)::text::float,
+            (q.geographic_region->'bbox'->1)::text::float,
+            (q.geographic_region->'bbox'->2)::text::float,
+            (q.geographic_region->'bbox'->3)::text::float,
+            4326
+          )
+        ))
+      ))
+    )
+  ORDER BY 
+    q.effectiveness_score DESC,
+    semantic_similarity DESC,
+    q.times_asked ASC
   LIMIT match_count;
 END;
 $$;
 
-COMMENT ON FUNCTION match_questions IS
-'Vector similarity search for questions ordered by effectiveness score.';
+COMMENT ON FUNCTION get_next_question IS
+'Returns next questions for a game session based on full session context.
+Queries description_embedding from game_sessions and answer history from game_answers.
+Semantic questions ranked by similarity to description. Geographic questions filtered spatially.
+Takes only session_id - all context derived from database state.';
 
 -- ============================================================================
 -- FILTERING FUNCTIONS
@@ -156,7 +236,9 @@ DECLARE
   question_item JSONB;
   question_text TEXT;
   user_answer BOOLEAN;
-  continent_filter TEXT;
+  question_record RECORD;
+  bbox JSONB;
+  bbox_geom geometry;
   centroid_geom geometry;
   max_distance float;
   spatial_score float;
@@ -173,31 +255,33 @@ BEGIN
     question_text := question_item->>'question';
     user_answer := (question_item->>'answer')::boolean;
 
-    -- Geographic filtering (continents)
-    IF question_text = 'Is it in Europe?' THEN
-      continent_filter := 'europe';
-    ELSIF question_text = 'Is it in Asia?' THEN
-      continent_filter := 'asia';
-    ELSIF question_text = 'Is it in North America?' THEN
-      continent_filter := 'north_america';
-    ELSIF question_text = 'Is it in South America?' THEN
-      continent_filter := 'south_america';
-    ELSIF question_text = 'Is it in Africa?' THEN
-      continent_filter := 'africa';
-    ELSIF question_text = 'Is it in Oceania?' THEN
-      continent_filter := 'oceania';
-    ELSE
-      continent_filter := NULL;
-    END IF;
+    -- Check if this is a geographic question with a bounding box
+    SELECT question_type, geographic_region INTO question_record
+    FROM questions
+    WHERE text = question_text
+    LIMIT 1;
 
-    IF continent_filter IS NOT NULL THEN
+    -- Geographic filtering using PostGIS bounding boxes
+    IF question_record.question_type = 'geographic' AND question_record.geographic_region IS NOT NULL THEN
+      bbox := question_record.geographic_region;
+      
+      -- Extract bbox coordinates: bbox->'bbox' is an array [min_lng, min_lat, max_lng, max_lat]
+      bbox_geom := ST_MakeEnvelope(
+        (bbox->'bbox'->0)::text::float,  -- min_lng
+        (bbox->'bbox'->1)::text::float,  -- min_lat
+        (bbox->'bbox'->2)::text::float,  -- max_lng
+        (bbox->'bbox'->3)::text::float,  -- max_lat
+        4326  -- WGS84
+      );
+      
+      -- Filter candidates based on whether they're in the bounding box
       DELETE FROM filtered_candidates fc
       WHERE NOT (
-        (user_answer = TRUE AND fc.descriptors->>'continent' = continent_filter)
+        (user_answer = TRUE AND ST_Within(fc.geom, bbox_geom))
         OR
-        (user_answer = FALSE AND fc.descriptors->>'continent' != continent_filter)
+        (user_answer = FALSE AND NOT ST_Within(fc.geom, bbox_geom))
       );
-      continent_filter := NULL;
+      
       CONTINUE;
     END IF;
 
