@@ -87,46 +87,47 @@ const bounds = computed(() => {
 </script>
 
 <template>
-  <MglMap
-    :map-style="mapStyle"
-    :center="mapCenter"
-    :zoom="mapZoom"
-    :bounds="bounds"
-    class="!absolute inset-0"
-  >
-    <MglMarker
-      v-for="marker in markers"
-      :key="marker.id"
-      :coordinates="marker.coordinates"
+  <div class="absolute inset-0">
+    <MglMap
+      :map-style="mapStyle"
+      :center="mapCenter"
+      :zoom="mapZoom"
+      :bounds="bounds"
     >
-      <template #marker>
-        <div
-          class="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform"
-          :style="{ backgroundColor: marker.backgroundColor, opacity: marker.opacity }"
-          role="button"
-          :aria-label="`View ${marker.name}${marker.similarity ? ` - ${Math.round(marker.similarity * 100)}% match` : ''}`"
-        />
-      </template>
+      <MglMarker
+        v-for="marker in markers"
+        :key="marker.id"
+        :coordinates="marker.coordinates"
+      >
+        <template #marker>
+          <div
+            class="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform"
+            :style="{ backgroundColor: marker.backgroundColor, opacity: marker.opacity }"
+            role="button"
+            :aria-label="`View ${marker.name}${marker.similarity ? ` - ${Math.round(marker.similarity * 100)}% match` : ''}`"
+          />
+        </template>
 
-      <MglPopup :close-button="false">
-        <div
-          class="rounded-lg shadow-lg p-3 border bg-card text-card-foreground"
-        >
-          <strong>{{ marker.name }}</strong>
+        <MglPopup :close-button="false">
           <div
-            v-if="marker.similarity !== undefined"
-            class="text-xs mt-1"
+            class="rounded-lg shadow-lg p-3 border bg-card text-card-foreground"
           >
-            Match: {{ Math.round(marker.similarity * 100) }}%
+            <strong>{{ marker.name }}</strong>
+            <div
+              v-if="marker.similarity !== undefined"
+              class="text-xs mt-1"
+            >
+              Match: {{ Math.round(marker.similarity * 100) }}%
+            </div>
+            <div
+              v-else-if="marker.game_count && marker.game_count > 0"
+              class="text-xs mt-1"
+            >
+              Played {{ marker.game_count }} time{{ marker.game_count === 1 ? '' : 's' }}
+            </div>
           </div>
-          <div
-            v-else-if="marker.game_count && marker.game_count > 0"
-            class="text-xs mt-1"
-          >
-            Played {{ marker.game_count }} time{{ marker.game_count === 1 ? '' : 's' }}
-          </div>
-        </div>
-      </MglPopup>
-    </MglMarker>
-  </MglMap>
+        </MglPopup>
+      </MglMarker>
+    </MglMap>
+  </div>
 </template>

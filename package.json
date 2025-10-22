@@ -20,9 +20,8 @@
     "lint": "run-s lint:*",
     "supabase:types": "supabase gen types --lang=typescript --local > src/types/database.ts",
     "supabase:types:remote": "supabase gen types --lang=typescript --linked > src/types/database.ts",
-    "generate:seed-migration": "tsx scripts/generate-seed-embeddings-hybrid.ts",
-    "enrich:descriptors": "tsx scripts/enrich-and-generate-descriptors.ts",
-    "generate:embeddings": "tsx scripts/generate-all-embeddings.ts"
+    "seed:places": "tsx scripts/generate-places-seed.ts",
+    "seed:questions": "tsx scripts/generate-questions-seed.ts"
   },
   "dependencies": {
     "@indoorequal/vue-maplibre-gl": "^8.4.2",

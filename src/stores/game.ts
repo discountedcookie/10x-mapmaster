@@ -37,6 +37,7 @@ export const useGameStore = defineStore('game', () => {
   const { generateEmbedding, embeddingToString } = useEmbeddings()
 
   // State
+  const gameSessionId = ref<string | null>(null) // Session ID created at game start
   const userDescription = ref('')
   const descriptionEmbedding = ref<number[] | null>(null)
   const questions = ref<Question[]>([])
@@ -92,30 +93,31 @@ export const useGameStore = defineStore('game', () => {
   })
 
   /**
-   * Load questions ordered by effectiveness score
+   * Load questions for current session using database context
    */
-  async function loadQuestions() {
+  async function loadQuestionsForSession() {
+    if (!gameSessionId.value) {
+      console.error('Cannot load questions: no session ID')
+      return
+    }
+
     try {
-      loading.value = true
-      error.value = undefined
+      const { data, error: rpcError } = await supabase.rpc('get_next_question' as any, {
+        session_id_param: gameSessionId.value,
+        match_count: MAX_QUESTIONS,
+      }) as { data: Question[] | null; error: any }
 
-      const { data, error: fetchError } = await supabase
-        .from('questions')
-        .select('*')
-        .order('effectiveness_score', { ascending: false })
-        .limit(MAX_QUESTIONS)
-
-      if (fetchError)
-        throw fetchError
+      if (rpcError) {
+        console.error('Error loading questions:', rpcError)
+        throw rpcError
+      }
 
       questions.value = data || []
+      currentQuestionIndex.value = 0
     }
     catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load questions'
       throw err
-    }
-    finally {
-      loading.value = false
     }
   }
 
@@ -217,15 +219,35 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * Answer current question and move to next
+   * Answer current question - saves to database and reloads questions
    */
   async function answerQuestion(answer: boolean) {
-    if (!currentQuestion.value)
+    if (!currentQuestion.value || !gameSessionId.value)
       return
 
     const { candidatesBefore, candidatesAfter } = await refineCandidates(answer)
 
-    // Record answer
+    // Save answer to database IMMEDIATELY
+    try {
+      const { error: answerError } = await supabase
+        .from('game_answers')
+        .insert({
+          session_id: gameSessionId.value,
+          question_id: currentQuestion.value.id,
+          answer,
+          candidates_after: candidatesAfter,
+          sequence_number: answers.value.length + 1,
+        })
+
+      if (answerError) {
+        console.error('Error saving answer:', answerError)
+      }
+    }
+    catch (err) {
+      console.error('Error in answerQuestion:', err)
+    }
+
+    // Record answer locally
     answers.value.push({
       questionId: currentQuestion.value.id,
       answer,
@@ -233,11 +255,9 @@ export const useGameStore = defineStore('game', () => {
       candidatesBefore,
     })
 
-    // Increment times_asked for this question
-    incrementQuestionAsked(currentQuestion.value.id)
-
-    // Move to next question
-    currentQuestionIndex.value++
+    // Reload questions from database using session context
+    // (Database automatically filters based on answered questions in this session)
+    await loadQuestionsForSession()
 
     // Clear the mustAskQuestion flag since we've now asked a question
     mustAskQuestion.value = false
@@ -248,31 +268,6 @@ export const useGameStore = defineStore('game', () => {
     }
     else if (isGameComplete.value) {
       gameResult.value = null
-    }
-  }
-
-  /**
-   * Increment times_asked counter for a question
-   */
-  async function incrementQuestionAsked(questionId: string) {
-    try {
-      // Fetch current count, increment, and update
-      const { data: question } = await supabase
-        .from('questions')
-        .select('times_asked')
-        .eq('id', questionId)
-        .single()
-
-      if (question) {
-        await supabase
-          .from('questions')
-          .update({ times_asked: question.times_asked + 1 })
-          .eq('id', questionId)
-      }
-    }
-    catch (err) {
-      console.error('Failed to increment question asked count:', err)
-      // Non-critical error, don't throw
     }
   }
 
@@ -317,55 +312,38 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * Save game session with learning updates
+   * Finalize game session with results and learning updates
    */
-  async function saveGameSession(actualPlace: Place, wasCorrect: boolean, isNewPlace = false) {
+  async function finalizeGameSession(actualPlace: Place, wasCorrect: boolean, isNewPlace = false) {
     if (!authStore.user)
       throw new Error('User must be authenticated to save game')
 
     if (!descriptionEmbedding.value)
       throw new Error('Description embedding is required')
 
+    if (!gameSessionId.value)
+      throw new Error('No active game session')
+
     try {
       loading.value = true
       error.value = undefined
 
-      // Create game session
-      const { data: sessionData, error: sessionError } = await supabase
+      // Update existing game session with final results
+      const { error: sessionError } = await supabase
         .from('game_sessions')
-        .insert({
-          user_id: authStore.user.id,
+        .update({
           place_id: actualPlace.id,
           was_correct: wasCorrect,
-          description: userDescription.value,
-          description_embedding: embeddingToString(descriptionEmbedding.value),
           question_count: answers.value.length,
         })
-        .select()
-        .single()
+        .eq('id', gameSessionId.value)
 
       if (sessionError)
         throw sessionError
 
-      // Save all answers
-      const answersToInsert = answers.value.map((answer, index) => ({
-        session_id: sessionData.id,
-        question_id: answer.questionId,
-        answer: answer.answer,
-        candidates_after: answer.candidatesAfter,
-        sequence_number: index + 1,
-      }))
-
-      const { error: answersError } = await supabase
-        .from('game_answers')
-        .insert(answersToInsert)
-
-      if (answersError)
-        throw answersError
-
       // Learning: Update place embedding with new description (only if place already existed)
       // For new places, the embedding was already set during creation with saveNewPlace()
-      if (!isNewPlace && actualPlace.embedding) {
+      if (!isNewPlace && actualPlace.embedding && descriptionEmbedding.value) {
         await updatePlaceEmbedding(actualPlace.id, descriptionEmbedding.value)
       }
 
@@ -379,7 +357,7 @@ export const useGameStore = defineStore('game', () => {
       }
     }
     catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to save game session'
+      error.value = err instanceof Error ? err.message : 'Failed to finalize game session'
       throw err
     }
     finally {
@@ -500,6 +478,7 @@ export const useGameStore = defineStore('game', () => {
    * Reset game state
    */
   function resetGame() {
+    gameSessionId.value = null
     userDescription.value = ''
     descriptionEmbedding.value = null
     currentQuestionIndex.value = 0
@@ -512,9 +491,12 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * Start new game with user description
+   * Start new game with user description - creates session upfront
    */
   async function startNewGame(description: string) {
+    if (!authStore.user)
+      throw new Error('User must be authenticated to start game')
+
     try {
       loading.value = true
       error.value = undefined
@@ -531,11 +513,30 @@ export const useGameStore = defineStore('game', () => {
       const embedding = await generateEmbedding(description)
       descriptionEmbedding.value = embedding
 
+      // Create game session IMMEDIATELY
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('game_sessions')
+        .insert({
+          user_id: authStore.user.id,
+          description: description,
+          description_embedding: embeddingToString(embedding),
+          place_id: null, // Will be set when game ends
+          was_correct: null, // Will be set when game ends
+          question_count: 0,
+        })
+        .select()
+        .single()
+
+      if (sessionError)
+        throw sessionError
+
+      gameSessionId.value = sessionData.id
+
       // Find candidates using vector similarity
       await findCandidatesByEmbedding(embedding)
 
-      // Load questions
-      await loadQuestions()
+      // Load questions using session context
+      await loadQuestionsForSession()
 
       // Check if we have high confidence right away
       const firstCandidate = candidates.value[0]
@@ -555,6 +556,7 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     // State
+    gameSessionId,
     userDescription,
     descriptionEmbedding,
     questions,
@@ -576,7 +578,7 @@ export const useGameStore = defineStore('game', () => {
     // Actions
     answerQuestion,
     rejectGuessAndContinue,
-    saveGameSession,
+    finalizeGameSession,
     checkPlaceExists,
     saveNewPlace,
     resetGame,

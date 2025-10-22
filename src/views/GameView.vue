@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
-const { extractDescriptors } = useNominatim()
+const { extractDescriptors, enrichDescriptors } = useNominatim()
 
 const showPlaceSearch = ref(false)
 const gameStarted = ref(false)
@@ -76,7 +76,7 @@ async function handleCorrectGuess() {
   try {
     saving.value = true
     // Cast to remove type recursion issues
-    await gameStore.saveGameSession(result as any, true)
+    await gameStore.finalizeGameSession(result as any, true)
     toast.success('Game saved!', {
       description: 'Great job! Your game has been recorded.',
     })
@@ -119,16 +119,20 @@ async function handlePlaceSelect(nominatimPlace: NominatimPlace) {
     // If not, create it
     if (!place) {
       const descriptors = extractDescriptors(nominatimPlace)
+
+      // Enrich descriptors with elevation/height data
+      const enrichedDescriptors = await enrichDescriptors(lat, lng, descriptors)
+
       place = await gameStore.saveNewPlace(
         nominatimPlace.display_name,
         lat,
         lng,
-        descriptors,
+        enrichedDescriptors,
       )
     }
 
     // Save game session (pass isNewPlace to skip redundant embedding update)
-    await gameStore.saveGameSession(place, false, isNewPlace)
+    await gameStore.finalizeGameSession(place, false, isNewPlace)
     toast.success('Place saved!', {
       description: 'Thanks! We\'ve added this place for future games.',
     })

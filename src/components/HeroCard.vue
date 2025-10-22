@@ -19,7 +19,10 @@ const handleGetStarted = () => {
 </script>
 
 <template>
-  <Card class="w-full max-w-md animate-slide-up-fade" style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);">
+  <Card
+    class="w-full max-w-md animate-slide-up-fade"
+    style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
+  >
     <CardHeader class="bg-gradient-playful text-white rounded-t-xl">
       <CardTitle class="text-4xl font-bold flex items-center gap-3">
         <Icon

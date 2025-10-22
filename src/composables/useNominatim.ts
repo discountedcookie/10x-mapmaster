@@ -1,55 +1,20 @@
 import { ref } from 'vue'
-import * as Nominatim from 'nominatim-ts'
+import { searchPlaces, extractDescriptors, type NominatimPlace } from '@/lib/places'
 
-// Simplified type to avoid deep instantiation issues with nominatim-ts
-export interface NominatimPlace {
-  place_id: string | number
-  display_name: string
-  lat: string
-  lon: string
-  type: string
-  class: string
-  address?: Record<string, any>
-  extratags?: Record<string, any>
-}
-
-// Rate limiting: 1 request per second
-let lastRequestTime = 0
-const MIN_REQUEST_INTERVAL = 1000
-
-async function waitForRateLimit() {
-  const now = Date.now()
-  const timeSinceLastRequest = now - lastRequestTime
-  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest))
-  }
-  lastRequestTime = Date.now()
-}
+// Re-export the type for backwards compatibility
+export type { NominatimPlace }
 
 export function useNominatim() {
   const loading = ref(false)
   const error = ref<string | undefined>(undefined)
 
   async function search(query: string): Promise<NominatimPlace[]> {
-    if (!query.trim()) {
-      return []
-    }
-
     try {
       loading.value = true
       error.value = undefined
 
-      await waitForRateLimit()
-
-      const results = await Nominatim.search({
-        q: query,
-        format: 'json',
-        addressdetails: 1,
-        extratags: 1,
-        limit: 5,
-      })
-
-      return results as NominatimPlace[]
+      const results = await searchPlaces(query, { limit: 5 })
+      return results
     }
     catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to search places'
@@ -60,13 +25,36 @@ export function useNominatim() {
     }
   }
 
-  function extractDescriptors(place: NominatimPlace): Record<string, any> {
-    return {
-      country_code: place.address?.country_code,
-      type: place.type,
-      class: place.class,
-      address: place.address,
-      extratags: place.extratags,
+  /**
+   * Enriches place descriptors with elevation and height data
+   * Call this before saving a new place to the database
+   */
+  async function enrichDescriptors(
+    lat: number,
+    lng: number,
+    descriptors: Record<string, any>
+  ): Promise<Record<string, any>> {
+    try {
+      // Dynamically import enrichment modules (browser-compatible)
+      const { enrichWithElevation, enrichWithHeight } = await import('@/lib/places')
+      
+      // Enrich with elevation (natural features)
+      const elevation = await enrichWithElevation(lat, lng, descriptors)
+      
+      // Enrich with height (buildings)
+      const height = await enrichWithHeight(lat, lng, descriptors)
+
+      return {
+        ...descriptors,
+        ...(elevation !== null && { elevation_meters: elevation }),
+        ...(height !== null && { height_meters: height }),
+        enrichment_timestamp: new Date().toISOString(),
+      }
+    }
+    catch (err) {
+      console.warn('Failed to enrich place descriptors:', err)
+      // Return original descriptors if enrichment fails
+      return descriptors
     }
   }
 
@@ -74,6 +62,7 @@ export function useNominatim() {
     loading,
     error,
     search,
-    extractDescriptors,
+    extractDescriptors: (place: NominatimPlace) => extractDescriptors(place),
+    enrichDescriptors,
   }
 }
