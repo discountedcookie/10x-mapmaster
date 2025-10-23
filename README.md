@@ -3,83 +3,95 @@
 [![CI/CD](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml)
 [![Security Scan](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml)
 
-An intelligent geography guessing game that learns from every session. Describe a place, answer yes/no questions, and watch the game get smarter over time.
 
-## What is this?
+**10x-mapmaster** is an intelligent geography guessing game where players describe a place, and the system asks yes/no questions to identify it. The game learns from every session, improving its ability to match descriptions with places using vector embeddings and accumulated gameplay knowledge.
 
-Think "20 questions" meets geography, powered by vector embeddings. Players describe a place (like "A huge, hot city of palaces and busy markets"), and the game asks strategic questions to narrow down what they're thinking of. Each game session makes the system smarter.
+## Core Concept
 
-## How it works
+- **Player Input**: Descriptive text (e.g., "A huge, hot city of palaces and busy markets")
+- **Game Response**: Strategic yes/no questions to narrow down possibilities
+- **Visual Feedback**: Real-time map showing candidate places with confidence scores
+- **Learning**: Each session improves the system's place embeddings and question effectiveness
 
-- 🧠 **Vector-powered matching** - Descriptions and questions use embeddings for semantic similarity
-- 📍 **Real-time map** - See candidate places update as you answer questions
-- 🌱 **Organic learning** - The system learns from player contributions
-- ✅ **Place verification** - Uses OpenStreetMap Nominatim to validate real places
+## Technical Architecture
 
-## Tech Stack
+### Tech Stack
 
-- **Frontend**: Vue 3 + TypeScript + Vite + shadcn-vue
+- **Frontend**: Vue 3 + shadcn-vue
 - **Maps**: MapLibre GL JS
-- **Backend**: Supabase (PostgreSQL + pgvector + Edge Functions)
+- **Backend**: Supabase (PostgreSQL + pgvector + Edge Functions + Auth)
+- **Hosting**: GitHub Pages (static)
+- **Embeddings**: Supabase built-in gte-small model (384 dimensions)
+- **Data sources**: Nominatim, Open-Elevation, Overpass, Wikipedia
 
-## For AI Agents/Contributors
+### Core Mechanics
 
-This project uses **Serena (MCP)** and structured documentation for tracking progress and design decisions.
+#### Game Flow (Full System)
+1. Player enters description → generate embedding
+2. Find candidate places via vector similarity (cosine distance)
+3. If confidence high → guess immediately
+4. Else → select most discriminating question from database
+5. Player answers → filter candidates → repeat
+6. Make guess when confident or max questions reached
+7. Player confirms/corrects → system learns
 
-### Starting Work on a Task
+#### Intelligence System
+- **Vector Matching**: Semantic similarity between descriptions/questions and places
+- **Question Selection**: Information gain algorithm - pick questions that best split candidates
+- **Learning**: Weighted average of embeddings after each game (place_embedding = weighted_avg(old_embedding, new_description_embedding, game_count))
+- **Effectiveness Tracking**: Monitor which questions successfully narrow down candidates
 
-1. **Read architecture documentation**:
-   - `AGENTS.md` - Product vision, architecture, and technical decisions
-   - `CLAUDE.md` - Development guide, standards, and workflows
-   
-2. **Check Serena memories** (after activating project with `mcp_serena_activate_project`):
-   ```
-   mcp_serena_list_memories
-   mcp_serena_read_memory project-setup-and-current-state
-   ```
-   
-   Available memories:
-   - `project-setup-and-current-state` - Current implementation status
-   - `mvp2-complete-learning-system` - Latest milestone achievements
-   - `design-decisions-log` - Architectural choices (with history)
-   - `known-issues-and-gotchas` - Common problems and solutions
+#### Question Generation
+- Edge function analyzes current places database
+- Uses AI to generate strategic yes/no questions
+- Generates embeddings for new questions
+- Stores in database for semantic matching
 
-3. **Review coding standards**: See `CLAUDE.md` for Vue 3, TypeScript, and Supabase patterns
+## Getting Started
 
-### Completing a Task
+To set up and run the project locally, follow these steps:
 
-1. **Run quality checks**:
-   ```bash
-   npm run type-check  # TypeScript validation
-   npm run lint        # Code linting
-   npm test            # Unit and E2E tests
-   ```
+1.  **Prerequisites:**
+    *   Node.js (v18 or higher)
+    *   Docker (for Supabase local development)
 
-2. **Update Serena memories**:
-   - Update `project-setup-and-current-state` (overwrite outdated sections)
-   - Append to `design-decisions-log` (keep history with dates)
-   - Append to `known-issues-and-gotchas` (never delete, only add)
+2.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-repo/10x-mapmaster.git
+    cd 10x-mapmaster
+    ```
 
-### Memory Management Conventions
+3.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-- **Current State**: OVERWRITE outdated sections to reflect current truth
-- **Design Decisions**: APPEND new entries with dates, keep history
-- **Issues/Gotchas**: APPEND problems and solutions, never delete
+4.  **Set up Supabase locally:**
+    ```bash
+    npx supabase start
+    npx supabase db reset
+    ```
 
-### MCP Servers Available
+5.  **Seed the database (requires environment variables):**
+    *   Create a `.env.local` file in the project root with your Supabase project URL and anon key.
+    *   Run the seed scripts:
+        ```bash
+        npm run seed:places
+        npm run seed:questions
+        ```
 
-- **Context7** - Up-to-date documentation for Vue, Supabase, TypeScript, MapLibre, pgvector
-- **Serena** - Code analysis, symbol search, and project knowledge management
-- **Semgrep** - Security scanning and code analysis
-- **Playwright** - Browser automation for E2E testing
+6.  **Run the development server:**
+    ```bash
+    npm dev
+    ```
+    The application will be available at `http://localhost:5173`.
 
-### Key Files
+## For AI Agents
 
-- `AGENTS.md` - Product vision, architecture, database schema, design rationale
-- `CLAUDE.md` - Development standards, workflows, common patterns
-- `DEPLOYMENT.md` - Deployment guide for GitHub Pages + Supabase
+This project is designed to be developed with the assistance of AI agents. All agent-specific operational guidelines, development standards, and project knowledge are stored within **Serena's memory system** (`.serena/memories/`).
+
+Agents should always call `serena initial_instructions` at the start of each session, then consult memories relevant to their specific task.
 
 ## License
 
 MIT
-
