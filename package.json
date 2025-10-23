@@ -22,7 +22,8 @@
     "supabase:types:remote": "supabase gen types --lang=typescript --linked > src/types/database.ts",
     "seed:all": "run-s seed:places seed:questions",
     "seed:places": "tsx --env-file=.env.local scripts/generate-places-seed.ts",
-    "seed:questions": "tsx --env-file=.env.local scripts/generate-questions-seed.ts"
+    "seed:questions": "tsx --env-file=.env.local scripts/generate-questions-seed.ts",
+    "add-place": "tsx --env-file=.env.local scripts/add-new-place.ts"
   },
   "dependencies": {
     "@indoorequal/vue-maplibre-gl": "^8.4.2",

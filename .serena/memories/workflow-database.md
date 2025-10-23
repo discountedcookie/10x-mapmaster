@@ -90,10 +90,9 @@ npx supabase db reset          # SAFE - resets to migration state
 ## Environment Variables for Seed Scripts
 
 Required:
-- `VITE_SUPABASE_URL` - Local Supabase URL
-- `VITE_SUPABASE_SERVICE_KEY` - Service role key (local DB writes)
-- `VITE_SUPABASE_FUNCTIONS_URL_PROD` - Production edge function URL
-- `VITE_SUPABASE_ANON_KEY_PROD` - Production anon key
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_SERVICE_KEY`
 
 ## Type Generation
 

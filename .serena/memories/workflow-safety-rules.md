@@ -21,7 +21,9 @@
 ## ALWAYS Run These Commands
 
 **Safe local commands:**
-- ✅ `npx supabase db reset` - Local database reset (SAFE)
+- ✅ `npm supabase db dump` - Remote database dump
+- ✅ `npm supabase db diff` - Local database diff
+- ✅ `npx supabase db reset` - Local database reset
 - ✅ `npm test` - Unit tests
 - ✅ `npm run test:unit` - Unit tests
 - ✅ `npm run test:db` - Database tests

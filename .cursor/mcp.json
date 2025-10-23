@@ -44,7 +44,7 @@
             ]
         },
         "supabase": {
-            "url": "https://mcp.supabase.com/mcp?project_ref=lrrcfzyjtejjbjtoaazm"
+            "url": "http://127.0.0.1:54321/mcp"
         },
         "zen": {
             "command": "./mcp_env.sh",
