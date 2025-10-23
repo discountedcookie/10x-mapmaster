@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
@@ -13,6 +13,7 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/comp
 import { Input } from '@/components/ui/input'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 
@@ -36,8 +37,9 @@ const onSubmit = form.handleSubmit(async (values) => {
     loading.value = true
     await authStore.signUpWithEmail(values.email, values.password)
 
-    // Redirect to login with success message
-    router.push('/login?registered=true')
+    // Redirect to login with success message, preserving redirect parameter
+    const redirectParam = route.query.redirect ? `&redirect=${route.query.redirect}` : ''
+    router.push(`/login?registered=true${redirectParam}`)
   }
   catch (error) {
     console.error('Signup error:', error)
@@ -66,7 +68,9 @@ const onSubmit = form.handleSubmit(async (values) => {
 })
 
 function goToLogin() {
-  router.push('/login')
+  // Preserve redirect parameter when navigating to login
+  const query = route.query.redirect ? { redirect: route.query.redirect } : {}
+  router.push({ path: '/login', query })
 }
 </script>
 

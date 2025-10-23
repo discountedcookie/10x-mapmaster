@@ -45,7 +45,9 @@ const onSubmit = form.handleSubmit(async (values) => {
     toast.success(t('auth.toast.welcome_back_title'), {
       description: t('auth.toast.welcome_back_body'),
     })
-    router.push('/game')
+    // Redirect to the intended destination or default to game
+    const redirectPath = (route.query.redirect as string) || '/game'
+    router.push(redirectPath)
   }
   catch (error) {
     console.error('Login error:', error)

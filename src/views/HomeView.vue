@@ -1,5 +1,13 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import HeroCard from '@/components/HeroCard.vue'
+import { usePlaces } from '@/composables/usePlaces'
+
+const placesStore = usePlaces()
+
+onMounted(() => {
+  placesStore.fetchAllPlaces()
+})
 </script>
 
 <template>

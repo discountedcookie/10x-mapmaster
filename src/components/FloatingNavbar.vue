@@ -21,7 +21,19 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { setLight, setDark, setAuto } = useTheme()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+/** Available languages */
+const availableLanguages = [
+  { code: 'en', name: 'English', icon: '🇬🇧' },
+  { code: 'es', name: 'Español', icon: '🇪🇸' },
+]
+
+/** Switch language */
+function setLanguage(lang: string) {
+  locale.value = lang
+  localStorage.setItem('preferred-language', lang)
+}
 
 /** Navigation items */
 const navItems = computed(() => [
@@ -107,8 +119,94 @@ function handleLogin() {
         </Button>
       </div>
 
-      <!-- User Menu / Actions -->
-      <div class="flex items-center">
+      <!-- Theme, Language, and User Menus -->
+      <div class="flex items-center gap-1">
+        <!-- Theme Dropdown -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="rounded-full h-8 w-8"
+              :title="t('theme.toggle_theme')"
+            >
+              <Icon
+                icon="radix-icons:moon"
+                class="h-4 w-4"
+              />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            class="w-48"
+          >
+            <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">
+              {{ t('theme.title') }}
+            </DropdownMenuLabel>
+            <DropdownMenuItem @click="setLight">
+              <Icon
+                icon="radix-icons:sun"
+                class="mr-2 h-4 w-4"
+              />
+              {{ t('theme.light') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="setDark">
+              <Icon
+                icon="radix-icons:moon"
+                class="mr-2 h-4 w-4"
+              />
+              {{ t('theme.dark') }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="setAuto">
+              <Icon
+                icon="radix-icons:desktop"
+                class="mr-2 h-4 w-4"
+              />
+              {{ t('theme.system') }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <!-- Language Dropdown -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="rounded-full h-8 w-8"
+              :title="t('language.title')"
+            >
+              <Icon
+                icon="radix-icons:globe"
+                class="h-4 w-4"
+              />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            class="w-48"
+          >
+            <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">
+              {{ t('language.title') }}
+            </DropdownMenuLabel>
+            <DropdownMenuItem
+              v-for="lang in availableLanguages"
+              :key="lang.code"
+              :class="{ 'bg-accent': locale === lang.code }"
+              @click="setLanguage(lang.code)"
+            >
+              <span class="mr-2">{{ lang.icon }}</span>
+              {{ lang.name }}
+              <Icon
+                v-if="locale === lang.code"
+                icon="radix-icons:check"
+                class="ml-auto h-4 w-4"
+              />
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <!-- User Dropdown -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button
@@ -118,7 +216,7 @@ function handleLogin() {
             >
               <Icon
                 v-if="!authStore.isAuthenticated"
-                icon="radix-icons:hamburger-menu"
+                icon="radix-icons:person"
                 class="h-4 w-4"
               />
               <Avatar
@@ -149,34 +247,6 @@ function handleLogin() {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
             </template>
-
-            <!-- Theme Toggle -->
-            <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">
-              {{ t('theme.title') }}
-            </DropdownMenuLabel>
-            <DropdownMenuItem @click="setLight">
-              <Icon
-                icon="radix-icons:sun"
-                class="mr-2 h-4 w-4"
-              />
-              {{ t('theme.light') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="setDark">
-              <Icon
-                icon="radix-icons:moon"
-                class="mr-2 h-4 w-4"
-              />
-              {{ t('theme.dark') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="setAuto">
-              <Icon
-                icon="radix-icons:desktop"
-                class="mr-2 h-4 w-4"
-              />
-              {{ t('theme.system') }}
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
 
             <!-- Auth Actions -->
             <DropdownMenuItem

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { toast } from 'vue-sonner'
@@ -25,6 +25,31 @@ const showPlaceSearch = ref(false)
 const gameStarted = ref(false)
 const saving = ref(false)
 const userDescription = ref('')
+const showResumeDialog = ref(false)
+
+// Check if there's an existing game session when mounting
+const hasExistingGame = computed(() => {
+  return gameStore.topCandidates.length > 0 || gameStore.questionCount > 0
+})
+
+onMounted(() => {
+  // If there's an existing game but we're not in game started state, show resume dialog
+  if (hasExistingGame.value && !gameStarted.value) {
+    showResumeDialog.value = true
+  }
+})
+
+function resumeGame() {
+  showResumeDialog.value = false
+  gameStarted.value = true
+}
+
+function startFreshGame() {
+  showResumeDialog.value = false
+  gameStore.resetGame()
+  gameStarted.value = false
+  userDescription.value = ''
+}
 
 // Input validation constants
 const MIN_DESCRIPTION_LENGTH = 10
@@ -169,9 +194,58 @@ function goHome() {
   <!-- Game UI - Centered Cards -->
   <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
     <div class="pointer-events-auto max-w-2xl w-full max-h-[calc(100vh-6rem)]">
+      <!-- Resume Game Dialog -->
+      <Card
+        v-if="showResumeDialog"
+        class="w-full animate-slide-up-fade"
+        style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
+      >
+        <CardHeader class="text-center space-y-3">
+          <CardTitle class="text-3xl font-bold flex items-center justify-center gap-3">
+            <Icon
+              icon="radix-icons:question-mark-circled"
+              class="h-10 w-10 text-primary"
+            />
+            Resume Game?
+          </CardTitle>
+          <CardDescription class="text-lg">
+            You have an unfinished game session. Would you like to continue where you left off?
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-col gap-3">
+          <div class="text-sm text-muted-foreground text-center">
+            <p>Questions asked: {{ gameStore.questionCount }} / {{ MAX_QUESTIONS }}</p>
+            <p>Candidates remaining: {{ gameStore.topCandidates.length }}</p>
+          </div>
+          <Button
+            size="lg"
+            class="transition-playful"
+            @click="resumeGame"
+          >
+            <Icon
+              icon="radix-icons:play"
+              class="h-5 w-5 mr-2"
+            />
+            Resume Game
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            class="transition-playful"
+            @click="startFreshGame"
+          >
+            <Icon
+              icon="radix-icons:reload"
+              class="h-5 w-5 mr-2"
+            />
+            Start New Game
+          </Button>
+        </CardContent>
+      </Card>
+
       <!-- Start Screen -->
       <Card
-        v-if="!gameStarted"
+        v-else-if="!gameStarted"
         class="w-full animate-slide-up-fade"
         style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
       >
@@ -247,18 +321,22 @@ function goHome() {
 
       <!-- Question Phase -->
       <QuestionCard
-        v-else-if="!gameStore.isGameComplete && gameStore.currentQuestion"
+        v-else-if="gameStarted && !gameStore.isGameComplete && gameStore.currentQuestion"
         :question="gameStore.currentQuestion.text"
         :question-number="gameStore.questionCount + 1"
         :total-questions="MAX_QUESTIONS"
         :candidates-count="gameStore.candidates.length"
         :confidence="gameStore.confidence"
+        :top-candidates="gameStore.topCandidates.map(candidate => ({
+          name: candidate.name,
+          confidence: candidate.composite_confidence
+        }))"
         @answer="handleAnswer"
       />
 
       <!-- Result Phase -->
       <ResultCard
-        v-else-if="gameStore.isGameComplete && !showPlaceSearch"
+        v-else-if="gameStarted && gameStore.isGameComplete && !showPlaceSearch"
         :guess="gameStore.gameResult"
         :disabled="saving"
         @correct="handleCorrectGuess"
@@ -268,7 +346,7 @@ function goHome() {
 
       <!-- Place Search -->
       <PlaceSearch
-        v-else-if="showPlaceSearch"
+        v-else-if="gameStarted && showPlaceSearch"
         @select="handlePlaceSelect"
         @cancel="showPlaceSearch = false"
       />
