@@ -30,12 +30,7 @@
             ]
         },
         "supabase": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "mcp-remote",
-                "https://mcp.supabase.com/mcp?project_ref=lrrcfzyjtejjbjtoaazm"
-            ]
+            "url": "http://127.0.0.1:54321/mcp"
         }
     }
 }

@@ -7,7 +7,7 @@
                 "-y",
                 "@upstash/context7-mcp",
                 "--api-key",
-                "ctx7sk-016e70d2-c370-407b-988a-e2fb79302525"
+                "{{CONTEXT7_API_KEY}}"
             ]
         },
         "serena": {
@@ -18,7 +18,7 @@
                 "serena",
                 "start-mcp-server",
                 "--project",
-                "10x-mapmaster",
+                "{{PROJECT_NAME}}",
                 "--context",
                 "ide-assistant"
             ]

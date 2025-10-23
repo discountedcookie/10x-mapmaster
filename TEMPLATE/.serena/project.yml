@@ -1,4 +1,4 @@
-project_name: "10x-mapmaster"
+project_name: "{{PROJECT_NAME}}"
 language: typescript
 encoding: "utf-8"
 ignore_all_files_in_gitignore: true

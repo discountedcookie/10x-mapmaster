@@ -12,6 +12,10 @@ interface Props {
   totalQuestions: number
   candidatesCount: number
   confidence?: number
+  topCandidates?: Array<{
+    name: string
+    confidence: number
+  }>
 }
 
 const props = defineProps<Props>()
@@ -45,16 +49,40 @@ const progressPercent = computed(() => {
         {{ question }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="space-y-3">
-      <p class="text-sm text-muted-foreground">
-        {{ t('game.question_card.places_remaining', { count: candidatesCount }) }}
-      </p>
+    <CardContent class="space-y-4">
+      <!-- Top 5 Candidates Table -->
       <div
-        v-if="confidence !== undefined"
-        class="flex items-center gap-2"
+        v-if="topCandidates && topCandidates.length > 0"
+        class="space-y-2"
       >
-        <span class="text-sm text-muted-foreground">{{ t('game.question_card.top_match') }}:</span>
-        <ConfidenceBadge :confidence="confidence" />
+        <h4 class="text-sm font-medium text-muted-foreground">
+          {{ t('game.question_card.top_candidates') }}
+        </h4>
+        <div class="bg-muted/50 rounded-lg p-3 space-y-2">
+          <div
+            v-for="(candidate, index) in topCandidates.slice(0, 5)"
+            :key="index"
+            class="flex items-center justify-between text-sm"
+          >
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium">
+                {{ index + 1 }}
+              </span>
+              <span class="truncate">{{ candidate.name }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <ConfidenceBadge :confidence="candidate.confidence" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fallback: Simple count if no candidates data -->
+      <div
+        v-else
+        class="text-sm text-muted-foreground"
+      >
+        {{ t('game.question_card.candidates_remaining', { count: candidatesCount }) }}
       </div>
     </CardContent>
     <CardFooter class="flex gap-4">

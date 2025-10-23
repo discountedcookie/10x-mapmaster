@@ -150,25 +150,46 @@ async function processNewPlace(placeName: string): Promise<boolean> {
         console.log('  → Generating embedding...')
         const embedding = await generateEmbedding(embeddingText)
 
-        // Step 9: Insert new place into database
-        console.log('  → Inserting into database...')
-        const { error: insertError } = await supabase
-            .from('places')
-            .insert({
-                name: placeName,
-                lat: nominatimData.lat,
-                lng: nominatimData.lng,
-                descriptors: enrichedDescriptors,
-                embedding: embeddingToString(embedding) as any,
-                embedding_text: embeddingText,
-            })
+        // Step 9: Output INSERT query (instead of executing)
+        console.log('  → Building INSERT query...')
+        
+        // Escape single quotes in strings for SQL
+        const escapedName = placeName.replace(/'/g, "''")
+        const escapedEmbeddingText = embeddingText.replace(/'/g, "''")
+        const descriptorsJson = JSON.stringify(enrichedDescriptors).replace(/'/g, "''")
+        const embeddingVector = embeddingToString(embedding)
+        
+        const insertQuery = `
+-- INSERT query for: ${placeName}
+-- Generated: ${new Date().toISOString()}
+INSERT INTO places (
+  name,
+  lat,
+  lng,
+  geom,
+  descriptors,
+  embedding,
+  embedding_text,
+  created_at
+) VALUES (
+  '${escapedName}',
+  ${nominatimData.lat},
+  ${nominatimData.lng},
+  ST_SetSRID(ST_MakePoint(${nominatimData.lng}, ${nominatimData.lat}), 4326),
+  '${descriptorsJson}'::jsonb,
+  '${embeddingVector}'::vector(384),
+  '${escapedEmbeddingText}',
+  NOW()
+) RETURNING id, name, lat, lng;
+`
+        
+        console.log('\n' + '='.repeat(80))
+        console.log('📝 INSERT QUERY (copy and execute via Supabase MCP):')
+        console.log('='.repeat(80))
+        console.log(insertQuery)
+        console.log('='.repeat(80) + '\n')
 
-        if (insertError) {
-            console.error(`  ❌ Failed to insert place:`, insertError.message)
-            return false
-        }
-
-        console.log(`  ✅ Successfully added ${placeName}`)
+        console.log(`  ✅ Query generated for ${placeName}`)
         return true
     } catch (error) {
         console.error(`  ❌ Error processing place:`, error)

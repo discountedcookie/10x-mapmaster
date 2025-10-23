@@ -26,7 +26,9 @@ export const messageCompiler: MessageCompiler = (
      * If you would like to support it,
      * You need to transform locale messages such as `json`, `yaml`, etc. with the bundle plugin.
      */
-    onError && onError(new Error('not support for AST') as CompileError)
+    if (onError) {
+      onError(new Error('not support for AST') as CompileError)
+    }
     return () => key
   }
 }

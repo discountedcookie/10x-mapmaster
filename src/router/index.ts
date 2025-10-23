@@ -36,17 +36,24 @@ const router = createRouter({
       path: '/statistics',
       name: 'statistics',
       component: StatisticsView,
+      meta: { requiresAuth: true },
     },
   ],
 })
 
 // Navigation guard to protect routes
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
+
+  // Wait for auth to be initialized before checking authentication
+  while (authStore.loading) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
 
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
+    // Save the intended destination to redirect back after login
+    next({ path: '/login', query: { redirect: to.fullPath } })
     return
   }
 
