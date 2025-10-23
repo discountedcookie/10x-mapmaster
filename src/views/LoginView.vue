@@ -5,6 +5,7 @@ import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { toast } from 'vue-sonner'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,22 +15,23 @@ import { Input } from '@/components/ui/input'
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const loading = ref(false)
 
 // Check for registration success message
 onMounted(() => {
   if (route.query.registered === 'true') {
-    toast.success('Account created!', {
-      description: 'Please check your email to verify your account before signing in.',
+    toast.success(t('auth.toast.account_created_title'), {
+      description: t('auth.toast.account_created_body'),
       duration: 6000,
     })
   }
 })
 
 const formSchema = toTypedSchema(z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email(t('auth.validation.invalid_email')),
+  password: z.string().min(6, t('auth.validation.password_min_length', { length: 6 })),
 }))
 
 const form = useForm({
@@ -40,29 +42,29 @@ const onSubmit = form.handleSubmit(async (values) => {
   try {
     loading.value = true
     await authStore.signInWithEmail(values.email, values.password)
-    toast.success('Welcome back!', {
-      description: 'You\'ve successfully signed in.',
+    toast.success(t('auth.toast.welcome_back_title'), {
+      description: t('auth.toast.welcome_back_body'),
     })
     router.push('/game')
   }
   catch (error) {
     console.error('Login error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to sign in'
+    const errorMessage = error instanceof Error ? error.message : t('auth.toast.sign_in_failed_generic')
 
     // Handle specific error cases
     if (errorMessage.includes('Email not confirmed')) {
-      toast.error('Email not verified', {
-        description: 'Please check your email and click the verification link before signing in.',
+      toast.error(t('auth.toast.email_not_verified_title'), {
+        description: t('auth.toast.email_not_verified_body'),
         duration: 6000,
       })
     }
     else if (errorMessage.includes('Invalid login credentials')) {
-      toast.error('Invalid credentials', {
-        description: 'Please check your email and password and try again.',
+      toast.error(t('auth.toast.invalid_credentials_title'), {
+        description: t('auth.toast.invalid_credentials_body'),
       })
     }
     else {
-      toast.error('Sign in failed', {
+      toast.error(t('auth.toast.sign_in_failed_title'), {
         description: errorMessage,
       })
     }
@@ -84,10 +86,10 @@ function goToSignup() {
       <Card class="w-full max-w-md mx-4 bg-background/95 shadow-2xl">
         <CardHeader class="space-y-1">
           <CardTitle class="text-2xl font-bold">
-            Sign in
+            {{ t('auth.login_title') }}
           </CardTitle>
           <CardDescription>
-            Enter your email and password to access your account
+            {{ t('auth.login_description') }}
           </CardDescription>
         </CardHeader>
         <form @submit="onSubmit">
@@ -97,7 +99,7 @@ function goToSignup() {
               name="email"
             >
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{{ t('auth.email') }}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
@@ -115,7 +117,7 @@ function goToSignup() {
               name="password"
             >
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{{ t('auth.password') }}</FormLabel>
                 <FormControl>
                   <Input
                     type="password"
@@ -134,16 +136,16 @@ function goToSignup() {
               class="w-full"
               :disabled="loading"
             >
-              {{ loading ? 'Signing in...' : 'Sign In' }}
+              {{ loading ? t('auth.logging_in') : t('auth.login_button') }}
             </Button>
             <div class="text-sm text-center text-muted-foreground">
-              Don't have an account?
+              {{ t('auth.no_account') }}
               <button
                 type="button"
                 class="text-primary underline-offset-4 hover:underline font-medium"
                 @click="goToSignup"
               >
-                Sign up
+                {{ t('auth.signup_button') }}
               </button>
             </div>
           </CardFooter>

@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -42,38 +37,58 @@ export type Database = {
       game_answers: {
         Row: {
           answer: boolean
-          candidates_after: number
+          answer_type: string
+          candidates_after: Json
           created_at: string
           id: string
-          question_id: string
+          place_id: string | null
+          question_id: string | null
           sequence_number: number
           session_id: string
         }
         Insert: {
           answer: boolean
-          candidates_after: number
+          answer_type?: string
+          candidates_after?: Json
           created_at?: string
           id?: string
-          question_id: string
+          place_id?: string | null
+          question_id?: string | null
           sequence_number: number
           session_id: string
         }
         Update: {
           answer?: boolean
-          candidates_after?: number
+          answer_type?: string
+          candidates_after?: Json
           created_at?: string
           id?: string
-          question_id?: string
+          place_id?: string | null
+          question_id?: string | null
           sequence_number?: number
           session_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "game_answers_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "game_answers_question_id_fkey"
             columns: ["question_id"]
             isOneToOne: false
             referencedRelation: "questions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "game_session_stats"
+            referencedColumns: ["session_id"]
           },
           {
             foreignKeyName: "game_answers_session_id_fkey"
@@ -91,7 +106,6 @@ export type Database = {
           description_embedding: string | null
           id: string
           place_id: string | null
-          question_count: number
           user_id: string
           was_correct: boolean | null
         }
@@ -101,7 +115,6 @@ export type Database = {
           description_embedding?: string | null
           id?: string
           place_id?: string | null
-          question_count?: number
           user_id: string
           was_correct?: boolean | null
         }
@@ -111,7 +124,6 @@ export type Database = {
           description_embedding?: string | null
           id?: string
           place_id?: string | null
-          question_count?: number
           user_id?: string
           was_correct?: boolean | null
         }
@@ -130,6 +142,7 @@ export type Database = {
           created_at: string
           descriptors: Json
           embedding: string | null
+          embedding_text: string | null
           game_count: number
           geom: unknown | null
           id: string
@@ -142,6 +155,7 @@ export type Database = {
           created_at?: string
           descriptors?: Json
           embedding?: string | null
+          embedding_text?: string | null
           game_count?: number
           geom?: unknown | null
           id?: string
@@ -154,6 +168,7 @@ export type Database = {
           created_at?: string
           descriptors?: Json
           embedding?: string | null
+          embedding_text?: string | null
           game_count?: number
           geom?: unknown | null
           id?: string
@@ -223,6 +238,27 @@ export type Database = {
       }
     }
     Views: {
+      game_session_stats: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          place_id: string | null
+          question_count: number | null
+          session_id: string | null
+          user_id: string | null
+          was_correct: boolean | null
+          wrong_guess_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_sessions_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       geography_columns: {
         Row: {
           coord_dimension: number | null
@@ -265,8 +301,195 @@ export type Database = {
         }
         Relationships: []
       }
+      pg_all_foreign_keys: {
+        Row: {
+          fk_columns: unknown[] | null
+          fk_constraint_name: unknown | null
+          fk_schema_name: unknown | null
+          fk_table_name: unknown | null
+          fk_table_oid: unknown | null
+          is_deferrable: boolean | null
+          is_deferred: boolean | null
+          match_type: string | null
+          on_delete: string | null
+          on_update: string | null
+          pk_columns: unknown[] | null
+          pk_constraint_name: unknown | null
+          pk_index_name: unknown | null
+          pk_schema_name: unknown | null
+          pk_table_name: unknown | null
+          pk_table_oid: unknown | null
+        }
+        Relationships: []
+      }
+      tap_funky: {
+        Row: {
+          args: string | null
+          is_definer: boolean | null
+          is_strict: boolean | null
+          is_visible: boolean | null
+          kind: unknown | null
+          langoid: unknown | null
+          name: unknown | null
+          oid: unknown | null
+          owner: unknown | null
+          returns: string | null
+          returns_set: boolean | null
+          schema: unknown | null
+          volatility: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      _cleanup: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      _contract_on: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      _currtest: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      _db_privs: {
+        Args: Record<PropertyKey, never>
+        Returns: unknown[]
+      }
+      _definer: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _dexists: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _expand_context: {
+        Args: { "": string }
+        Returns: string
+      }
+      _expand_on: {
+        Args: { "": string }
+        Returns: string
+      }
+      _expand_vol: {
+        Args: { "": string }
+        Returns: string
+      }
+      _ext_exists: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _extensions: {
+        Args: Record<PropertyKey, never> | { "": unknown }
+        Returns: unknown[]
+      }
+      _funkargs: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      _get: {
+        Args: { "": string }
+        Returns: number
+      }
+      _get_db_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _get_dtype: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      _get_language_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _get_latest: {
+        Args: { "": string }
+        Returns: number[]
+      }
+      _get_note: {
+        Args: { "": number } | { "": string }
+        Returns: string
+      }
+      _get_opclass_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _get_rel_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _get_schema_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _get_tablespace_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _get_type_owner: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _got_func: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _grolist: {
+        Args: { "": unknown }
+        Returns: unknown[]
+      }
+      _has_group: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _has_role: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _has_user: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _inherited: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _is_schema: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _is_super: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _is_trusted: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _is_verbose: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      _lang: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _opc_exists: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _parts: {
+        Args: { "": unknown }
+        Returns: unknown[]
+      }
+      _pg_sv_type_array: {
+        Args: { "": unknown[] }
+        Returns: unknown[]
+      }
       _postgis_deprecate: {
         Args: { newname: string; oldname: string; version: string }
         Returns: undefined
@@ -286,6 +509,26 @@ export type Database = {
       _postgis_selectivity: {
         Args: { att_name: string; geom: unknown; mode?: string; tbl: unknown }
         Returns: number
+      }
+      _prokind: {
+        Args: { p_oid: unknown }
+        Returns: unknown
+      }
+      _query: {
+        Args: { "": string }
+        Returns: string
+      }
+      _refine_vol: {
+        Args: { "": string }
+        Returns: string
+      }
+      _relexists: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _returns: {
+        Args: { "": unknown }
+        Returns: string
       }
       _st_3dintersects: {
         Args: { geom1: unknown; geom2: unknown }
@@ -381,6 +624,26 @@ export type Database = {
         Args: { geom1: unknown; geom2: unknown }
         Returns: boolean
       }
+      _strict: {
+        Args: { "": unknown }
+        Returns: boolean
+      }
+      _table_privs: {
+        Args: Record<PropertyKey, never>
+        Returns: unknown[]
+      }
+      _temptypes: {
+        Args: { "": string }
+        Returns: string
+      }
+      _todo: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      _vol: {
+        Args: { "": unknown }
+        Returns: string
+      }
       addauth: {
         Args: { "": string }
         Returns: boolean
@@ -464,8 +727,62 @@ export type Database = {
         Args: { "": unknown } | { "": unknown }
         Returns: string
       }
+      can: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      casts_are: {
+        Args: { "": string[] }
+        Returns: string
+      }
+      col_is_null: {
+        Args:
+          | {
+              column_name: unknown
+              description?: string
+              schema_name: unknown
+              table_name: unknown
+            }
+          | { column_name: unknown; description?: string; table_name: unknown }
+        Returns: string
+      }
+      col_not_null: {
+        Args:
+          | {
+              column_name: unknown
+              description?: string
+              schema_name: unknown
+              table_name: unknown
+            }
+          | { column_name: unknown; description?: string; table_name: unknown }
+        Returns: string
+      }
+      collect_tap: {
+        Args: { "": string[] } | { "": string[] }
+        Returns: string
+      }
+      diag: {
+        Args:
+          | { "": string[] }
+          | { "": unknown }
+          | { msg: string }
+          | { msg: unknown }
+        Returns: string
+      }
+      diag_test_name: {
+        Args: { "": string }
+        Returns: string
+      }
       disablelongtransactions: {
         Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      do_tap: {
+        Args: Record<PropertyKey, never> | { "": string } | { "": unknown }
+        Returns: string[]
+      }
+      domains_are: {
+        Args: { "": unknown[] }
         Returns: string
       }
       dropgeometrycolumn: {
@@ -491,9 +808,21 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      enums_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
       equals: {
         Args: { geom1: unknown; geom2: unknown }
         Returns: boolean
+      }
+      extensions_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      fail: {
+        Args: Record<PropertyKey, never> | { "": string }
+        Returns: string
       }
       filter_candidates_with_history: {
         Args: { candidate_place_ids: string[]; question_history: Json }
@@ -507,6 +836,22 @@ export type Database = {
           semantic_similarity: number
           spatial_confidence: number
         }[]
+      }
+      findfuncs: {
+        Args: { "": string }
+        Returns: string[]
+      }
+      finish: {
+        Args: { exception_on_failure?: boolean }
+        Returns: string[]
+      }
+      foreign_tables_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      functions_are: {
+        Args: { "": unknown[] }
+        Returns: string
       }
       geography: {
         Args: { "": string } | { "": unknown }
@@ -732,6 +1077,19 @@ export type Database = {
         Args: { "": string }
         Returns: unknown
       }
+      get_candidates: {
+        Args: { session_id_param: string }
+        Returns: {
+          composite_confidence: number
+          descriptors: Json
+          id: string
+          lat: number
+          lng: number
+          name: string
+          semantic_similarity: number
+          spatial_confidence: number
+        }[]
+      }
       get_next_question: {
         Args: { match_count?: number; session_id_param: string }
         Returns: {
@@ -760,6 +1118,10 @@ export type Database = {
         Args: { "": unknown }
         Returns: unknown
       }
+      groups_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
       halfvec_avg: {
         Args: { "": number[] }
         Returns: unknown
@@ -776,6 +1138,190 @@ export type Database = {
         Args: { "": unknown[] }
         Returns: number
       }
+      has_check: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_composite: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_domain: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_enum: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_extension: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_fk: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_foreign_table: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_function: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_group: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_inherited_tables: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_language: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_materialized_view: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_opclass: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_pk: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_relation: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_role: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_schema: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_sequence: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_table: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_tablespace: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_type: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_unique: {
+        Args: { "": string }
+        Returns: string
+      }
+      has_user: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      has_view: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_composite: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_domain: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_enum: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_extension: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_fk: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_foreign_table: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_function: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_group: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_inherited_tables: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_language: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_materialized_view: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_opclass: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_pk: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_relation: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_role: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_schema: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_sequence: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_table: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_tablespace: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_type: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_user: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      hasnt_view: {
+        Args: { "": unknown }
+        Returns: string
+      }
       hnsw_bit_support: {
         Args: { "": unknown }
         Returns: unknown
@@ -791,6 +1337,94 @@ export type Database = {
       hnswhandler: {
         Args: { "": unknown }
         Returns: unknown
+      }
+      in_todo: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      index_is_primary: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      index_is_unique: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_aggregate: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_clustered: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_definer: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_empty: {
+        Args: { "": string }
+        Returns: string
+      }
+      is_normal_function: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_partitioned: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_procedure: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_strict: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_superuser: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      is_window: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_aggregate: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_definer: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_empty: {
+        Args: { "": string }
+        Returns: string
+      }
+      isnt_normal_function: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_partitioned: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_procedure: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_strict: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_superuser: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      isnt_window: {
+        Args: { "": unknown }
+        Returns: string
       }
       ivfflat_bit_support: {
         Args: { "": unknown }
@@ -820,6 +1454,18 @@ export type Database = {
         Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: unknown
       }
+      language_is_trusted: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      languages_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      lives_ok: {
+        Args: { "": string }
+        Returns: string
+      }
       longtransactionsenabled: {
         Args: Record<PropertyKey, never>
         Returns: boolean
@@ -842,9 +1488,49 @@ export type Database = {
           spatial_confidence: number
         }[]
       }
+      materialized_views_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      no_plan: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean[]
+      }
+      num_failed: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      ok: {
+        Args: { "": boolean }
+        Returns: string
+      }
+      opclasses_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      operators_are: {
+        Args: { "": string[] }
+        Returns: string
+      }
+      os_name: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      pass: {
+        Args: Record<PropertyKey, never> | { "": string }
+        Returns: string
+      }
       path: {
         Args: { "": unknown }
         Returns: unknown
+      }
+      pg_version: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      pg_version_num: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       pgis_asflatgeobuf_finalfn: {
         Args: { "": unknown }
@@ -888,6 +1574,14 @@ export type Database = {
       }
       pgis_geometry_union_parallel_serialfn: {
         Args: { "": unknown }
+        Returns: string
+      }
+      pgtap_version: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      plan: {
+        Args: { "": number }
         Returns: string
       }
       point: {
@@ -1030,6 +1724,29 @@ export type Database = {
       }
       postgis_wagyu_version: {
         Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      roles_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      runtests: {
+        Args: Record<PropertyKey, never> | { "": string } | { "": unknown }
+        Returns: string[]
+      }
+      schemas_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      sequences_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      skip: {
+        Args:
+          | { "": number }
+          | { "": string }
+          | { how_many: number; why: string }
         Returns: string
       }
       sparsevec_out: {
@@ -2113,8 +2830,40 @@ export type Database = {
         Args: { "": unknown }
         Returns: number
       }
+      tables_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
+      tablespaces_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
       text: {
         Args: { "": unknown }
+        Returns: string
+      }
+      throws_ok: {
+        Args: { "": string }
+        Returns: string
+      }
+      todo: {
+        Args:
+          | { how_many: number }
+          | { how_many: number; why: string }
+          | { how_many: number; why: string }
+          | { why: string }
+        Returns: boolean[]
+      }
+      todo_end: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean[]
+      }
+      todo_start: {
+        Args: Record<PropertyKey, never> | { "": string }
+        Returns: boolean[]
+      }
+      types_are: {
+        Args: { "": unknown[] }
         Returns: string
       }
       unlockrows: {
@@ -2133,6 +2882,10 @@ export type Database = {
         Args: { new_effectiveness: number; question_id_param: string }
         Returns: undefined
       }
+      update_question_effectiveness_batch: {
+        Args: { session_id_param: string }
+        Returns: undefined
+      }
       updategeometrysrid: {
         Args: {
           catalogn_name: string
@@ -2141,6 +2894,10 @@ export type Database = {
           schema_name: string
           table_name: string
         }
+        Returns: string
+      }
+      users_are: {
+        Args: { "": unknown[] }
         Returns: string
       }
       vector_avg: {
@@ -2167,11 +2924,18 @@ export type Database = {
         Args: { "": unknown[] }
         Returns: number
       }
+      views_are: {
+        Args: { "": unknown[] }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
     }
     CompositeTypes: {
+      _time_trial_type: {
+        a_time: number | null
+      }
       geometry_dump: {
         path: number[] | null
         geom: unknown | null
@@ -2310,3 +3074,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

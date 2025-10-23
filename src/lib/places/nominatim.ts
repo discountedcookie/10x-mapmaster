@@ -8,6 +8,7 @@
 import * as Nominatim from 'nominatim-ts'
 import type { JSONPlace, AddressDetails, ExtraTags } from 'nominatim-ts/lib/types'
 import type { PlaceDescriptors } from './types'
+import { waitForRateLimit } from './index'
 
 // Re-export nominatim-ts types for convenience
 export type { JSONPlace, AddressDetails, ExtraTags }
@@ -16,23 +17,6 @@ export type { JSONPlace, AddressDetails, ExtraTags }
  * Type for search results with addressdetails and extratags enabled
  */
 export type NominatimPlace = JSONPlace<{ addressdetails: 1; extratags: 1 }>
-
-// Rate limiting: 1 request per second
-let lastRequestTime = 0
-const MIN_REQUEST_INTERVAL = 1000
-
-async function waitForRateLimit(): Promise<void> {
-    const now = Date.now()
-    const timeSinceLastRequest = now - lastRequestTime
-
-    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-        await new Promise(resolve =>
-            setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest)
-        )
-    }
-
-    lastRequestTime = Date.now()
-}
 
 /**
  * Search for places using Nominatim API
@@ -61,6 +45,7 @@ export async function searchPlaces(
         addressdetails: options.addressdetails ?? 1,
         extratags: options.extratags ?? 1,
         limit: options.limit ?? 5,
+        acceptlanguage: 'en', // Force English results for better embeddings
     })
 
     return results as unknown as NominatimPlace[]
@@ -89,6 +74,7 @@ export async function queryPlaceWithRetry(
                 addressdetails: 1,
                 extratags: 1,
                 limit: 1,
+                acceptlanguage: 'en', // Force English results for better embeddings
             })
 
             if (!results || results.length === 0) {
@@ -119,12 +105,18 @@ export async function queryPlaceWithRetry(
 
             if (isNetworkError && attempt < maxRetries) {
                 const backoffMs = Math.min(1000 * Math.pow(2, attempt), 10000) // Exponential backoff, max 10s
-                console.log(
-                    `Network error querying "${placeName}" (attempt ${attempt}/${maxRetries}), retrying in ${backoffMs}ms...`
-                )
+                console.log('Network error querying place, retrying...', {
+                    placeName,
+                    attempt,
+                    maxRetries,
+                    backoffMs,
+                })
                 await new Promise(resolve => setTimeout(resolve, backoffMs))
             } else if (attempt === maxRetries) {
-                console.error(`Failed to query "${placeName}" after ${maxRetries} attempts:`, lastError.message)
+                console.error(
+                    'Failed to query place after multiple attempts:',
+                    { placeName, maxRetries, error: lastError }
+                )
                 throw lastError
             }
         }
@@ -151,76 +143,5 @@ export function extractDescriptors(place: NominatimPlace): PlaceDescriptors {
     }
 }
 
-/**
- * Generate embedding text from place data including enriched fields
- * Used for consistent embedding text generation across seed data and runtime
- * 
- * @param place - Place object with name and descriptors
- * @returns Formatted text string for embedding generation
- */
-export function generatePlaceEmbeddingText(place: {
-    name: string
-    descriptors: Record<string, any>
-}): string {
-    const parts = [place.name]
-    const desc = place.descriptors
-    const ext = desc.extratags || {}
-
-    // Basic info
-    if (desc.type) {
-        parts.push(`Type: ${desc.type}`)
-    }
-    if (desc.class) {
-        parts.push(`Category: ${desc.class}`)
-    }
-
-    // Extratags - distinguishing characteristics
-    if (ext.year_of_construction) {
-        parts.push(`Built: ${ext.year_of_construction}`)
-    }
-    if (ext.start_date) {
-        parts.push(`Built: ${ext.start_date}`)
-    }
-    if (ext.natural) {
-        parts.push(`Natural feature: ${ext.natural}`)
-    }
-    if (ext.wikipedia) {
-        // Extract just the title for embedding
-        const wikiTitle = ext.wikipedia.split(':').pop()
-        parts.push(`See: ${wikiTitle}`)
-    }
-    if (ext.architect) {
-        parts.push(`Architect: ${ext.architect}`)
-    }
-    if (ext.heritage) {
-        parts.push(`Heritage site`)
-    }
-
-    // Enriched elevation/height data
-    if (desc.elevation_meters) {
-        parts.push(`Elevation: ${desc.elevation_meters} meters`)
-    }
-    if (desc.height_meters) {
-        parts.push(`Height: ${desc.height_meters} meters`)
-    }
-    if (ext.ele) {
-        parts.push(`Elevation: ${ext.ele} meters`)
-    }
-    if (ext.height) {
-        parts.push(`Height: ${ext.height} meters`)
-    }
-
-    // Location context
-    if (desc.address?.city) {
-        parts.push(`City: ${desc.address.city}`)
-    }
-    if (desc.address?.state) {
-        parts.push(`State: ${desc.address.state}`)
-    }
-    if (desc.address?.country) {
-        parts.push(`Country: ${desc.address.country}`)
-    }
-
-    return parts.join('. ')
-}
+// generatePlaceEmbeddingText moved to index.ts for centralized access
 

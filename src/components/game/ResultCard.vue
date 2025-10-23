@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,8 @@ const emit = defineEmits<{
   incorrect: []
   playAgain: []
 }>()
+
+const { t } = useI18n()
 
 const showAnalysis = ref(false)
 
@@ -58,7 +61,7 @@ const spatialPercent = computed(() => {
   >
     <CardHeader>
       <CardTitle class="text-2xl flex items-center gap-2">
-        {{ guess && !isLowConfidence ? 'Is this your place?' : guess && isLowConfidence ? 'I\'m narrowing it down...' : 'No matches found' }}
+        {{ guess && !isLowConfidence ? t('game.result_card.is_this_your_place') : guess && isLowConfidence ? t('game.result_card.narrowing_down') : t('game.result_card.no_matches') }}
         <Icon
           v-if="guess && !isLowConfidence"
           icon="radix-icons:target"
@@ -66,10 +69,10 @@ const spatialPercent = computed(() => {
         />
       </CardTitle>
       <CardDescription v-if="!guess">
-        We couldn't find a matching place. Please tell us what you were thinking of.
+        {{ t('game.result_card.no_match_found_description') }}
       </CardDescription>
       <CardDescription v-else-if="isLowConfidence">
-        The description matches multiple places. Answer more questions to narrow down the results.
+        {{ t('game.result_card.low_confidence_description') }}
       </CardDescription>
     </CardHeader>
     <CardContent v-if="guess">
@@ -79,13 +82,13 @@ const spatialPercent = computed(() => {
             {{ guess.name }}
           </h3>
           <p class="text-sm text-muted-foreground">
-            {{ guess.lat.toFixed(4) }}°, {{ guess.lng.toFixed(4) }}°
+            {{ guess.lat?.toFixed(4) ?? 'N/A' }}°, {{ guess.lng?.toFixed(4) ?? 'N/A' }}°
           </p>
         </div>
 
         <!-- Confidence Badge -->
         <div class="flex items-center gap-2">
-          <span class="text-sm text-muted-foreground">Overall match:</span>
+          <span class="text-sm text-muted-foreground">{{ t('game.result_card.overall_match') }}:</span>
           <ConfidenceBadge :confidence="guess.composite_confidence" />
         </div>
 
@@ -102,7 +105,7 @@ const spatialPercent = computed(() => {
                   icon="radix-icons:bar-chart"
                   class="inline h-4 w-4 mr-1"
                 />
-                Match Analysis
+                {{ t('game.result_card.match_analysis') }}
               </span>
               <Icon
                 :icon="showAnalysis ? 'radix-icons:chevron-up' : 'radix-icons:chevron-down'"
@@ -115,7 +118,7 @@ const spatialPercent = computed(() => {
               <!-- Description Match -->
               <div class="space-y-1">
                 <div class="flex justify-between text-sm">
-                  <span class="text-muted-foreground">Description match</span>
+                  <span class="text-muted-foreground">{{ t('game.result_card.description_match') }}</span>
                   <span class="font-medium">{{ semanticPercent }}%</span>
                 </div>
                 <Progress
@@ -127,7 +130,7 @@ const spatialPercent = computed(() => {
               <!-- Location Clustering -->
               <div class="space-y-1">
                 <div class="flex justify-between text-sm">
-                  <span class="text-muted-foreground">Location clustering</span>
+                  <span class="text-muted-foreground">{{ t('game.result_card.location_clustering') }}</span>
                   <span class="font-medium">{{ spatialPercent }}%</span>
                 </div>
                 <Progress
@@ -152,7 +155,7 @@ const spatialPercent = computed(() => {
             icon="radix-icons:check"
             class="h-5 w-5 mr-2"
           />
-          Yes, that's it!
+          {{ t('game.result_card.yes_thats_it') }}
         </Button>
         <Button
           class="flex-1 transition-playful"
@@ -165,7 +168,7 @@ const spatialPercent = computed(() => {
             icon="radix-icons:cross-2"
             class="h-5 w-5 mr-2"
           />
-          No, that's not it
+          {{ t('game.result_card.no_thats_not_it') }}
         </Button>
       </template>
       <template v-else-if="guess && isLowConfidence">
@@ -179,7 +182,7 @@ const spatialPercent = computed(() => {
             icon="radix-icons:check"
             class="h-5 w-5 mr-2"
           />
-          Yes, it's this one
+          {{ t('game.result_card.yes_its_this_one') }}
         </Button>
         <Button
           class="flex-1 transition-playful"
@@ -192,7 +195,7 @@ const spatialPercent = computed(() => {
             icon="radix-icons:question-mark"
             class="h-5 w-5 mr-2"
           />
-          No, keep asking questions
+          {{ t('game.result_card.no_keep_asking') }}
         </Button>
       </template>
       <template v-else>
@@ -206,7 +209,7 @@ const spatialPercent = computed(() => {
             icon="radix-icons:pencil-1"
             class="h-5 w-5 mr-2"
           />
-          Tell us the place
+          {{ t('game.result_card.tell_us_the_place') }}
         </Button>
         <Button
           class="flex-1 transition-playful"
@@ -219,7 +222,7 @@ const spatialPercent = computed(() => {
             icon="radix-icons:reload"
             class="h-5 w-5 mr-2"
           />
-          Play Again
+          {{ t('game.play_again') }}
         </Button>
       </template>
     </CardFooter>

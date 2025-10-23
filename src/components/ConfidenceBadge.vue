@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -14,6 +15,8 @@ const props = withDefaults(defineProps<Props>(), {
   showTooltip: true,
 })
 
+const { t } = useI18n()
+
 /** Confidence level classification */
 const level = computed(() => {
   if (props.confidence >= 0.8) return 'high'
@@ -24,9 +27,9 @@ const level = computed(() => {
 /** Badge label */
 const label = computed(() => {
   const percent = Math.round(props.confidence * 100)
-  if (level.value === 'high') return `High (${percent}%)`
-  if (level.value === 'medium') return `Medium (${percent}%)`
-  return `Low (${percent}%)`
+  if (level.value === 'high') return t('confidence.high', { percent })
+  if (level.value === 'medium') return t('confidence.medium', { percent })
+  return t('confidence.low', { percent })
 })
 
 /** Badge variant based on confidence level */
@@ -39,12 +42,12 @@ const variant = computed(() => {
 /** Tooltip explanation */
 const tooltipText = computed(() => {
   if (level.value === 'high') {
-    return 'Strong match! The description closely matches this place.'
+    return t('confidence.tooltip.high')
   }
   if (level.value === 'medium') {
-    return 'Moderate match. May need a few more questions to be certain.'
+    return t('confidence.tooltip.medium')
   }
-  return 'Weak match. This is one of several possibilities.'
+  return t('confidence.tooltip.low')
 })
 
 /** Custom classes for badge color */

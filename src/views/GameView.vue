@@ -3,9 +3,10 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { toast } from 'vue-sonner'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { useGameStore } from '@/stores/game'
-import { useNominatim, type NominatimPlace } from '@/composables/useNominatim'
+import { useGameStore, MAX_QUESTIONS } from '@/stores/game'
+import { usePlaces, type NominatimPlace } from '@/composables/usePlaces'
 import QuestionCard from '@/components/game/QuestionCard.vue'
 import ResultCard from '@/components/game/ResultCard.vue'
 import PlaceSearch from '@/components/game/PlaceSearch.vue'
@@ -16,7 +17,9 @@ import { Textarea } from '@/components/ui/textarea'
 const router = useRouter()
 const authStore = useAuthStore()
 const gameStore = useGameStore()
-const { extractDescriptors, enrichDescriptors } = useNominatim()
+const placesStore = usePlaces()
+const { extractDescriptors, enrichDescriptors } = placesStore
+const { t } = useI18n()
 
 const showPlaceSearch = ref(false)
 const gameStarted = ref(false)
@@ -36,18 +39,18 @@ const validationMessage = computed(() => {
   const trimmed = userDescription.value.trim()
   if (trimmed.length === 0) return ''
   if (trimmed.length < MIN_DESCRIPTION_LENGTH) {
-    return `At least ${MIN_DESCRIPTION_LENGTH} characters required (${trimmed.length}/${MIN_DESCRIPTION_LENGTH})`
+    return t('game.validation.min_length', { length: MIN_DESCRIPTION_LENGTH, current: trimmed.length })
   }
   if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
-    return `Maximum ${MAX_DESCRIPTION_LENGTH} characters exceeded`
+    return t('game.validation.max_length', { length: MAX_DESCRIPTION_LENGTH })
   }
   return ''
 })
 
 async function startGame() {
   if (!isDescriptionValid.value) {
-    toast.error('Invalid description', {
-      description: validationMessage.value || 'Please provide a valid description.',
+    toast.error(t('game.toast.invalid_description_title'), {
+      description: validationMessage.value || t('game.toast.invalid_description_body'),
     })
     return
   }
@@ -58,8 +61,8 @@ async function startGame() {
   }
   catch (error) {
     console.error('Failed to start game:', error)
-    toast.error('Failed to start game', {
-      description: 'Please try again or check your connection.',
+    toast.error(t('game.toast.start_game_failed_title'), {
+      description: t('game.toast.start_game_failed_body'),
     })
   }
 }
@@ -77,15 +80,15 @@ async function handleCorrectGuess() {
     saving.value = true
     // Cast to remove type recursion issues
     await gameStore.finalizeGameSession(result as any, true)
-    toast.success('Game saved!', {
-      description: 'Great job! Your game has been recorded.',
+    toast.success(t('game.toast.game_saved_title'), {
+      description: t('game.toast.game_saved_body'),
     })
     playAgain()
   }
   catch (error) {
     console.error('Failed to save game:', error)
-    toast.error('Failed to save game', {
-      description: 'Please try again.',
+    toast.error(t('game.toast.save_game_failed_title'), {
+      description: t('game.toast.save_game_failed_body'),
     })
   }
   finally {
@@ -133,16 +136,16 @@ async function handlePlaceSelect(nominatimPlace: NominatimPlace) {
 
     // Save game session (pass isNewPlace to skip redundant embedding update)
     await gameStore.finalizeGameSession(place, false, isNewPlace)
-    toast.success('Place saved!', {
-      description: 'Thanks! We\'ve added this place for future games.',
+    toast.success(t('game.toast.place_saved_title'), {
+      description: t('game.toast.place_saved_body'),
     })
     showPlaceSearch.value = false
     playAgain()
   }
   catch (error) {
     console.error('Failed to save place:', error)
-    toast.error('Failed to save place', {
-      description: 'Please try again.',
+    toast.error(t('game.toast.save_place_failed_title'), {
+      description: t('game.toast.save_place_failed_body'),
     })
   }
   finally {
@@ -178,17 +181,17 @@ function goHome() {
               icon="radix-icons:pencil-1"
               class="h-10 w-10 text-primary"
             />
-            Describe a Place
+            {{ t('game.describe_place_title') }}
           </CardTitle>
           <CardDescription class="text-xl">
-            Tell us about the place you're thinking of
+            {{ t('game.describe_place_description') }}
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-col gap-4">
           <div class="space-y-2">
             <Textarea
               v-model="userDescription"
-              placeholder="e.g., A famous iron tower in Paris with a lattice structure"
+              :placeholder="t('game.description_placeholder')"
               rows="4"
               class="resize-none"
               :maxlength="MAX_DESCRIPTION_LENGTH"
@@ -204,7 +207,7 @@ function goHome() {
                 v-else
                 class="text-muted-foreground flex-1"
               >
-                {{ MIN_DESCRIPTION_LENGTH }}-{{ MAX_DESCRIPTION_LENGTH }} characters
+                {{ MIN_DESCRIPTION_LENGTH }}-{{ MAX_DESCRIPTION_LENGTH }} {{ t('common.characters') }}
               </p>
               <p
                 class="text-muted-foreground whitespace-nowrap"
@@ -225,7 +228,7 @@ function goHome() {
               icon="radix-icons:play"
               class="h-5 w-5 mr-2"
             />
-            {{ gameStore.loading ? 'Starting...' : 'Start Game' }}
+            {{ gameStore.loading ? t('game.starting') : t('game.start_game') }}
           </Button>
           <Button
             size="lg"
@@ -237,7 +240,7 @@ function goHome() {
               icon="radix-icons:home"
               class="h-5 w-5 mr-2"
             />
-            Back to Home
+            {{ t('common.back_to_home') }}
           </Button>
         </CardContent>
       </Card>
@@ -246,8 +249,8 @@ function goHome() {
       <QuestionCard
         v-else-if="!gameStore.isGameComplete && gameStore.currentQuestion"
         :question="gameStore.currentQuestion.text"
-        :question-number="gameStore.currentQuestionIndex + 1"
-        :total-questions="gameStore.questions.length"
+        :question-number="gameStore.questionCount + 1"
+        :total-questions="MAX_QUESTIONS"
         :candidates-count="gameStore.candidates.length"
         :confidence="gameStore.confidence"
         @answer="handleAnswer"
@@ -282,10 +285,10 @@ function goHome() {
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
         <div class="text-center space-y-1">
           <p class="font-semibold text-lg">
-            Analyzing your description...
+            {{ t('game.loading_overlay.analyzing_description') }}
           </p>
           <p class="text-sm text-muted-foreground">
-            Finding matching places
+            {{ t('game.loading_overlay.finding_places') }}
           </p>
         </div>
       </CardContent>
@@ -297,6 +300,6 @@ function goHome() {
     v-if="gameStore.error"
     class="fixed top-20 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground px-4 py-2 rounded-md pointer-events-auto z-50"
   >
-    {{ gameStore.error }}
+    {{ gameStore.error || t('common.error') }}
   </div>
 </template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
@@ -20,13 +21,14 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const { setLight, setDark, setAuto } = useTheme()
+const { t } = useI18n()
 
 /** Navigation items */
-const navItems = [
-  { id: 'home', label: 'Home', path: '/' },
-  { id: 'game', label: 'Game', path: '/game' },
-  { id: 'statistics', label: 'Statistics', path: '/statistics' },
-]
+const navItems = computed(() => [
+  { id: 'home', label: t('nav.home'), path: '/' },
+  { id: 'game', label: t('nav.game'), path: '/game' },
+  { id: 'statistics', label: t('nav.statistics'), path: '/statistics' },
+])
 
 /** User initials for avatar */
 const userInitials = computed(() => {
@@ -62,13 +64,13 @@ function navigateTo(path: string) {
 async function handleSignOut() {
   try {
     await authStore.signOut()
-    toast.success('Signed out successfully')
+    toast.success(t('auth.toast.signed_out_success'))
     router.push('/')
   }
   catch (error) {
     console.error('Sign out failed:', error)
-    toast.error('Failed to sign out', {
-      description: 'Please try again.',
+    toast.error(t('auth.toast.sign_out_failed_title'), {
+      description: t('auth.toast.sign_out_failed_body'),
     })
   }
 }
@@ -88,7 +90,7 @@ function handleLogin() {
           icon="radix-icons:globe"
           class="h-5 w-5 text-primary"
         />
-        <span class="font-bold text-base hidden sm:inline">10x-mapmaster</span>
+        <span class="font-bold text-base hidden sm:inline">{{ t('home.title') }}</span>
       </div>
 
       <!-- Navigation Links -->
@@ -150,28 +152,28 @@ function handleLogin() {
 
             <!-- Theme Toggle -->
             <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">
-              Theme
+              {{ t('theme.title') }}
             </DropdownMenuLabel>
             <DropdownMenuItem @click="setLight">
               <Icon
                 icon="radix-icons:sun"
                 class="mr-2 h-4 w-4"
               />
-              Light
+              {{ t('theme.light') }}
             </DropdownMenuItem>
             <DropdownMenuItem @click="setDark">
               <Icon
                 icon="radix-icons:moon"
                 class="mr-2 h-4 w-4"
               />
-              Dark
+              {{ t('theme.dark') }}
             </DropdownMenuItem>
             <DropdownMenuItem @click="setAuto">
               <Icon
                 icon="radix-icons:desktop"
                 class="mr-2 h-4 w-4"
               />
-              System
+              {{ t('theme.system') }}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -185,7 +187,7 @@ function handleLogin() {
                 icon="radix-icons:exit"
                 class="mr-2 h-4 w-4"
               />
-              Sign Out
+              {{ t('nav.logout') }}
             </DropdownMenuItem>
             <DropdownMenuItem
               v-else
@@ -195,7 +197,7 @@ function handleLogin() {
                 icon="radix-icons:enter"
                 class="mr-2 h-4 w-4"
               />
-              Login
+              {{ t('nav.login') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
