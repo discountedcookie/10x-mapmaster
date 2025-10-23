@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/composables/useTheme'
 import { MglMap, MglMarker, MglPopup } from '@indoorequal/vue-maplibre-gl'
 
@@ -20,6 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const { resolvedTheme } = useTheme()
+const { t } = useI18n()
 
 // Map configuration - theme-aware styles
 const mapStyle = computed(() => {
@@ -42,10 +44,10 @@ const markers = computed(() => {
 
     let popupContent = `<strong>${candidate.name}</strong>`
     if (isGameContext) {
-      popupContent += `<br><span style="font-size: 0.8em;">Match: ${Math.round(candidate.similarity! * 100)}%</span>`
+      popupContent += `<br><span style="font-size: 0.8em;">${t('map.match')}: ${Math.round(candidate.similarity! * 100)}%</span>`
     }
     else if (candidate.game_count && candidate.game_count > 0) {
-      popupContent += `<br><span style="font-size: 0.8em;">Played ${candidate.game_count} time${candidate.game_count === 1 ? '' : 's'}</span>`
+      popupContent += `<br><span style="font-size: 0.8em;">${t('map.played', { count: candidate.game_count })}</span>`
     }
 
     return {
@@ -104,7 +106,7 @@ const bounds = computed(() => {
             class="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-110 transition-transform"
             :style="{ backgroundColor: marker.backgroundColor, opacity: marker.opacity }"
             role="button"
-            :aria-label="`View ${marker.name}${marker.similarity ? ` - ${Math.round(marker.similarity * 100)}% match` : ''}`"
+            :aria-label="t('map.marker_aria_label', { name: marker.name, percent: marker.similarity ? Math.round(marker.similarity * 100) : '' })"
           />
         </template>
 
@@ -117,13 +119,13 @@ const bounds = computed(() => {
               v-if="marker.similarity !== undefined"
               class="text-xs mt-1"
             >
-              Match: {{ Math.round(marker.similarity * 100) }}%
+              {{ t('map.match') }}: {{ Math.round(marker.similarity * 100) }}%
             </div>
             <div
               v-else-if="marker.game_count && marker.game_count > 0"
               class="text-xs mt-1"
             >
-              Played {{ marker.game_count }} time{{ marker.game_count === 1 ? '' : 's' }}
+              {{ t('map.played', { count: marker.game_count }) }}
             </div>
           </div>
         </MglPopup>

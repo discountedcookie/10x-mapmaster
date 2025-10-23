@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const handleGetStarted = () => {
   if (authStore.isAuthenticated) {
@@ -29,10 +31,10 @@ const handleGetStarted = () => {
           icon="radix-icons:globe"
           class="h-10 w-10"
         />
-        <span>10x-mapmaster</span>
+        <span>{{ t('home.title') }}</span>
       </CardTitle>
       <CardDescription class="text-base text-white/90 mt-2">
-        An intelligent geography guessing game that learns from every session
+        {{ t('home.tagline') }}
       </CardDescription>
     </CardHeader>
     <CardContent class="pt-6">
@@ -45,7 +47,7 @@ const handleGetStarted = () => {
           icon="radix-icons:rocket"
           class="h-5 w-5 mr-2"
         />
-        Get Started
+        {{ t('home.get_started') }}
       </Button>
     </CardContent>
   </Card>

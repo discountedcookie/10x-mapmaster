@@ -17,9 +17,8 @@ dist-ssr
 
 # Environment variables
 .env
-.env.local
-.env.production
-.env.*.local
+.env.*
+!.env.example
 
 # Supabase
 .supabase

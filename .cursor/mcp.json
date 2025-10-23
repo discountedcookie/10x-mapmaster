@@ -21,8 +21,11 @@
             ]
         },
         "semgrep": {
-            "type": "streamable-http",
-            "url": "https://mcp.semgrep.ai/mcp"
+            "command": "./mcp_env.sh",
+            "args": [
+                "semgrep",
+                "mcp"
+            ]
         },
         "shadcnvue": {
             "command": "npx",
@@ -33,6 +36,15 @@
         },
         "supabase": {
             "url": "https://mcp.supabase.com/mcp?project_ref=lrrcfzyjtejjbjtoaazm"
+        },
+        "zen": {
+            "command": "./mcp_env.sh",
+            "args": [
+                "uvx",
+                "--from",
+                "git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
+                "zen-mcp-server"
+            ]
         }
     }
 }

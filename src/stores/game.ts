@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, toRaw } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database'
 import { useAuthStore } from './auth'
@@ -7,19 +7,21 @@ import { useEmbeddings } from '@/composables/useEmbeddings'
 
 type Place = Tables<'places'>
 type Question = Tables<'questions'>
-type GameAnswer = {
-  questionId: string
-  answer: boolean
-  candidatesAfter: number
-  candidatesBefore: number
-}
+// Reserved for future use
+// type GameAnswer = {
+//   questionId: string
+//   answer: boolean
+//   candidatesAfter: number
+//   candidatesBefore: number
+// }
 
 // Configuration constants
 const LEARNING_RATE = 0.3
 const MIN_CONFIDENCE = 0.7
-const MAX_QUESTIONS = 5
-const INITIAL_CANDIDATES = 20
-const MATCH_THRESHOLD = 0.1
+export const MAX_QUESTIONS = 5
+// Reserved for future use
+const _INITIAL_CANDIDATES = 20
+const _MATCH_THRESHOLD = 0.1
 
 // UI confidence thresholds (used by ResultCard)
 export const LOW_CONFIDENCE_MIN = 0.5
@@ -43,17 +45,15 @@ export const useGameStore = defineStore('game', () => {
   const questions = ref<Question[]>([])
   // Explicit type annotation to avoid TS2589 type recursion with Supabase Json type
   const candidates = ref([] as PlaceWithScore[])
-  const currentQuestionIndex = ref(0)
-  const answers = ref<GameAnswer[]>([])
   const gameResult = ref<PlaceWithScore | null>(null)
   const loading = ref(false)
   const error = ref<string | undefined>(undefined)
   const mustAskQuestion = ref(false) // Flag to force asking a question after wrong guess
-  // Explicit type to avoid TS2589 type recursion with Supabase Json type
-  const questionHistory = ref([] as Array<{ question: string; answer: boolean }>)
+  const sessionQuestionCount = ref(0) // Computed from game_answers, NOT stored in state
 
   // Computed
-  const currentQuestion = computed(() => questions.value[currentQuestionIndex.value])
+  const currentQuestion = computed(() => questions.value[0]) // Always show first available question
+  const questionCount = computed(() => sessionQuestionCount.value)
   const isGameComplete = computed(() => {
     // If we must ask a question (after wrong guess), game is not complete yet
     if (mustAskQuestion.value) {
@@ -61,10 +61,10 @@ export const useGameStore = defineStore('game', () => {
     }
 
     // Complete if we've asked max questions OR confidence is high enough OR no more questions
-    const hasReachedMaxQuestions = currentQuestionIndex.value >= MAX_QUESTIONS
+    const hasReachedMaxQuestions = sessionQuestionCount.value >= MAX_QUESTIONS
     const topCandidate = candidates.value[0]
     const hasHighConfidence = candidates.value.length > 0 && topCandidate && topCandidate.composite_confidence >= MIN_CONFIDENCE
-    const noMoreQuestions = currentQuestionIndex.value >= questions.value.length
+    const noMoreQuestions = questions.value.length === 0
 
     return hasReachedMaxQuestions || hasHighConfidence || noMoreQuestions
   })
@@ -93,9 +93,36 @@ export const useGameStore = defineStore('game', () => {
   })
 
   /**
+   * Load candidates from database using session-first get_candidates RPC
+   */
+  async function loadCandidates() {
+    if (!gameSessionId.value) {
+      console.error('Cannot load candidates: no session ID')
+      return
+    }
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc('get_candidates' as any, {
+        session_id_param: gameSessionId.value,
+      }) as { data: PlaceWithScore[] | null; error: any }
+
+      if (rpcError) {
+        console.error('Error loading candidates:', rpcError)
+        throw rpcError
+      }
+
+      candidates.value = data || []
+    }
+    catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load candidates'
+      throw err
+    }
+  }
+
+  /**
    * Load questions for current session using database context
    */
-  async function loadQuestionsForSession() {
+  async function loadQuestions() {
     if (!gameSessionId.value) {
       console.error('Cannot load questions: no session ID')
       return
@@ -113,7 +140,6 @@ export const useGameStore = defineStore('game', () => {
       }
 
       questions.value = data || []
-      currentQuestionIndex.value = 0
     }
     catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load questions'
@@ -122,112 +148,53 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * Find candidate places using vector similarity search
+   * Load session state (question count) from database
    */
-  async function findCandidatesByEmbedding(embedding: number[]) {
-    try {
-      loading.value = true
-      error.value = undefined
-
-      const { data, error: rpcError } = await supabase
-        .rpc('match_places', {
-          query_embedding: embeddingToString(embedding),
-          match_threshold: MATCH_THRESHOLD,
-          match_count: INITIAL_CANDIDATES,
-        })
-
-      if (rpcError)
-        throw rpcError
-
-      // Type assertion for the RPC return
-      const placesWithScore = (data || []) as PlaceWithScore[]
-      candidates.value = placesWithScore
-    }
-    catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to find candidates'
-      throw err
-    }
-    finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * Refine candidates based on question answer using cumulative filtering.
-   *
-   * This function implements a progressive narrowing algorithm by maintaining a cumulative
-   * history of questions and answers. Each new answer is added to the history, and the full
-   * history is sent to the database RPC function which applies semantic + spatial filtering.
-   *
-   * @param answer - Boolean answer to the current question (true for "Yes", false for "No")
-   * @returns Object containing candidatesBefore and candidatesAfter counts for effectiveness tracking
-   *
-   * @example
-   * const { candidatesBefore, candidatesAfter } = await refineCandidates(true)
-   * console.log(`Narrowed from ${candidatesBefore} to ${candidatesAfter} candidates`)
-   */
-  async function refineCandidates(answer: boolean) {
-    const question = currentQuestion.value
-    if (!question) {
-      return { candidatesBefore: candidates.value.length, candidatesAfter: candidates.value.length }
-    }
-
-    // Record the state before refinement
-    const candidatesBefore = candidates.value.length
-
-    // Get candidate IDs (manual loop to avoid TS2589 type recursion)
-    const candidateIds: string[] = []
-    for (const candidate of candidates.value) {
-      candidateIds.push(candidate.id)
-    }
-
-    if (candidateIds.length === 0) {
-      return { candidatesBefore: 0, candidatesAfter: 0 }
-    }
-
-    // Add current question to history
-    questionHistory.value.push({
-      question: question.text,
-      answer: answer,
-    })
+  async function loadSessionState() {
+    if (!gameSessionId.value) return
 
     try {
-      // Call RPC function with full question history for cumulative filtering
-      const { data: filteredCandidates, error: rpcError } = await supabase.rpc('filter_candidates_with_history' as any, {
-        candidate_place_ids: candidateIds,
-        question_history: questionHistory.value,
-      }) as { data: PlaceWithScore[] | null; error: any }
+      const { data, error: viewError } = await supabase
+        .from('game_session_stats' as any)
+        .select('question_count, wrong_guess_count')
+        .eq('session_id', gameSessionId.value)
+        .single()
 
-      if (rpcError) {
-        console.error('Error filtering candidates:', rpcError)
-        // On error, keep all candidates to not break the game
-        return { candidatesBefore, candidatesAfter: candidatesBefore }
+      if (viewError) {
+        console.error('Error loading session state:', viewError)
+        return
       }
 
-      // Replace candidates with filtered results (includes updated spatial confidence)
-      candidates.value = filteredCandidates || []
-
-      const candidatesAfter = candidates.value.length
-
-      return { candidatesBefore, candidatesAfter }
+      sessionQuestionCount.value = (data as any)?.question_count || 0
     }
     catch (err) {
-      console.error('Error in refineCandidates:', err)
-      // On error, keep all candidates to not break the game
-      return { candidatesBefore, candidatesAfter: candidatesBefore }
+      console.error('Error in loadSessionState:', err)
     }
   }
 
   /**
-   * Answer current question - saves to database and reloads questions
+   * Answer current question - saves to database, then reloads everything from DB
    */
   async function answerQuestion(answer: boolean) {
     if (!currentQuestion.value || !gameSessionId.value)
       return
 
-    const { candidatesBefore, candidatesAfter } = await refineCandidates(answer)
+    const sequenceNumber = sessionQuestionCount.value + 1
 
-    // Save answer to database IMMEDIATELY
+    // Get current candidate IDs and scores for storing in JSONB
+    // Use toRaw to strip reactivity and avoid deep type instantiation issue
+    const currentCandidates = toRaw(candidates.value)
+    const candidatePlaceIds = currentCandidates.map((c: any) => c.id)
+    const candidatesAfterData = {
+      place_ids: candidatePlaceIds,
+      confidence_scores: {
+        semantic: currentCandidates[0]?.semantic_similarity || 0,
+        spatial: currentCandidates[0]?.spatial_confidence || 0,
+        composite: currentCandidates[0]?.composite_confidence || 0,
+      },
+    }
+
+    // Save answer to database
     try {
       const { error: answerError } = await supabase
         .from('game_answers')
@@ -235,29 +202,28 @@ export const useGameStore = defineStore('game', () => {
           session_id: gameSessionId.value,
           question_id: currentQuestion.value.id,
           answer,
-          candidates_after: candidatesAfter,
-          sequence_number: answers.value.length + 1,
+          answer_type: 'question_answer',
+          place_id: null, // NULL for question answers
+          candidates_after: candidatesAfterData,
+          sequence_number: sequenceNumber,
         })
 
       if (answerError) {
         console.error('Error saving answer:', answerError)
+        throw answerError
       }
     }
     catch (err) {
       console.error('Error in answerQuestion:', err)
+      return
     }
 
-    // Record answer locally
-    answers.value.push({
-      questionId: currentQuestion.value.id,
-      answer,
-      candidatesAfter,
-      candidatesBefore,
-    })
-
-    // Reload questions from database using session context
-    // (Database automatically filters based on answered questions in this session)
-    await loadQuestionsForSession()
+    // Reload from DB (candidates and questions update automatically based on new answer)
+    await Promise.all([
+      loadCandidates(),
+      loadQuestions(),
+      loadSessionState(),
+    ])
 
     // Clear the mustAskQuestion flag since we've now asked a question
     mustAskQuestion.value = false
@@ -272,25 +238,43 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
-   * Update question effectiveness based on how well it discriminated
+   * Add a wrong guess to the session - eliminates place from candidates
    */
-  async function updateQuestionEffectiveness(questionId: string, candidatesBefore: number, candidatesAfter: number) {
+  async function submitWrongGuess(placeId: string) {
+    if (!gameSessionId.value) return
+
+    const sequenceNumber = sessionQuestionCount.value + 1
+
     try {
-      if (candidatesBefore === 0) return
+      // Save wrong guess to database
+      const { error: guessError } = await supabase
+        .from('game_answers')
+        .insert({
+          session_id: gameSessionId.value,
+          question_id: null, // No question for wrong guess
+          answer: false,
+          answer_type: 'wrong_guess',
+          place_id: placeId,
+          candidates_after: {
+            place_ids: [],
+            confidence_scores: { semantic: 0, spatial: 0, composite: 0 },
+          },
+          sequence_number: sequenceNumber,
+        })
 
-      // Calculate effectiveness: how much did this question reduce candidates?
-      const reduction = 1 - (candidatesAfter / candidatesBefore)
-      const effectiveness = Math.max(0, Math.min(1, reduction)) // Clamp between 0 and 1
+      if (guessError) {
+        console.error('Error saving wrong guess:', guessError)
+        throw guessError
+      }
 
-      // Use the database function to update effectiveness
-      await supabase.rpc('update_question_effectiveness', {
-        question_id_param: questionId,
-        new_effectiveness: effectiveness,
-      })
+      // Reload candidates (place now eliminated)
+      await loadCandidates()
+
+      // Must ask at least one more question
+      mustAskQuestion.value = true
     }
     catch (err) {
-      console.error('Failed to update question effectiveness:', err)
-      // Non-critical error, don't throw
+      console.error('Error in submitWrongGuess:', err)
     }
   }
 
@@ -334,7 +318,6 @@ export const useGameStore = defineStore('game', () => {
         .update({
           place_id: actualPlace.id,
           was_correct: wasCorrect,
-          question_count: answers.value.length,
         })
         .eq('id', gameSessionId.value)
 
@@ -347,13 +330,11 @@ export const useGameStore = defineStore('game', () => {
         await updatePlaceEmbedding(actualPlace.id, descriptionEmbedding.value)
       }
 
-      // Learning: Update question effectiveness scores
-      for (const answer of answers.value) {
-        await updateQuestionEffectiveness(
-          answer.questionId,
-          answer.candidatesBefore,
-          answer.candidatesAfter
-        )
+      // Learning: Update question effectiveness in batch (only if correct)
+      if (wasCorrect) {
+        await supabase.rpc('update_question_effectiveness_batch', {
+          session_id_param: gameSessionId.value,
+        })
       }
     }
     catch (err) {
@@ -419,40 +400,26 @@ export const useGameStore = defineStore('game', () => {
    * Reject the current guess and continue with remaining candidates.
    *
    * This function implements the state machine logic after a user rejects a guess:
-   * 1. Removes the incorrect guess from candidates
+   * 1. Saves wrong guess to database (eliminates from candidates via get_candidates)
    * 2. Forces at least one question to be asked before the next guess (better UX + data collection)
-   * 3. Handles edge cases: no remaining candidates, exhausted questions
-   *
-   * State transitions:
-   * - Game result → null (clear incorrect guess)
-   * - mustAskQuestion → true (enforce question before next guess)
-   * - If no candidates remain → Complete game with "no matches found"
-   * - If questions exhausted → Complete game (can't narrow further)
-   * - Otherwise → Continue to next question
+   * 3. Reloads candidates from database (wrong guess automatically filtered out)
    *
    * @example
    * // User rejects "Eiffel Tower" guess
-   * rejectGuessAndContinue()
+   * await rejectGuessAndContinue()
    * // Game shows next question instead of immediately guessing again
    */
-  function rejectGuessAndContinue() {
-    // Remove the top candidate (incorrect guess)
-    if (candidates.value.length > 0) {
-      candidates.value.shift()
-    }
+  async function rejectGuessAndContinue() {
+    const wrongPlace = gameResult.value
+    if (!wrongPlace) return
+
+    // Submit wrong guess (saves to DB and reloads candidates)
+    await submitWrongGuess(wrongPlace.id)
 
     // Reset game result to continue playing
     gameResult.value = null
 
-    // After a wrong guess, we MUST ask at least one question before guessing again
-    // This provides better user engagement and helps narrow down candidates
-    mustAskQuestion.value = true
-
-    // Reset question index if it was set to MAX_QUESTIONS (from initial high-confidence guess)
-    // This allows us to start asking questions
-    if (currentQuestionIndex.value >= questions.value.length) {
-      currentQuestionIndex.value = answers.value.length // Resume from where we left off
-    }
+    // mustAskQuestion is set by submitWrongGuess
 
     // If no candidates left, game is complete with no result
     if (candidates.value.length === 0) {
@@ -463,7 +430,7 @@ export const useGameStore = defineStore('game', () => {
 
     // Check if we've exhausted all available questions
     // If so, we can't ask more questions, so game is complete with no definitive result
-    if (currentQuestionIndex.value >= questions.value.length) {
+    if (questions.value.length === 0) {
       mustAskQuestion.value = false
       gameResult.value = null // Will trigger "no matches found" state
       return
@@ -481,13 +448,12 @@ export const useGameStore = defineStore('game', () => {
     gameSessionId.value = null
     userDescription.value = ''
     descriptionEmbedding.value = null
-    currentQuestionIndex.value = 0
-    answers.value = []
     candidates.value = []
+    questions.value = []
     gameResult.value = null
     error.value = undefined
     mustAskQuestion.value = false
-    questionHistory.value = []
+    sessionQuestionCount.value = 0
   }
 
   /**
@@ -522,7 +488,6 @@ export const useGameStore = defineStore('game', () => {
           description_embedding: embeddingToString(embedding),
           place_id: null, // Will be set when game ends
           was_correct: null, // Will be set when game ends
-          question_count: 0,
         })
         .select()
         .single()
@@ -532,17 +497,16 @@ export const useGameStore = defineStore('game', () => {
 
       gameSessionId.value = sessionData.id
 
-      // Find candidates using vector similarity
-      await findCandidatesByEmbedding(embedding)
-
-      // Load questions using session context
-      await loadQuestionsForSession()
+      // Load candidates and questions from DB
+      await Promise.all([
+        loadCandidates(),
+        loadQuestions(),
+      ])
 
       // Check if we have high confidence right away
       const firstCandidate = candidates.value[0]
       if (firstCandidate && firstCandidate.composite_confidence >= MIN_CONFIDENCE) {
         gameResult.value = firstCandidate
-        currentQuestionIndex.value = MAX_QUESTIONS // Skip to end
       }
     }
     catch (err) {
@@ -561,14 +525,13 @@ export const useGameStore = defineStore('game', () => {
     descriptionEmbedding,
     questions,
     candidates,
-    currentQuestionIndex,
-    answers,
     gameResult,
     loading,
     error,
 
     // Computed
     currentQuestion,
+    questionCount,
     isGameComplete,
     isLowConfidence,
     topCandidates,
@@ -578,10 +541,14 @@ export const useGameStore = defineStore('game', () => {
     // Actions
     answerQuestion,
     rejectGuessAndContinue,
+    submitWrongGuess,
     finalizeGameSession,
     checkPlaceExists,
     saveNewPlace,
     resetGame,
     startNewGame,
+    loadCandidates,
+    loadQuestions,
+    loadSessionState,
   }
 })

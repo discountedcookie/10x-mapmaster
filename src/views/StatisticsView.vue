@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -14,10 +17,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
               icon="radix-icons:bar-chart"
               class="h-10 w-10 text-primary"
             />
-            Statistics
+            {{ t('statistics.title') }}
           </CardTitle>
           <CardDescription class="text-lg">
-            Your game statistics and achievements
+            {{ t('statistics.description') }}
           </CardDescription>
         </CardHeader>
         <CardContent class="text-center py-8">
@@ -27,10 +30,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
               class="h-16 w-16 mx-auto text-muted-foreground"
             />
             <p class="text-muted-foreground">
-              Coming Soon
+              {{ t('statistics.coming_soon') }}
             </p>
             <p class="text-sm text-muted-foreground">
-              Track your performance, view your game history, and see how you compare with other players.
+              {{ t('statistics.coming_soon_description') }}
             </p>
           </div>
         </CardContent>

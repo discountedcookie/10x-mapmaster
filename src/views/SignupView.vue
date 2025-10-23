@@ -5,6 +5,7 @@ import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { toast } from 'vue-sonner'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,15 +14,16 @@ import { Input } from '@/components/ui/input'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const loading = ref(false)
 
 const formSchema = toTypedSchema(z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email(t('auth.validation.invalid_email')),
+  password: z.string().min(6, t('auth.validation.password_min_length', { length: 6 })),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
-  message: 'Passwords do not match',
+  message: t('auth.validation.passwords_do_not_match'),
   path: ['confirmPassword'],
 }))
 
@@ -39,21 +41,21 @@ const onSubmit = form.handleSubmit(async (values) => {
   }
   catch (error) {
     console.error('Signup error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create account'
+    const errorMessage = error instanceof Error ? error.message : t('auth.toast.create_account_failed_generic')
 
     // Handle specific error cases
     if (errorMessage.includes('already registered')) {
-      toast.error('Account exists', {
-        description: 'An account with this email already exists. Please sign in instead.',
+      toast.error(t('auth.toast.account_exists_title'), {
+        description: t('auth.toast.account_exists_body'),
       })
     }
     else if (errorMessage.includes('Password should be')) {
-      toast.error('Weak password', {
+      toast.error(t('auth.toast.weak_password_title'), {
         description: errorMessage,
       })
     }
     else {
-      toast.error('Sign up failed', {
+      toast.error(t('auth.toast.sign_up_failed_title'), {
         description: errorMessage,
       })
     }
@@ -75,10 +77,10 @@ function goToLogin() {
       <Card class="w-full max-w-md mx-4 bg-background/95 shadow-2xl">
         <CardHeader class="space-y-1">
           <CardTitle class="text-2xl font-bold">
-            Create an account
+            {{ t('auth.signup_title') }}
           </CardTitle>
           <CardDescription>
-            Enter your email and password to create your account. You'll need to verify your email before signing in.
+            {{ t('auth.signup_description') }}
           </CardDescription>
         </CardHeader>
         <form @submit="onSubmit">
@@ -88,7 +90,7 @@ function goToLogin() {
               name="email"
             >
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{{ t('auth.email') }}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
@@ -106,7 +108,7 @@ function goToLogin() {
               name="password"
             >
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{{ t('auth.password') }}</FormLabel>
                 <FormControl>
                   <Input
                     type="password"
@@ -124,7 +126,7 @@ function goToLogin() {
               name="confirmPassword"
             >
               <FormItem>
-                <FormLabel>Confirm Password</FormLabel>
+                <FormLabel>{{ t('auth.confirm_password') }}</FormLabel>
                 <FormControl>
                   <Input
                     type="password"
@@ -143,16 +145,16 @@ function goToLogin() {
               class="w-full"
               :disabled="loading"
             >
-              {{ loading ? 'Creating account...' : 'Create Account' }}
+              {{ loading ? t('auth.creating_account') : t('auth.signup_button') }}
             </Button>
             <div class="text-sm text-center text-muted-foreground">
-              Already have an account?
+              {{ t('auth.have_account') }}
               <button
                 type="button"
                 class="text-primary underline-offset-4 hover:underline font-medium"
                 @click="goToLogin"
               >
-                Sign in
+                {{ t('auth.login_button') }}
               </button>
             </div>
           </CardFooter>

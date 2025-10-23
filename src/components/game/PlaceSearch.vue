@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useNominatim, type NominatimPlace } from '@/composables/useNominatim'
+import { useI18n } from 'vue-i18n'
+import { usePlaces, type NominatimPlace } from '@/composables/usePlaces'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -9,7 +10,8 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-const { search, loading, error } = useNominatim()
+const placesStore = usePlaces()
+const { t } = useI18n()
 
 const query = ref('')
 const results = ref<NominatimPlace[]>([])
@@ -27,10 +29,10 @@ watch(query, (newQuery) => {
 
   debounceTimeout.value = setTimeout(async () => {
     try {
-      results.value = await search(newQuery)
+      results.value = await placesStore.searchPlaces(newQuery)
     }
     catch {
-      // Error is already handled in composable
+      // Error is already handled in store
     }
   }, 1000) // Debounce for 1 second to respect Nominatim rate limit
 })
@@ -43,28 +45,28 @@ function selectPlace(place: NominatimPlace) {
 <template>
   <Card class="w-full max-w-2xl">
     <CardHeader>
-      <CardTitle>What place were you thinking of?</CardTitle>
-      <CardDescription>Search for the place you had in mind</CardDescription>
+      <CardTitle>{{ t('game.place_search.title') }}</CardTitle>
+      <CardDescription>{{ t('game.place_search.description') }}</CardDescription>
     </CardHeader>
     <CardContent class="space-y-4">
       <div class="space-y-2">
         <input
           v-model="query"
           type="text"
-          placeholder="Search for a place..."
+          :placeholder="t('game.place_search.placeholder')"
           class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
         <p
-          v-if="loading"
+          v-if="placesStore.searchLoading"
           class="text-sm text-muted-foreground"
         >
-          Searching...
+          {{ t('game.place_search.searching') }}
         </p>
         <p
-          v-if="error"
+          v-if="placesStore.searchError"
           class="text-sm text-destructive"
         >
-          {{ error }}
+          {{ placesStore.searchError }}
         </p>
       </div>
 
@@ -93,7 +95,7 @@ function selectPlace(place: NominatimPlace) {
         class="w-full"
         @click="emit('cancel')"
       >
-        Cancel
+        {{ t('common.cancel') }}
       </Button>
     </CardFooter>
   </Card>

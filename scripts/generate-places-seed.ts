@@ -2,62 +2,47 @@
 
 /**
  * Generate embeddings and enrich data for seed places
- * 
+ *
  * This script processes all places with NULL embeddings:
  * 1. Queries Nominatim by name → get lat, lng, extratags
  * 2. Calls Open-Elevation API → get elevation (for natural features)
  * 3. Calls Overpass API → get building height (for structures)
- * 4. Merges data into descriptors JSONB
- * 5. Generates embedding text using enrichment functions
- * 6. Generates embedding via Supabase Edge Function
- * 7. Updates place with all enriched data
- * 
+ * 4. Calls Wikipedia API → get summary (rich context for embeddings)
+ * 5. Merges data into descriptors JSONB
+ * 6. Generates embedding text using enrichment functions
+ * 7. Generates embedding via Supabase Edge Function
+ * 8. Updates place with all enriched data
+ *
  * Rate limit: 1 req/sec (Nominatim standard)
- * 
+ *
  * Usage: npm run seed:places
  */
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../src/types/database'
 import {
-  queryPlaceWithRetry,
-  enrichWithElevation,
-  enrichWithHeight,
-  generatePlaceEmbeddingText,
+    queryPlaceWithRetry,
+    enrichWithElevation,
+    enrichWithHeight,
+    enrichWithWikipedia,
+    generatePlaceEmbeddingText,
 } from '../src/lib/places'
 
-// Local database connection (where data will be stored)
-const localUrl = process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
-const localServiceKey = process.env.VITE_SUPABASE_SERVICE_KEY
+// Supabase connection
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_KEY
 
-// Production function endpoint (where embeddings will be generated)
-const prodFunctionsUrl = process.env.VITE_SUPABASE_FUNCTIONS_URL_PROD
-const prodAnonKey = process.env.VITE_SUPABASE_ANON_KEY_PROD
-
-if (!localServiceKey) {
-    console.error('Error: VITE_SUPABASE_SERVICE_KEY is required')
-    console.error('Make sure .env.local is set up correctly')
-    process.exit(1)
+if (!supabaseKey) {
+    throw new Error('VITE_SUPABASE_SERVICE_KEY is required')
 }
 
-if (!prodFunctionsUrl || !prodAnonKey) {
-    console.error('Error: Production Supabase credentials required for embedding generation')
-    console.error('Please set VITE_SUPABASE_FUNCTIONS_URL_PROD and VITE_SUPABASE_ANON_KEY_PROD')
-    process.exit(1)
-}
-
-// Extract base URL from functions URL
-const prodUrl = prodFunctionsUrl.replace(/\/functions\/v1$/, '')
-
-const localSupabase = createClient<Database>(localUrl, localServiceKey)
-const prodSupabase = createClient(prodUrl, prodAnonKey)
-
+const supabase = createClient<Database>(supabaseUrl, supabaseKey)
 
 /**
- * Generate embedding for text using production Edge Function
+ * Generate embedding via Supabase Edge Function
  */
 async function generateEmbedding(text: string): Promise<number[]> {
-    const { data, error } = await prodSupabase.functions.invoke('generate-embedding', {
+    const { data, error } = await supabase.functions.invoke('generate-embedding', {
         body: { text },
     })
 
@@ -95,62 +80,86 @@ async function processPlace(place: { id: string; name: string }): Promise<boolea
             return false
         }
 
-    console.log(`  ✓ Found at: ${nominatimData.lat}, ${nominatimData.lng}`)
+        console.log(`  ✓ Found at: ${nominatimData.lat}, ${nominatimData.lng}`)
 
-    // Step 2: Build initial descriptors
-    const descriptors = {
-      type: nominatimData.type,
-      class: nominatimData.class,
-      country_code: nominatimData.country_code,
-      address: nominatimData.address,
-      extratags: nominatimData.extratags,
-    }
+        // Step 2: Build initial descriptors
+        const descriptors = {
+            type: nominatimData.type,
+            class: nominatimData.class,
+            country_code: nominatimData.country_code,
+            address: nominatimData.address,
+            extratags: nominatimData.extratags,
+        }
 
-    // Step 3: Enrich with Open-Elevation
-    console.log('  → Enriching with Open-Elevation...')
-    const elevation = await enrichWithElevation(
-      nominatimData.lat,
-      nominatimData.lng,
-      descriptors
-    )
+        // Step 3: Enrich with Open-Elevation
+        console.log('  → Enriching with Open-Elevation...')
+        const elevation = await enrichWithElevation(
+            nominatimData.lat,
+            nominatimData.lng,
+            descriptors
+        )
 
-    // Step 4: Enrich with Overpass
-    console.log('  → Enriching with Overpass...')
-    const height = await enrichWithHeight(
-      nominatimData.lat,
-      nominatimData.lng,
-      descriptors
-    )
+        // Step 4: Enrich with Overpass
+        console.log('  → Enriching with Overpass...')
+        const height = await enrichWithHeight(
+            nominatimData.lat,
+            nominatimData.lng,
+            descriptors
+        )
 
-    // Step 5: Merge all enrichment data
-    const enrichedDescriptors = {
-      ...descriptors,
-      ...(elevation !== null && { elevation_meters: elevation }),
-      ...(height !== null && { height_meters: height }),
-      enrichment_timestamp: new Date().toISOString(),
-    }
+        // Step 5: Enrich with Wikipedia (only if we have Wikidata/Wikipedia identifiers)
+        let wikipedia_summary: string | null = null
+        if (descriptors.extratags?.wikidata || descriptors.extratags?.wikipedia) {
+            console.log('  → Enriching with Wikipedia...')
+            try {
+                wikipedia_summary = await enrichWithWikipedia(
+                    place.name,
+                    descriptors.extratags
+                )
+                if (wikipedia_summary) {
+                    console.log('  ✓ Wikipedia summary found')
+                } else {
+                    console.log('  ⊘ Wikipedia article not found')
+                }
+            } catch {
+                console.log('  ⊘ Wikipedia article not found')
+            }
+        } else {
+            console.log('  ⊘ Skipping Wikipedia (no Wikidata/Wikipedia ID in Nominatim)')
+        }
 
-    // Step 6: Generate embedding text
-    const embeddingText = generatePlaceEmbeddingText({
-      name: place.name,
-      descriptors: enrichedDescriptors,
-    })
+        // Step 6: Merge all enrichment data
+        const enrichedDescriptors = {
+            ...descriptors,
+            ...(elevation !== null && { elevation_meters: elevation }),
+            ...(height !== null && { height_meters: height }),
+            ...(wikipedia_summary && { wikipedia_summary }), // NEW!
+            enrichment_timestamp: new Date().toISOString(),
+        }
 
-    console.log(`  → Embedding text: "${embeddingText}"`)
+        // Step 7: Generate embedding text (includes wikipedia_summary)
+        const embeddingText = generatePlaceEmbeddingText({
+            name: place.name,
+            descriptors: enrichedDescriptors,
+            wikipedia_summary, // NEW!
+        })
 
-    // Step 7: Generate embedding
-    console.log('  → Generating embedding...')
-    const embedding = await generateEmbedding(embeddingText)
+        console.log(`  → Embedding text: "${embeddingText}"`)
 
-    // Step 8: Update place in database
-    console.log('  → Updating database...')
-        const { error: updateError } = await localSupabase
+        // Step 7: Generate embedding
+        console.log('  → Generating embedding...')
+        const embedding = await generateEmbedding(embeddingText)
+
+        // Step 8: Update place in database
+        console.log('  → Updating database...')
+        const { error: updateError } = await supabase
             .from('places')
             .update({
                 lat: nominatimData.lat,
                 lng: nominatimData.lng,
                 descriptors: enrichedDescriptors,
                 embedding: embeddingToString(embedding) as any,
+                embedding_text: embeddingText,
             })
             .eq('id', place.id)
 
@@ -172,13 +181,12 @@ async function processPlace(place: { id: string; name: string }): Promise<boolea
  */
 async function main() {
     console.log('🚀 Starting place seed data generation...')
-    console.log(`Local Database: ${localUrl}`)
-    console.log(`Production Edge Function: ${prodFunctionsUrl}/generate-embedding`)
+    console.log(`Supabase URL: ${supabaseUrl}`)
     console.log('\n⚠️  This will take time due to rate limiting (1 req/sec for Nominatim)\n')
 
     try {
         // Fetch all places without embeddings
-        const { data: places, error } = await localSupabase
+        const { data: places, error } = await supabase
             .from('places')
             .select('id, name')
             .is('embedding', null)

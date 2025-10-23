@@ -1,39 +1,121 @@
 /**
  * Place utilities - unified exports
- * 
+ *
  * Clean barrel exports for all place-related functionality:
  * - Nominatim API client (search, geocoding, formatting)
  * - Open-Elevation API client (elevation data)
  * - Overpass API client (building heights)
+ * - Wikipedia API client (summaries)
  * - Type definitions
  */
 
+// Rate limiting (shared across all place APIs)
+let lastRequestTime = 0
+const MIN_REQUEST_INTERVAL = 1000
+
+export async function waitForRateLimit(): Promise<void> {
+  const now = Date.now()
+  const timeSinceLastRequest = now - lastRequestTime
+
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    await new Promise(resolve =>
+      setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest)
+    )
+  }
+
+  lastRequestTime = Date.now()
+}
+
 // Nominatim client
 export {
-    searchPlaces,
-    queryPlaceWithRetry,
-    extractDescriptors,
-    generatePlaceEmbeddingText,
-    type NominatimPlace,
-    type JSONPlace,
-    type AddressDetails,
-    type ExtraTags,
+  searchPlaces,
+  queryPlaceWithRetry,
+  extractDescriptors,
+  type NominatimPlace,
+  type JSONPlace,
+  type AddressDetails,
+  type ExtraTags,
 } from './nominatim'
 
 // Open-Elevation client
 export {
-    getElevation,
-    enrichWithElevation,
+  getElevation,
+  enrichWithElevation,
 } from './openElevation'
 
 // Overpass client
 export {
-    getHeight,
-    enrichWithHeight,
+  getHeight,
+  enrichWithHeight,
 } from './overpass'
+
+// Wikipedia client
+export {
+  getWikipediaSummary,
+  getWikipediaSummaryByTitle,
+  enrichWithWikipedia,
+} from './wikipedia'
+
+// Embedding text generation (moved from nominatim.ts)
+export function generatePlaceEmbeddingText(place: {
+  name: string
+  descriptors: any
+  wikipedia_summary?: string | null
+}): string {
+  const parts: string[] = [place.name]
+  const desc = place.descriptors
+  const ext = desc.extratags || {}
+
+  // HEIGHT/ELEVATION (critical for discrimination!)
+  if (desc.elevation_meters) {
+    parts.push(`Elevation: ${desc.elevation_meters} meters`)
+  }
+  if (desc.height_meters) {
+    parts.push(`Height: ${desc.height_meters} meters`)
+  }
+
+  // Type and category
+  if (desc.type) parts.push(`Type: ${desc.type}`)
+  if (desc.class) parts.push(`Category: ${desc.class}`)
+
+  // Extratags
+  if (ext.natural) parts.push(`Natural feature: ${ext.natural}`)
+  if (ext.year_of_construction) parts.push(`Built: ${ext.year_of_construction}`)
+  if (ext.architect) parts.push(`Architect: ${ext.architect}`)
+  if (ext.building) parts.push(`Building type: ${ext.building}`)
+
+  // Wikipedia summary (NEW - rich context!)
+  if (place.wikipedia_summary) {
+    // Take first 200 chars of summary
+    const summary = place.wikipedia_summary.slice(0, 200).trim()
+    parts.push(summary)
+  }
+
+  // Location - prefer English names for embeddings
+  // Use name:en from extratags if available, otherwise use country_code
+  const cityName = ext['name:en'] || desc.address?.city
+  const countryName = ext['country:en'] || desc.address?.country
+
+  // Only include if name appears to be in Latin alphabet (English-friendly)
+  // This filters out Greek, Chinese, Arabic, etc. characters
+  // Matches: Basic Latin (ASCII), Latin-1 Supplement, Latin Extended-A/B, Latin Extended Additional
+  const isLatinText = (text: string) => /^[A-Za-z\u00C0-\u024F\u1E00-\u1EFF\s-]+$/.test(text)
+
+  if (cityName && isLatinText(cityName)) {
+    parts.push(`City: ${cityName}`)
+  }
+  if (countryName && isLatinText(countryName)) {
+    parts.push(`Country: ${countryName}`)
+  } else if (desc.country_code) {
+    // Fallback to country code if localized name
+    parts.push(`Country code: ${desc.country_code.toUpperCase()}`)
+  }
+
+  return parts.join('. ')
+}
 
 // Types
 export type {
-    PlaceDescriptors,
+  PlaceDescriptors,
 } from './types'
 

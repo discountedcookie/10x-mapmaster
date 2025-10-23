@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -19,6 +20,8 @@ const emit = defineEmits<{
   answer: [value: boolean]
 }>()
 
+const { t } = useI18n()
+
 /** Progress percentage (0-100) */
 const progressPercent = computed(() => {
   return (props.questionNumber / props.totalQuestions) * 100
@@ -32,7 +35,7 @@ const progressPercent = computed(() => {
   >
     <CardHeader>
       <div class="flex items-center justify-between mb-2">
-        <CardDescription>Question {{ questionNumber }} of {{ totalQuestions }}</CardDescription>
+        <CardDescription>{{ t('game.question_card.question_number', { current: questionNumber, total: totalQuestions }) }}</CardDescription>
         <Progress
           :model-value="progressPercent"
           class="w-32 h-2"
@@ -44,13 +47,13 @@ const progressPercent = computed(() => {
     </CardHeader>
     <CardContent class="space-y-3">
       <p class="text-sm text-muted-foreground">
-        {{ candidatesCount }} possible {{ candidatesCount === 1 ? 'place' : 'places' }} remaining
+        {{ t('game.question_card.places_remaining', { count: candidatesCount }) }}
       </p>
       <div
         v-if="confidence !== undefined"
         class="flex items-center gap-2"
       >
-        <span class="text-sm text-muted-foreground">Top match:</span>
+        <span class="text-sm text-muted-foreground">{{ t('game.question_card.top_match') }}:</span>
         <ConfidenceBadge :confidence="confidence" />
       </div>
     </CardContent>
@@ -60,7 +63,7 @@ const progressPercent = computed(() => {
         size="lg"
         @click="emit('answer', true)"
       >
-        Yes
+        {{ t('game.yes') }}
       </Button>
       <Button
         class="flex-1 transition-playful"
@@ -68,7 +71,7 @@ const progressPercent = computed(() => {
         variant="outline"
         @click="emit('answer', false)"
       >
-        No
+        {{ t('game.no') }}
       </Button>
     </CardFooter>
   </Card>

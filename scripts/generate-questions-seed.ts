@@ -15,37 +15,22 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../src/types/database'
 
-// Local database connection (where data will be stored)
-const localUrl = process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
-const localServiceKey = process.env.VITE_SUPABASE_SERVICE_KEY
+// Supabase connection
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321'
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_KEY
 
-// Production function endpoint (where embeddings will be generated)
-const prodFunctionsUrl = process.env.VITE_SUPABASE_FUNCTIONS_URL_PROD
-const prodAnonKey = process.env.VITE_SUPABASE_ANON_KEY_PROD
-
-if (!localServiceKey) {
+if (!supabaseKey) {
     console.error('Error: VITE_SUPABASE_SERVICE_KEY is required')
-    console.error('Make sure .env.local is set up correctly')
     process.exit(1)
 }
 
-if (!prodFunctionsUrl || !prodAnonKey) {
-    console.error('Error: Production Supabase credentials required for embedding generation')
-    console.error('Please set VITE_SUPABASE_FUNCTIONS_URL_PROD and VITE_SUPABASE_ANON_KEY_PROD')
-    process.exit(1)
-}
-
-// Extract base URL from functions URL
-const prodUrl = prodFunctionsUrl.replace(/\/functions\/v1$/, '')
-
-const localSupabase = createClient<Database>(localUrl, localServiceKey)
-const prodSupabase = createClient(prodUrl, prodAnonKey)
+const supabase = createClient<Database>(supabaseUrl, supabaseKey)
 
 /**
- * Generate embedding for text using production Edge Function
+ * Generate embedding via Supabase Edge Function
  */
 async function generateEmbedding(text: string): Promise<number[]> {
-    const { data, error } = await prodSupabase.functions.invoke('generate-embedding', {
+    const { data, error } = await supabase.functions.invoke('generate-embedding', {
         body: { text },
     })
 
@@ -80,7 +65,7 @@ async function processQuestion(question: { id: string; text: string }): Promise<
 
         // Update question in database
         console.log('  → Updating database...')
-        const { error: updateError } = await localSupabase
+        const { error: updateError } = await supabase
             .from('questions')
             .update({
                 embedding: embeddingToString(embedding) as any,
@@ -105,13 +90,12 @@ async function processQuestion(question: { id: string; text: string }): Promise<
  */
 async function main() {
     console.log('🚀 Starting question seed data generation...')
-    console.log(`Local Database: ${localUrl}`)
-    console.log(`Production Edge Function: ${prodFunctionsUrl}/generate-embedding`)
+    console.log(`Supabase URL: ${supabaseUrl}`)
     console.log()
 
     try {
         // Fetch all semantic questions without embeddings
-        const { data: questions, error } = await localSupabase
+        const { data: questions, error } = await supabase
             .from('questions')
             .select('id, text')
             .eq('question_type', 'semantic')

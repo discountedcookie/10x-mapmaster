@@ -7,27 +7,29 @@ import { usePlaces } from '@/composables/usePlaces'
 import { useGameStore } from '@/stores/game'
 
 const route = useRoute()
-const { places: allPlaces, fetchAllPlaces } = usePlaces()
+const placesStore = usePlaces()
 const gameStore = useGameStore()
 
 onMounted(() => {
-  fetchAllPlaces()
+  placesStore.fetchAllPlaces()
 })
 
 // Dynamically compute map candidates based on current route and game state
 const mapCandidates = computed(() => {
   // In game view, show game candidates when there are candidates from the game
   if (route.name === 'game' && gameStore.topCandidates.length > 0) {
-    return gameStore.topCandidates.map(place => ({
-      lat: place.lat,
-      lng: place.lng,
-      name: place.name,
-      similarity: place.composite_confidence,
-    }))
+    return gameStore.topCandidates
+      .filter(place => place.lat !== null && place.lng !== null)
+      .map(place => ({
+        lat: place.lat!,
+        lng: place.lng!,
+        name: place.name,
+        similarity: place.composite_confidence,
+      }))
   }
 
   // Otherwise show all places (home view or game not started)
-  return allPlaces.value
+  return placesStore.places.filter(p => p.lat !== null && p.lng !== null)
 })
 </script>
 

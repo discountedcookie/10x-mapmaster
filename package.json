@@ -7,21 +7,22 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --strictPort",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
-    "test": "run-s test:*",
-    "test:unit": "vitest",
+    "test:unit": "vitest --run",
     "test:e2e": "playwright test --reporter=list",
+    "test:db": "npx supabase test db",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "lint:oxlint": "oxlint . --fix -D correctness --ignore-path .gitignore",
     "lint:eslint": "eslint . --fix",
-    "lint": "run-s lint:*",
+    "lint": "run-p lint:*",
     "supabase:types": "supabase gen types --lang=typescript --local > src/types/database.ts",
     "supabase:types:remote": "supabase gen types --lang=typescript --linked > src/types/database.ts",
-    "seed:places": "tsx scripts/generate-places-seed.ts",
-    "seed:questions": "tsx scripts/generate-questions-seed.ts"
+    "seed:all": "run-s seed:places seed:questions",
+    "seed:places": "tsx --env-file=.env.local scripts/generate-places-seed.ts",
+    "seed:questions": "tsx --env-file=.env.local scripts/generate-questions-seed.ts"
   },
   "dependencies": {
     "@indoorequal/vue-maplibre-gl": "^8.4.2",
@@ -31,6 +32,8 @@
     "@vueuse/core": "^13.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "intl-messageformat": "^10.7.18",
     "lucide-vue-next": "^0.546.0",
     "maplibre-gl": "^5.9.0",
     "mitt": "^3.0.1",
@@ -41,8 +44,10 @@
     "tailwindcss": "^4.1.14",
     "vee-validate": "^4.15.1",
     "vue": "^3.5.22",
+    "vue-i18n": "^11.1.12",
     "vue-router": "^4.6.3",
     "vue-sonner": "^2.0.9",
+    "wikipedia": "^2.1.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {

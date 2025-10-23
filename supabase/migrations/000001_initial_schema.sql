@@ -14,6 +14,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Enable PostGIS for geographic/spatial queries
 CREATE EXTENSION IF NOT EXISTS postgis;
 
+-- Enable pgTAP for database testing
+CREATE EXTENSION IF NOT EXISTS pgtap;
+
 -- ============================================================================
 -- TABLES
 -- ============================================================================
@@ -27,6 +30,7 @@ CREATE TABLE places (
   geom geometry(Point, 4326),  -- PostGIS point geometry for spatial queries (auto-synced from lat/lng)
   descriptors JSONB NOT NULL DEFAULT '{}'::jsonb,
   embedding vector(384),  -- gte-small embeddings (384 dimensions)
+  embedding_text TEXT,  -- Source text used to generate the embedding
   game_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -52,20 +56,43 @@ CREATE TABLE game_sessions (
   was_correct BOOLEAN, -- Nullable: set at game end
   description TEXT,
   description_embedding vector(384),
-  question_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Game answers table: Individual question-answer pairs during gameplay
+-- Also stores wrong guesses for candidate elimination
 CREATE TABLE game_answers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
-  question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  question_id UUID REFERENCES questions(id) ON DELETE CASCADE, -- NULL for wrong_guess type
   answer BOOLEAN NOT NULL,
-  candidates_after INTEGER NOT NULL,
+  answer_type TEXT NOT NULL DEFAULT 'question_answer' CHECK (answer_type IN ('question_answer', 'wrong_guess')),
+  place_id UUID REFERENCES places(id) ON DELETE CASCADE, -- For wrong_guess type: the eliminated place
+  candidates_after JSONB NOT NULL DEFAULT '{"place_ids": [], "confidence_scores": {"semantic": 0.0, "spatial": 0.0, "composite": 0.0}}'::jsonb,
   sequence_number INTEGER NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ============================================================================
+-- VIEWS
+-- ============================================================================
+
+-- Game session stats view: Computed question and guess counts from game_answers
+CREATE VIEW game_session_stats AS
+SELECT
+  gs.id as session_id,
+  gs.user_id,
+  gs.place_id,
+  gs.was_correct,
+  gs.description,
+  gs.created_at,
+  COUNT(ga.id) FILTER (WHERE ga.answer_type = 'question_answer') as question_count,
+  COUNT(ga.id) FILTER (WHERE ga.answer_type = 'wrong_guess') as wrong_guess_count
+FROM game_sessions gs
+LEFT JOIN game_answers ga ON ga.session_id = gs.id
+GROUP BY gs.id;
+
+COMMENT ON VIEW game_session_stats IS 'Computed stats for game sessions from game_answers relation (single source of truth)';
 
 -- ============================================================================
 -- INDEXES
@@ -197,7 +224,7 @@ CREATE TRIGGER sync_place_geom
 COMMENT ON TABLE places IS 'Geographic locations with embeddings and descriptors for vector similarity search';
 COMMENT ON TABLE questions IS 'Strategic yes/no questions for the guessing game. Geographic questions use PostGIS spatial queries, semantic questions use pgvector similarity matching.';
 COMMENT ON TABLE game_sessions IS 'Player game sessions tracking descriptions and outcomes';
-COMMENT ON TABLE game_answers IS 'Individual question-answer pairs during gameplay';
+COMMENT ON TABLE game_answers IS 'Individual question-answer pairs during gameplay. Also stores wrong guesses for candidate elimination.';
 
 COMMENT ON COLUMN places.geom IS 'Geographic point for spatial queries. Automatically synced with lat/lng.';
 COMMENT ON COLUMN places.embedding IS 'Vector embedding (gte-small, 384 dimensions) for semantic similarity search';
@@ -206,3 +233,7 @@ COMMENT ON COLUMN questions.question_type IS 'Type of filtering: geographic (Pos
 COMMENT ON COLUMN questions.geographic_region IS 'For geographic questions: JSONB with bbox array [min_lng, min_lat, max_lng, max_lat]';
 COMMENT ON COLUMN questions.embedding IS 'Vector embeddings for semantic questions only. Geographic questions use PostGIS and do not need embeddings.';
 COMMENT ON COLUMN questions.effectiveness_score IS 'Effectiveness metric for question selection (0.0-1.0), updated through gameplay';
+
+COMMENT ON COLUMN game_answers.answer_type IS 'Type: question_answer (YES/NO to question) or wrong_guess (eliminated place)';
+COMMENT ON COLUMN game_answers.place_id IS 'For wrong_guess type: the place_id that was guessed incorrectly';
+COMMENT ON COLUMN game_answers.candidates_after IS 'JSONB with place_ids array and confidence_scores object (semantic, spatial, composite)';
