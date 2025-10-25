@@ -10,7 +10,11 @@ const { mapState } = useMapState()
   <div class="relative w-full h-screen overflow-hidden">
     <FloatingNavbar />
 
-    <BaseMap :bounds="mapState.bounds">
+    <BaseMap
+      :bounds="mapState.bounds"
+      :places-geo-json="mapState.placesGeoJson"
+      :is-browse-mode="mapState.isBrowseMode"
+    >
       <component
         v-for="(node, index) in mapState.markerNodes"
         :key="`marker-${index}`"
