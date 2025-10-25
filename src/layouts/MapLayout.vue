@@ -1,22 +1,23 @@
 <script setup lang="ts">
 import FloatingNavbar from '@/components/FloatingNavbar.vue'
 import BaseMap from '@/components/map/BaseMap.vue'
+import { useMapState } from '@/composables/map/useMapState'
 
-interface Props {
-  bounds?: [[number, number], [number, number]]
-}
-
-const props = defineProps<Props>()
+const { mapState } = useMapState()
 </script>
 
 <template>
   <div class="relative w-full h-screen overflow-hidden">
     <FloatingNavbar />
 
-    <BaseMap :bounds="bounds">
-      <slot name="markers" />
+    <BaseMap :bounds="mapState.bounds">
+      <component
+        v-for="(node, index) in mapState.markerNodes"
+        :key="`marker-${index}`"
+        :is="node"
+      />
     </BaseMap>
 
-    <slot name="overlay" />
+    <slot />
   </div>
 </template>
