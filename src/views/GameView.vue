@@ -72,7 +72,7 @@ onUnmounted(() => {
         :loading="gameStore.loading"
         :min-length="gameFlow.MIN_DESCRIPTION_LENGTH"
         :max-length="gameFlow.MAX_DESCRIPTION_LENGTH"
-        @update:description="(val) => { gameFlow.userDescription = val }"
+        @update:description="(val) => { gameFlow.userDescription.value = val }"
         @start="gameFlow.startGame(unref(gameFlow.userDescription))"
         @go-home="gameFlow.goHome"
       />
