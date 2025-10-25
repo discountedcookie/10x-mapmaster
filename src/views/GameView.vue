@@ -1,193 +1,66 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Icon } from '@iconify/vue'
-import { toast } from 'vue-sonner'
-import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
+import { computed, watchEffect, unref } from 'vue'
+import { useGameFlow } from '@/composables/game'
 import { useGameStore, MAX_QUESTIONS } from '@/stores/game'
-import { usePlaces, type NominatimPlace } from '@/composables/usePlaces'
-import QuestionCard from '@/components/game/QuestionCard.vue'
-import ResultCard from '@/components/game/ResultCard.vue'
-import PlaceSearch from '@/components/game/PlaceSearch.vue'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
+import GameStartScreen from '@/components/game/GameStartScreen.vue'
+import GameResumeDialog from '@/components/game/GameResumeDialog.vue'
+import GameLoadingOverlay from '@/components/game/GameLoadingOverlay.vue'
+import GameQuestionCard from '@/components/game/GameQuestionCard.vue'
+import GameResultCard from '@/components/game/GameResultCard.vue'
+import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
+import { useMapBounds } from '@/composables/map/useMapBounds'
+import { useMapState } from '@/composables/map/useMapState'
 
-const router = useRouter()
-const authStore = useAuthStore()
 const gameStore = useGameStore()
-const placesStore = usePlaces()
-const { extractDescriptors, enrichDescriptors } = placesStore
-const { t } = useI18n()
+const gameFlow = useGameFlow()
+const { setMapState } = useMapState()
 
-const showPlaceSearch = ref(false)
-const gameStarted = ref(false)
-const saving = ref(false)
-const userDescription = ref('')
-const showResumeDialog = ref(false)
+// Computed for current state value
+const currentGameState = computed(() => unref(gameFlow.gameState))
 
-// Check if there's an existing game session when mounting
-const hasExistingGame = computed(() => {
-  return gameStore.topCandidates.length > 0 || gameStore.questionCount > 0
+// Compute game candidate markers as places
+const gameMarkers = computed(() => {
+  return gameStore.topCandidates
+    .filter(c => c.lat !== null && c.lng !== null)
+    .map((candidate) => ({
+      id: `game-${candidate.id}`,
+      name: candidate.name,
+      lat: candidate.lat!,
+      lng: candidate.lng!,
+      game_count: undefined,
+      // Store styling info as extensions
+      backgroundColor: '#ef4444',
+      opacity: 0.4 + (candidate.composite_confidence * 0.6),
+      similarity: candidate.composite_confidence,
+    }))
 })
 
-onMounted(() => {
-  // If there's an existing game but we're not in game started state, show resume dialog
-  if (hasExistingGame.value && !gameStarted.value) {
-    showResumeDialog.value = true
-  }
+// Calculate bounds for game markers
+const markerCoordinates = computed(() => {
+  return gameMarkers.value
+    .filter(m => typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng))
+    .map(marker => ({
+      coordinates: [marker.lng, marker.lat] as [number, number]
+    }))
 })
 
-function resumeGame() {
-  showResumeDialog.value = false
-  gameStarted.value = true
-}
+const bounds = useMapBounds(markerCoordinates, 0.25)
 
-function startFreshGame() {
-  showResumeDialog.value = false
-  gameStore.resetGame()
-  gameStarted.value = false
-  userDescription.value = ''
-}
+// Update map state when game is active (question or result phase)
+watchEffect(() => {
+  const gameState = currentGameState.value
+  const isGameActive = gameState === 'question' || gameState === 'result'
 
-// Input validation constants
-const MIN_DESCRIPTION_LENGTH = 10
-const MAX_DESCRIPTION_LENGTH = 500
-
-const descriptionLength = computed(() => userDescription.value.length)
-const isDescriptionValid = computed(() => {
-  const trimmed = userDescription.value.trim()
-  return trimmed.length >= MIN_DESCRIPTION_LENGTH && trimmed.length <= MAX_DESCRIPTION_LENGTH
-})
-const validationMessage = computed(() => {
-  const trimmed = userDescription.value.trim()
-  if (trimmed.length === 0) return ''
-  if (trimmed.length < MIN_DESCRIPTION_LENGTH) {
-    return t('game.validation.min_length', { length: MIN_DESCRIPTION_LENGTH, current: trimmed.length })
-  }
-  if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
-    return t('game.validation.max_length', { length: MAX_DESCRIPTION_LENGTH })
-  }
-  return ''
-})
-
-async function startGame() {
-  if (!isDescriptionValid.value) {
-    toast.error(t('game.toast.invalid_description_title'), {
-      description: validationMessage.value || t('game.toast.invalid_description_body'),
-    })
-    return
-  }
-
-  try {
-    await gameStore.startNewGame(userDescription.value.trim())
-    gameStarted.value = true
-  }
-  catch (error) {
-    console.error('Failed to start game:', error)
-    toast.error(t('game.toast.start_game_failed_title'), {
-      description: t('game.toast.start_game_failed_body'),
-    })
-  }
-}
-
-async function handleAnswer(answer: boolean) {
-  await gameStore.answerQuestion(answer)
-}
-
-async function handleCorrectGuess() {
-  const result = gameStore.gameResult
-  if (!result)
-    return
-
-  try {
-    saving.value = true
-    // Cast to remove type recursion issues
-    await gameStore.finalizeGameSession(result as any, true)
-    toast.success(t('game.toast.game_saved_title'), {
-      description: t('game.toast.game_saved_body'),
-    })
-    playAgain()
-  }
-  catch (error) {
-    console.error('Failed to save game:', error)
-    toast.error(t('game.toast.save_game_failed_title'), {
-      description: t('game.toast.save_game_failed_body'),
-    })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function handleIncorrectGuess() {
-  // Remove the incorrect guess from candidates and continue with questions
-  gameStore.rejectGuessAndContinue()
-
-  // If there are still candidates or questions to ask, continue playing
-  // Otherwise, show place search
-  if (gameStore.isGameComplete && !gameStore.gameResult) {
-    // No more candidates and no result means we couldn't find it
-    showPlaceSearch.value = true
-  }
-  // Otherwise the game will automatically show the next question or next guess
-}
-
-async function handlePlaceSelect(nominatimPlace: NominatimPlace) {
-  try {
-    saving.value = true
-    const lat = Number.parseFloat(nominatimPlace.lat)
-    const lng = Number.parseFloat(nominatimPlace.lon)
-
-    // Check if place exists
-    let place = await gameStore.checkPlaceExists(lat, lng)
-    const isNewPlace = !place
-
-    // If not, create it
-    if (!place) {
-      const descriptors = extractDescriptors(nominatimPlace)
-
-      // Enrich descriptors with elevation/height data
-      const enrichedDescriptors = await enrichDescriptors(lat, lng, descriptors)
-
-      place = await gameStore.saveNewPlace(
-        nominatimPlace.display_name,
-        lat,
-        lng,
-        enrichedDescriptors,
-      )
+  if (isGameActive) {
+    const validMarkers = gameMarkers.value.filter(m =>
+      typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng)
+    )
+    // Only show candidates when game is actively running
+    if (validMarkers.length > 0 && bounds.value && Array.isArray(bounds.value) && bounds.value.length === 2) {
+      setMapState(bounds.value, validMarkers as any)
     }
-
-    // Save game session (pass isNewPlace to skip redundant embedding update)
-    await gameStore.finalizeGameSession(place, false, isNewPlace)
-    toast.success(t('game.toast.place_saved_title'), {
-      description: t('game.toast.place_saved_body'),
-    })
-    showPlaceSearch.value = false
-    playAgain()
   }
-  catch (error) {
-    console.error('Failed to save place:', error)
-    toast.error(t('game.toast.save_place_failed_title'), {
-      description: t('game.toast.save_place_failed_body'),
-    })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function playAgain() {
-  gameStore.resetGame()
-  gameStarted.value = false
-  showPlaceSearch.value = false
-  userDescription.value = ''
-}
-
-function goHome() {
-  router.push('/')
-}
+})
 </script>
 
 <template>
@@ -195,133 +68,33 @@ function goHome() {
   <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
     <div class="pointer-events-auto max-w-2xl w-full max-h-[calc(100vh-6rem)]">
       <!-- Resume Game Dialog -->
-      <Card
-        v-if="showResumeDialog"
-        class="w-full animate-slide-up-fade"
-        style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
-      >
-        <CardHeader class="text-center space-y-3">
-          <CardTitle class="text-3xl font-bold flex items-center justify-center gap-3">
-            <Icon
-              icon="radix-icons:question-mark-circled"
-              class="h-10 w-10 text-primary"
-            />
-            Resume Game?
-          </CardTitle>
-          <CardDescription class="text-lg">
-            You have an unfinished game session. Would you like to continue where you left off?
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="flex flex-col gap-3">
-          <div class="text-sm text-muted-foreground text-center">
-            <p>Questions asked: {{ gameStore.questionCount }} / {{ MAX_QUESTIONS }}</p>
-            <p>Candidates remaining: {{ gameStore.topCandidates.length }}</p>
-          </div>
-          <Button
-            size="lg"
-            class="transition-playful"
-            @click="resumeGame"
-          >
-            <Icon
-              icon="radix-icons:play"
-              class="h-5 w-5 mr-2"
-            />
-            Resume Game
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            class="transition-playful"
-            @click="startFreshGame"
-          >
-            <Icon
-              icon="radix-icons:reload"
-              class="h-5 w-5 mr-2"
-            />
-            Start New Game
-          </Button>
-        </CardContent>
-      </Card>
+      <GameResumeDialog
+        v-if="currentGameState === 'resumeDialog'"
+        :question-count="gameStore.questionCount"
+        :max-questions="MAX_QUESTIONS"
+        :candidates-count="gameStore.topCandidates.length"
+        @resume="gameFlow.resumeGame"
+        @start-fresh="gameFlow.startFreshGame"
+      />
 
       <!-- Start Screen -->
-      <Card
-        v-else-if="!gameStarted"
-        class="w-full animate-slide-up-fade"
-        style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
-      >
-        <CardHeader class="text-center space-y-3">
-          <CardTitle class="text-4xl font-bold flex items-center justify-center gap-3">
-            <Icon
-              icon="radix-icons:pencil-1"
-              class="h-10 w-10 text-primary"
-            />
-            {{ t('game.describe_place_title') }}
-          </CardTitle>
-          <CardDescription class="text-xl">
-            {{ t('game.describe_place_description') }}
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="flex flex-col gap-4">
-          <div class="space-y-2">
-            <Textarea
-              v-model="userDescription"
-              :placeholder="t('game.description_placeholder')"
-              rows="4"
-              class="resize-none"
-              :maxlength="MAX_DESCRIPTION_LENGTH"
-            />
-            <div class="flex justify-between items-center text-sm gap-2">
-              <p
-                v-if="validationMessage"
-                class="text-destructive flex-1"
-              >
-                {{ validationMessage }}
-              </p>
-              <p
-                v-else
-                class="text-muted-foreground flex-1"
-              >
-                {{ MIN_DESCRIPTION_LENGTH }}-{{ MAX_DESCRIPTION_LENGTH }} {{ t('common.characters') }}
-              </p>
-              <p
-                class="text-muted-foreground whitespace-nowrap"
-                :class="{ 'text-destructive': descriptionLength > MAX_DESCRIPTION_LENGTH }"
-              >
-                {{ descriptionLength }}/{{ MAX_DESCRIPTION_LENGTH }}
-              </p>
-            </div>
-          </div>
-          <Button
-            size="lg"
-            class="transition-playful"
-            :disabled="!isDescriptionValid || gameStore.loading"
-            @click="startGame"
-          >
-            <Icon
-              v-if="!gameStore.loading"
-              icon="radix-icons:play"
-              class="h-5 w-5 mr-2"
-            />
-            {{ gameStore.loading ? t('game.starting') : t('game.start_game') }}
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            class="transition-playful"
-            @click="goHome"
-          >
-            <Icon
-              icon="radix-icons:home"
-              class="h-5 w-5 mr-2"
-            />
-            {{ t('common.back_to_home') }}
-          </Button>
-        </CardContent>
-      </Card>
+      <GameStartScreen
+        v-else-if="currentGameState === 'start'"
+        :description="unref(gameFlow.userDescription)"
+        :validation-message="unref(gameFlow.validationMessage)"
+        :description-length="unref(gameFlow.descriptionLength)"
+        :is-valid="unref(gameFlow.isDescriptionValid)"
+        :loading="gameStore.loading"
+        :min-length="gameFlow.MIN_DESCRIPTION_LENGTH"
+        :max-length="gameFlow.MAX_DESCRIPTION_LENGTH"
+        @update:description="(val) => { gameFlow.userDescription.value = val }"
+        @start="gameFlow.startGame(unref(gameFlow.userDescription))"
+        @go-home="gameFlow.goHome"
+      />
 
       <!-- Question Phase -->
-      <QuestionCard
-        v-else-if="gameStarted && !gameStore.isGameComplete && gameStore.currentQuestion"
+      <GameQuestionCard
+        v-else-if="currentGameState === 'question' && gameStore.currentQuestion"
         :question="gameStore.currentQuestion.text"
         :question-number="gameStore.questionCount + 1"
         :total-questions="MAX_QUESTIONS"
@@ -331,53 +104,36 @@ function goHome() {
           name: candidate.name,
           confidence: candidate.composite_confidence
         }))"
-        @answer="handleAnswer"
+        @answer="gameFlow.answerQuestion"
       />
 
       <!-- Result Phase -->
-      <ResultCard
-        v-else-if="gameStarted && gameStore.isGameComplete && !showPlaceSearch"
+      <GameResultCard
+        v-else-if="currentGameState === 'result'"
         :guess="gameStore.gameResult"
-        :disabled="saving"
-        @correct="handleCorrectGuess"
-        @incorrect="handleIncorrectGuess"
-        @play-again="playAgain"
+        :disabled="unref(gameFlow.saving)"
+        @correct="gameFlow.handleCorrectGuess"
+        @incorrect="gameFlow.handleIncorrectGuess"
+        @play-again="gameFlow.playAgain"
       />
 
       <!-- Place Search -->
-      <PlaceSearch
-        v-else-if="gameStarted && showPlaceSearch"
-        @select="handlePlaceSelect"
-        @cancel="showPlaceSearch = false"
+      <GamePlaceSearch
+        v-else-if="currentGameState === 'placeSearch'"
+        @select="gameFlow.selectPlace"
+        @cancel="() => { gameFlow.showPlaceSearch.value = false }"
       />
     </div>
   </div>
 
-  <!-- Loading Overlay (Full Screen) -->
-  <div
-    v-if="gameStore.loading && !gameStarted"
-    class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto z-50"
-  >
-    <Card class="max-w-md mx-4">
-      <CardContent class="pt-6 pb-6 flex flex-col items-center gap-4">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-        <div class="text-center space-y-1">
-          <p class="font-semibold text-lg">
-            {{ t('game.loading_overlay.analyzing_description') }}
-          </p>
-          <p class="text-sm text-muted-foreground">
-            {{ t('game.loading_overlay.finding_places') }}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  </div>
+  <!-- Loading Overlay -->
+  <GameLoadingOverlay v-if="gameStore.loading && !unref(gameFlow.gameStarted)" />
 
   <!-- Error message -->
   <div
     v-if="gameStore.error"
     class="fixed top-20 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground px-4 py-2 rounded-md pointer-events-auto z-50"
   >
-    {{ gameStore.error || t('common.error') }}
+    {{ gameStore.error }}
   </div>
 </template>

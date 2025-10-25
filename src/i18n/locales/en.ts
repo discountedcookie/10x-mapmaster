@@ -52,6 +52,8 @@ export default {
             question_number: 'Question {current} of {total}',
             top_candidates: 'Top Candidates',
             candidates_remaining: '{count} candidates remaining',
+            places_remaining: '{count} candidate | {count} candidates remaining',
+            top_match: 'Top match',
         },
         result_card: {
             is_this_your_place: 'Is this it?',

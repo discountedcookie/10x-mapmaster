@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { i18n } from '../../setup'
-import QuestionCard from '@/components/game/QuestionCard.vue'
+import GameQuestionCard from '@/components/game/GameQuestionCard.vue'
 
-describe('QuestionCard', () => {
+describe('GameQuestionCard', () => {
   const defaultProps = {
     question: 'Is it in Europe?',
     questionNumber: 5,
@@ -13,7 +13,7 @@ describe('QuestionCard', () => {
   }
 
   it('should render question text', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: defaultProps,
       global: {
         plugins: [i18n],
@@ -24,7 +24,7 @@ describe('QuestionCard', () => {
   })
 
   it('should display question progress', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: defaultProps,
       global: {
         plugins: [i18n],
@@ -35,7 +35,7 @@ describe('QuestionCard', () => {
   })
 
   it('should calculate progress percentage correctly', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: { ...defaultProps, questionNumber: 5, totalQuestions: 20 },
       global: {
         plugins: [i18n],
@@ -48,7 +48,7 @@ describe('QuestionCard', () => {
   })
 
   it('should display candidates count with singular form', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: { ...defaultProps, candidatesCount: 1 },
       global: {
         plugins: [i18n],
@@ -59,7 +59,7 @@ describe('QuestionCard', () => {
   })
 
   it('should display candidates count with plural form', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: { ...defaultProps, candidatesCount: 15 },
       global: {
         plugins: [i18n],
@@ -70,7 +70,7 @@ describe('QuestionCard', () => {
   })
 
   it('should display confidence badge when provided', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: defaultProps,
       global: {
         plugins: [i18n],
@@ -87,7 +87,7 @@ describe('QuestionCard', () => {
     const propsWithoutConfidence = { ...defaultProps }
     delete propsWithoutConfidence.confidence
 
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: propsWithoutConfidence,
       global: {
         plugins: [i18n],
@@ -100,7 +100,7 @@ describe('QuestionCard', () => {
   })
 
   it('should emit answer event with true when Yes is clicked', async () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: defaultProps,
       global: {
         plugins: [i18n],
@@ -115,7 +115,7 @@ describe('QuestionCard', () => {
   })
 
   it('should emit answer event with false when No is clicked', async () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: defaultProps,
       global: {
         plugins: [i18n],
@@ -130,7 +130,7 @@ describe('QuestionCard', () => {
   })
 
   it('should render Yes and No buttons', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: defaultProps,
       global: {
         plugins: [i18n],
@@ -146,7 +146,7 @@ describe('QuestionCard', () => {
   })
 
   it('should handle 0 candidates', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: { ...defaultProps, candidatesCount: 0 },
       global: {
         plugins: [i18n],
@@ -157,7 +157,7 @@ describe('QuestionCard', () => {
   })
 
   it('should show 100% progress when on last question', () => {
-    const wrapper = mount(QuestionCard, {
+    const wrapper = mount(GameQuestionCard, {
       props: { ...defaultProps, questionNumber: 20, totalQuestions: 20 },
       global: {
         plugins: [i18n],
