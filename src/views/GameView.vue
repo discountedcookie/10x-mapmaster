@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watchEffect, onUnmounted } from 'vue'
+import { computed, watchEffect, onUnmounted, unref } from 'vue'
 import { useGameFlow } from '@/composables/game'
 import { useGameStore, MAX_QUESTIONS } from '@/stores/game'
 import MapMarker from '@/components/map/MapMarker.vue'
@@ -15,6 +15,9 @@ import { useMapState } from '@/composables/map/useMapState'
 const gameStore = useGameStore()
 const gameFlow = useGameFlow()
 const { setMapState, clearMapState } = useMapState()
+
+// Computed for current state value
+const currentGameState = computed(() => unref(gameFlow.gameState))
 
 // Compute markers for game mode
 const { markerNodes, bounds } = useMapMarkers({
@@ -51,7 +54,7 @@ onUnmounted(() => {
     <div class="pointer-events-auto max-w-2xl w-full max-h-[calc(100vh-6rem)]">
       <!-- Resume Game Dialog -->
       <GameResumeDialog
-        v-if="gameFlow.gameState as string === 'resumeDialog'"
+        v-if="currentGameState === 'resumeDialog'"
         :question-count="gameStore.questionCount"
         :max-questions="MAX_QUESTIONS"
         :candidates-count="gameStore.topCandidates.length"
@@ -61,22 +64,22 @@ onUnmounted(() => {
 
       <!-- Start Screen -->
       <GameStartScreen
-        v-else-if="gameFlow.gameState as string === 'start'"
-        :description="gameFlow.userDescription as string"
-        :validation-message="gameFlow.validationMessage as string"
-        :description-length="gameFlow.descriptionLength as number"
-        :is-valid="gameFlow.isDescriptionValid as boolean"
+        v-else-if="currentGameState === 'start'"
+        :description="unref(gameFlow.userDescription)"
+        :validation-message="unref(gameFlow.validationMessage)"
+        :description-length="unref(gameFlow.descriptionLength)"
+        :is-valid="unref(gameFlow.isDescriptionValid)"
         :loading="gameStore.loading"
         :min-length="gameFlow.MIN_DESCRIPTION_LENGTH"
         :max-length="gameFlow.MAX_DESCRIPTION_LENGTH"
         @update:description="gameFlow.userDescription = $event"
-        @start="gameFlow.startGame(gameFlow.userDescription as string)"
+        @start="gameFlow.startGame(unref(gameFlow.userDescription))"
         @go-home="gameFlow.goHome"
       />
 
       <!-- Question Phase -->
       <GameQuestionCard
-        v-else-if="(gameFlow.gameState as string) === 'question' && gameStore.currentQuestion"
+        v-else-if="currentGameState === 'question' && gameStore.currentQuestion"
         :question="gameStore.currentQuestion.text"
         :question-number="gameStore.questionCount + 1"
         :total-questions="MAX_QUESTIONS"
@@ -91,9 +94,9 @@ onUnmounted(() => {
 
       <!-- Result Phase -->
       <GameResultCard
-        v-else-if="(gameFlow.gameState as string) === 'result'"
+        v-else-if="currentGameState === 'result'"
         :guess="gameStore.gameResult"
-        :disabled="gameFlow.saving as boolean"
+        :disabled="unref(gameFlow.saving)"
         @correct="gameFlow.handleCorrectGuess"
         @incorrect="gameFlow.handleIncorrectGuess"
         @play-again="gameFlow.playAgain"
@@ -101,7 +104,7 @@ onUnmounted(() => {
 
       <!-- Place Search -->
       <GamePlaceSearch
-        v-else-if="(gameFlow.gameState as string) === 'placeSearch'"
+        v-else-if="currentGameState === 'placeSearch'"
         @select="gameFlow.selectPlace"
         @cancel="() => { gameFlow.showPlaceSearch = false }"
       />
@@ -109,7 +112,7 @@ onUnmounted(() => {
   </div>
 
   <!-- Loading Overlay -->
-  <GameLoadingOverlay v-if="gameStore.loading && !gameFlow.gameStarted" />
+  <GameLoadingOverlay v-if="gameStore.loading && !unref(gameFlow.gameStarted)" />
 
   <!-- Error message -->
   <div
