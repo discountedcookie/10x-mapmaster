@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { mount, VueWrapper } from '@vue/test-utils'
 import { i18n } from '../../setup'
-import PlaceSearch from '@/components/game/PlaceSearch.vue'
+import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
 import type { NominatimPlace } from '@/composables/usePlaces'
 
 // Mock places store
@@ -15,7 +15,7 @@ vi.mock('@/stores/places', () => ({
     }),
 }))
 
-describe('PlaceSearch', () => {
+describe('GamePlaceSearch', () => {
     let wrapper: VueWrapper
 
     const mockPlace: NominatimPlace = {
@@ -33,7 +33,7 @@ describe('PlaceSearch', () => {
         vi.clearAllMocks()
         vi.useFakeTimers()
         mockSearchPlaces.mockResolvedValue([mockPlace])
-        wrapper = mount(PlaceSearch, {
+        wrapper = mount(GamePlaceSearch, {
             global: {
                 plugins: [i18n],
             },

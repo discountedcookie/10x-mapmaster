@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { i18n } from '../../setup'
-import ResultCard from '@/components/game/ResultCard.vue'
+import GameResultCard from '@/components/game/GameResultCard.vue'
 import type { Tables } from '@/types/database'
 
 interface PlaceWithScore extends Tables<'places'> {
@@ -10,7 +10,7 @@ interface PlaceWithScore extends Tables<'places'> {
     composite_confidence: number
 }
 
-describe('ResultCard', () => {
+describe('GameResultCard', () => {
     const mockPlace: PlaceWithScore = {
         id: 'place-1',
         name: 'Paris',
@@ -28,7 +28,7 @@ describe('ResultCard', () => {
 
     describe('High Confidence Guess', () => {
         it('should display place name and coordinates', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace },
                 global: {
                     plugins: [i18n],
@@ -40,7 +40,7 @@ describe('ResultCard', () => {
         })
 
         it('should show "Is this your place?" title for high confidence', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, composite_confidence: 0.9 } },
                 global: {
                     plugins: [i18n],
@@ -51,7 +51,7 @@ describe('ResultCard', () => {
         })
 
         it('should display confidence badge', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace },
                 global: {
                     plugins: [i18n],
@@ -65,7 +65,7 @@ describe('ResultCard', () => {
         })
 
         it('should emit correct event when "Yes, that\'s it!" is clicked', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace },
                 global: {
                     plugins: [i18n],
@@ -79,7 +79,7 @@ describe('ResultCard', () => {
         })
 
         it('should emit incorrect event when "No, that\'s not it" is clicked', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace },
                 global: {
                     plugins: [i18n],
@@ -95,7 +95,7 @@ describe('ResultCard', () => {
         })
 
         it('should disable buttons when disabled prop is true', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace, disabled: true },
                 global: {
                     plugins: [i18n],
@@ -120,7 +120,7 @@ describe('ResultCard', () => {
         }
 
         it('should show narrowing down message for low confidence', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: lowConfidencePlace },
                 global: {
                     plugins: [i18n],
@@ -132,7 +132,7 @@ describe('ResultCard', () => {
         })
 
         it('should show different button text for low confidence', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: lowConfidencePlace },
                 global: {
                     plugins: [i18n],
@@ -144,7 +144,7 @@ describe('ResultCard', () => {
         })
 
         it('should still emit correct/incorrect events', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: lowConfidencePlace },
                 global: {
                     plugins: [i18n],
@@ -167,7 +167,7 @@ describe('ResultCard', () => {
 
     describe('No Match Found', () => {
         it('should show "No matches found" when guess is null', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: null },
                 global: {
                     plugins: [i18n],
@@ -179,7 +179,7 @@ describe('ResultCard', () => {
         })
 
         it('should show "Tell us the place" button when no match', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: null },
                 global: {
                     plugins: [i18n],
@@ -191,7 +191,7 @@ describe('ResultCard', () => {
         })
 
         it('should emit incorrect when "Tell us the place" is clicked', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: null },
                 global: {
                     plugins: [i18n],
@@ -207,7 +207,7 @@ describe('ResultCard', () => {
         })
 
         it('should emit playAgain when "Play Again" is clicked', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: null },
                 global: {
                     plugins: [i18n],
@@ -225,7 +225,7 @@ describe('ResultCard', () => {
 
     describe('Match Analysis', () => {
         it('should show match analysis collapsible', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace },
                 global: {
                     plugins: [i18n],
@@ -236,7 +236,7 @@ describe('ResultCard', () => {
         })
 
         it('should calculate semantic percentage correctly', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, semantic_similarity: 0.85 } },
                 global: {
                     plugins: [i18n],
@@ -253,7 +253,7 @@ describe('ResultCard', () => {
         })
 
         it('should calculate spatial percentage correctly', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, spatial_confidence: 0.9 } },
                 global: {
                     plugins: [i18n],
@@ -270,7 +270,7 @@ describe('ResultCard', () => {
         })
 
         it('should toggle analysis visibility', async () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: mockPlace },
                 global: {
                     plugins: [i18n],
@@ -296,7 +296,7 @@ describe('ResultCard', () => {
 
     describe('Computed Properties', () => {
         it('should calculate confidence percent', () => {
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, composite_confidence: 0.87 } },
                 global: {
                     plugins: [i18n],
@@ -308,7 +308,7 @@ describe('ResultCard', () => {
 
         it('should detect low confidence correctly', () => {
             // Low confidence (0.5 <= x < 0.8)
-            const lowWrapper = mount(ResultCard, {
+            const lowWrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, composite_confidence: 0.65 } },
                 global: {
                     plugins: [i18n],
@@ -317,7 +317,7 @@ describe('ResultCard', () => {
             expect(lowWrapper.vm.isLowConfidence).toBe(true)
 
             // High confidence
-            const highWrapper = mount(ResultCard, {
+            const highWrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, composite_confidence: 0.9 } },
                 global: {
                     plugins: [i18n],
@@ -326,7 +326,7 @@ describe('ResultCard', () => {
             expect(highWrapper.vm.isLowConfidence).toBe(false)
 
             // Very low confidence
-            const veryLowWrapper = mount(ResultCard, {
+            const veryLowWrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, composite_confidence: 0.4 } },
                 global: {
                     plugins: [i18n],
@@ -338,7 +338,7 @@ describe('ResultCard', () => {
         it('should return undefined when confidence is 0 (edge case)', () => {
             // Note: The component treats 0 as falsy, so confidencePercent returns undefined
             // This is acceptable since 0% confidence means no match (shouldn't happen in practice)
-            const wrapper = mount(ResultCard, {
+            const wrapper = mount(GameResultCard, {
                 props: { guess: { ...mockPlace, composite_confidence: 0 } },
                 global: {
                     plugins: [i18n],
