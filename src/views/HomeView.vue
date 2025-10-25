@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, watchEffect, onUnmounted } from 'vue'
 import HeroCard from '@/components/HeroCard.vue'
-import MapMarker from '@/components/map/MapMarker.vue'
 import { usePlaces } from '@/composables/usePlaces'
-import { useMapMarkers } from '@/composables/map/useMapMarkers'
+import { useMapBounds } from '@/composables/map/useMapBounds'
 import { useMapState } from '@/composables/map/useMapState'
 
 const placesStore = usePlaces()
@@ -14,24 +13,48 @@ onMounted(() => {
   placesStore.fetchAllPlaces()
 })
 
-// Compute markers for browse mode
-const { markerNodes, bounds } = useMapMarkers({
-  data: computed(() => placesStore.places),
-  markerComponent: MapMarker,
-  computeMarker: (place) => ({
-    id: `place-${place.id}`,
-    coordinates: [place.lng!, place.lat!] as [number, number],
-    name: place.name,
-    backgroundColor: '#3b82f6',
-    opacity: 1,
-    similarity: undefined,
-    gameCount: place.game_count,
-  })
+// Create GeoJSON for places clustering
+const placesGeoJSON = computed(() => {
+  const features = placesStore.places
+    .filter(p => p.lat !== null && p.lng !== null)
+    .map(place => ({
+      type: 'Feature',
+      properties: {
+        id: place.id,
+        name: place.name,
+        game_count: place.game_count || 0
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [place.lng!, place.lat!]
+      }
+    }))
+
+  return {
+    type: 'FeatureCollection',
+    features
+  }
 })
 
-// Update map state when markers change
+// Calculate bounds for all places
+const markers = computed(() => {
+  return placesStore.places
+    .filter(p => p.lat !== null && p.lng !== null)
+    .map(place => ({
+      coordinates: [place.lng!, place.lat!] as [number, number]
+    }))
+})
+
+const bounds = useMapBounds(markers)
+
+// Update map state for browse mode (clustering, no individual markers)
 watchEffect(() => {
-  setMapState(bounds.value, markerNodes.value)
+  setMapState(
+    bounds.value,
+    [], // No individual markers in browse mode (use clustering)
+    placesGeoJSON.value,
+    true // isBrowseMode = true
+  )
 })
 
 // Clear map state when component unmounts
