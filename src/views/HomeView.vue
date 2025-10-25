@@ -1,12 +1,34 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import HeroCard from '@/components/HeroCard.vue'
 import { usePlaces } from '@/composables/usePlaces'
+import { useMapBounds } from '@/composables/map/useMapBounds'
+import { useMapState } from '@/composables/map/useMapState'
 
+const { setMapState } = useMapState()
 const placesStore = usePlaces()
 
+// Calculate bounds for all places
+const markers = computed(() => {
+  return placesStore.places
+    .filter(p => p.lat !== null && p.lng !== null)
+    .map(place => ({
+      coordinates: [place.lng!, place.lat!] as [number, number]
+    }))
+})
+
+const bounds = useMapBounds(markers)
+
+// Store places for map rendering
+const places = computed(() => {
+  return placesStore.places.filter(p => p.lat !== null && p.lng !== null)
+})
+
+// Restore all places when HomeView mounts
 onMounted(() => {
-  placesStore.fetchAllPlaces()
+  if (places.value.length > 0 && bounds.value) {
+    setMapState(bounds.value, places.value)
+  }
 })
 </script>
 
