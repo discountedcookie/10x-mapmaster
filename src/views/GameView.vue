@@ -1,50 +1,65 @@
 <script setup lang="ts">
-import { computed, watchEffect, onUnmounted, unref } from 'vue'
+import { computed, watchEffect, unref } from 'vue'
 import { useGameFlow } from '@/composables/game'
 import { useGameStore, MAX_QUESTIONS } from '@/stores/game'
-import MapMarker from '@/components/map/MapMarker.vue'
 import GameStartScreen from '@/components/game/GameStartScreen.vue'
 import GameResumeDialog from '@/components/game/GameResumeDialog.vue'
 import GameLoadingOverlay from '@/components/game/GameLoadingOverlay.vue'
 import GameQuestionCard from '@/components/game/GameQuestionCard.vue'
 import GameResultCard from '@/components/game/GameResultCard.vue'
 import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
-import { useMapMarkers } from '@/composables/map/useMapMarkers'
+import { useMapBounds } from '@/composables/map/useMapBounds'
 import { useMapState } from '@/composables/map/useMapState'
 
 const gameStore = useGameStore()
 const gameFlow = useGameFlow()
-const { setMapState, clearMapState } = useMapState()
+const { setMapState } = useMapState()
 
 // Computed for current state value
 const currentGameState = computed(() => unref(gameFlow.gameState))
 
-// Compute markers for game mode
-const { markerNodes, bounds } = useMapMarkers({
-  data: computed(() => gameStore.topCandidates),
-  markerComponent: MapMarker,
-  computeMarker: (candidate) => ({
-    id: `game-${candidate.id}`,
-    coordinates: [candidate.lng!, candidate.lat!] as [number, number],
-    name: candidate.name,
-    backgroundColor: '#ef4444',
-    opacity: 0.4 + (candidate.composite_confidence * 0.6),
-    similarity: candidate.composite_confidence,
-    gameCount: undefined,
-  }),
-  boundsOptions: {
-    padding: 0.25,
-  }
+// Compute game candidate markers as places
+const gameMarkers = computed(() => {
+  return gameStore.topCandidates
+    .filter(c => c.lat !== null && c.lng !== null)
+    .map((candidate) => ({
+      id: `game-${candidate.id}`,
+      name: candidate.name,
+      lat: candidate.lat!,
+      lng: candidate.lng!,
+      game_count: undefined,
+      // Store styling info as extensions
+      backgroundColor: '#ef4444',
+      opacity: 0.4 + (candidate.composite_confidence * 0.6),
+      similarity: candidate.composite_confidence,
+    }))
 })
 
-// Update map state when game markers change
+// Calculate bounds for game markers
+const markerCoordinates = computed(() => {
+  return gameMarkers.value
+    .filter(m => typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng))
+    .map(marker => ({
+      coordinates: [marker.lng, marker.lat] as [number, number]
+    }))
+})
+
+const bounds = useMapBounds(markerCoordinates, 0.25)
+
+// Update map state when game is active (question or result phase)
 watchEffect(() => {
-  setMapState(bounds.value, markerNodes.value)
-})
+  const gameState = currentGameState.value
+  const isGameActive = gameState === 'question' || gameState === 'result'
 
-// Clear map state when component unmounts
-onUnmounted(() => {
-  clearMapState()
+  if (isGameActive) {
+    const validMarkers = gameMarkers.value.filter(m =>
+      typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng)
+    )
+    // Only show candidates when game is actively running
+    if (validMarkers.length > 0 && bounds.value && Array.isArray(bounds.value) && bounds.value.length === 2) {
+      setMapState(bounds.value, validMarkers as any)
+    }
+  }
 })
 </script>
 

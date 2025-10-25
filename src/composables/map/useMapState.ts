@@ -1,37 +1,37 @@
-import { ref, shallowRef, type Component, type VNode } from 'vue'
+import { ref, shallowRef } from 'vue'
 
 export type Bounds = [[number, number], [number, number]] | undefined
 
+interface Place {
+  id: string
+  name: string
+  lat: number | null
+  lng: number | null
+  game_count?: number
+}
+
 interface MapState {
   bounds: Bounds
-  markerNodes: VNode[]
-  placesGeoJson?: any
-  isBrowseMode?: boolean
+  places: Place[]
 }
 
 const mapState = shallowRef<MapState>({
   bounds: undefined,
-  markerNodes: [],
-  placesGeoJson: null,
-  isBrowseMode: false
+  places: []
 })
 
 export function useMapState() {
   function setMapState(
     bounds: Bounds,
-    markerNodes: VNode[],
-    placesGeoJson?: any,
-    isBrowseMode?: boolean
+    places: Place[]
   ) {
-    mapState.value = { bounds, markerNodes, placesGeoJson, isBrowseMode }
+    mapState.value = { bounds, places }
   }
 
   function clearMapState() {
     mapState.value = {
       bounds: undefined,
-      markerNodes: [],
-      placesGeoJson: null,
-      isBrowseMode: false
+      places: []
     }
   }
 
