@@ -1,0 +1,856 @@
+{
+  "backup_date": "2025-10-26",
+  "source": "Memory MCP",
+  "total_entities": 42,
+  "total_relations": 38,
+  "entities": [
+    {
+      "type": "entity",
+      "name": "pos-refactoring-tdd-plan",
+      "entityType": "project-planning",
+      "observations": [
+        "Multi-Bill POS System Refactoring Plan using Test-Driven Development principles",
+        "Refactor monolithic POS component (970 lines) into smaller, testable business logic modules",
+        "Current structure: Main Component, Stores, API Service, Auth Store",
+        "Key business logic to extract: Bill Management, Cart Operations, Checkout Flow, Product Search, Validation",
+        "New architecture with domain layer (services), store layer (Svelte 5 runes), component layer",
+        "TDD implementation strategy: Phase 1 domain layer, Phase 2 store layer, Phase 3 component layer",
+        "Testing strategy: Unit tests (Vitest), Integration tests, E2E tests (Playwright)",
+        "Benefits: Testability, Maintainability, Reusability, Confidence, Documentation"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "workflow-database",
+      "entityType": "workflow-process",
+      "observations": [
+        "Database workflow with Supabase MCP integration",
+        "Local development commands: start, status, reset, stop Supabase",
+        "Database management: generate TypeScript types, run migrations, create migrations",
+        "Supabase MCP tools: Database queries, Schema management, Data seeding, Function testing, Real-time testing",
+        "Common patterns: Schema changes, Data operations, Function development",
+        "Best practices: Test locally first, Use MCP tools for direct interaction, Test with unit and E2E tests, Keep migrations small, Use RLS for security, Document schema changes"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "browser-testing-results",
+      "entityType": "testing-documentation",
+      "observations": [
+        "Cannabis CRM browser testing results from 2025-01-24",
+        "Key finding: Dashboard issue resolved - no more 'Welcome to SvelteKit' message",
+        "Working components: BaseLayout, Navigation, Main Dashboard, POS Interface, Routing",
+        "Issues found: Inventory page shows 'Failed to load products' error due to missing Supabase connection",
+        "Customer and Reports pages are placeholder content only",
+        "Screenshots captured in .serena/memories/screenshots/",
+        "Build status: All pages build without errors, professional UI implemented",
+        "Next priorities: Start Supabase locally, test Inventory with real data, implement Customer management, add Reports dashboard"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "404-page-design",
+      "entityType": "implementation",
+      "observations": [
+        "404 page design and implementation documented on 2025-10-24",
+        "Components used: Card, EmptyState, Button, Input, lucide-svelte icons",
+        "Design: User-friendly with Card layout, EmptyState for 'Page Not Found', search bar, navigation buttons",
+        "Implementation in src/routes/+error.svelte using $app/stores for URL display",
+        "Styling with Tailwind CSS",
+        "Features: Clear error message, search functionality, navigation to homepage and POS"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "handoff-phase1-fixes",
+      "entityType": "implementation",
+      "observations": [
+        "Phase 1 critical fixes handoff from 2025-10-24",
+        "4 critical issues blocking Phase 1 completion identified and fixed",
+        "Issue 1: Missing tsconfig.json - created with SvelteKit extends",
+        "Issue 2: Broken authentication module - commented out imports, deferred to Phase 2",
+        "Issue 3: Broken test script - fixed duplicate --run flag",
+        "Issue 4: Missing Tailwind config - created with cannabis brand colors and Thai font support",
+        "Remaining issues: Missing Paraglide generated files, build still failing",
+        "Next steps: Run npm run dev to generate files, verify build, commit fixes",
+        "Files modified: tsconfig.json, src/hooks.server.ts, package.json, tailwind.config.ts"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "workflow-troubleshooting-phase1",
+      "entityType": "workflow-process",
+      "observations": [
+        "Workflow troubleshooting for Phase 1 build failures",
+        "Problem: Build failing with missing module errors and incorrect database types",
+        "Mistakes: Attempted manual fixes instead of using project-defined workflows",
+        "Root cause: Template migration file causing type generator to use wrong schema",
+        "Correct solution: Delete template migration, reset database, regenerate types",
+        "E2E test failures: Misconfigured playwright.config.ts and failing test file",
+        "Linting errors: Missing ignore patterns for generated directories",
+        "Lessons: Always use package.json scripts, verify each step, commit and review",
+        "Final workflow: Consult package.json, use MCP tools, verify steps, commit changes"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "phase2-ui-components",
+      "entityType": "implementation",
+      "observations": [
+        "Phase 2 UI foundation components completed",
+        "Components in src/components/shared/: BaseLayout, Navigation, LoadingSpinner, ErrorMessage, EmptyState",
+        "BaseLayout: Main layout wrapper with title, sidebar, children, headerActions props",
+        "Navigation: Sidebar navigation with active state highlighting using $page.url.pathname",
+        "LoadingSpinner: Animated loading indicator with size and message props",
+        "ErrorMessage: Error display with optional retry action",
+        "EmptyState: Empty state display with icon, title, description, action snippet",
+        "Svelte 5 patterns: $props(), $derived, {@render snippet()}",
+        "Styling: Tailwind CSS with cannabis brand colors, responsive design, dark mode support",
+        "Accessibility: Semantic HTML, ARIA labels, focus states",
+        "Integration: Used by POS, Inventory, all placeholder pages"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "design-system-shadcn-linear",
+      "entityType": "implementation",
+      "observations": [
+        "shadcn-svelte default design system with OKLCH color space",
+        "Migrated from custom Linear-inspired colors to default shadcn-svelte theme",
+        "Color system: OKLCH-based with semantic color tokens (primary, secondary, muted, accent, destructive)",
+        "Files updated: src/app.css (OKLCH colors), tailwind.config.ts (direct CSS variable references)",
+        "Homepage updated: Replaced hardcoded colors with shadcn components (Card, Button, Badge)",
+        "Design system page updated to reflect default theme",
+        "Advantages: Standard theme, OKLCH colors, dark mode support, semantic classes",
+        "Adding components: Use npx shadcn-svelte@latest add <component-name>",
+        "Available components: accordion, alert, avatar, badge, button, card, checkbox, dialog, dropdown-menu, form, input, label, popover, select, separator, switch, table, tabs, textarea, toast"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "dashboard-01-implementation",
+      "entityType": "implementation",
+      "observations": [
+        "Professional Cannabis CRM Dashboard implementation using shadcn-svelte dashboard-01 block",
+        "Replaced old dashboard with modern, data-driven design built on production-ready components",
+        "Installation: npx shadcn-svelte@latest add dashboard-01 (added 25+ components)",
+        "Architecture: SidebarProvider, AppSidebar, SidebarInset, SiteHeader, SectionCards, ChartAreaInteractive, DataTable",
+        "Key components: SiteHeader (dynamic titles), SectionCards (metrics with trends), ChartAreaInteractive (sales visualization), DataTable (sortable inventory)",
+        "Cannabis metrics: Today's Revenue ($2,847.50), Total Sales (847), Active Customers (1,234), Avg Order Value ($78.50)",
+        "Technical stack: LayerChart, TanStack Table, d3-scale, lucide-svelte icons",
+        "Svelte 5 patterns: $derived, named snippets, container queries",
+        "Build status: TypeScript 0 errors, Vite build successful, production ready",
+        "Next steps: Connect to Supabase, add real-time updates, implement filtering, export functionality"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "ui-redesign-shadcn-components",
+      "entityType": "implementation",
+      "observations": [
+        "Complete UI redesign of Cannabis CRM using shadcn-svelte components",
+        "Redesigned screens: Dashboard, POS, Customers, Staff, Reports",
+        "Dashboard: Enhanced stats cards, recent sales, top products, low stock alerts, quick actions",
+        "POS: Product grid with search/filter, interactive cart, checkout dialog, customer selection",
+        "Customers: Customer list with search, tier badges, performance metrics, detail dialogs",
+        "Staff: Team member management, performance tracking, role assignments",
+        "Reports: Sales charts, revenue breakdowns, category analysis, export capabilities",
+        "Design system: OKLCH colors, semantic tokens, dark mode, responsive design",
+        "Svelte 5 runes: $state for reactive state, $derived for computed values",
+        "Mock data: Realistic cannabis business data for demonstration",
+        "Build status: svelte-check 0 errors, production ready",
+        "Next steps: Connect to Supabase, implement authentication, add CRUD operations, form validation"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "dashboard-pos-restoration-plan",
+      "entityType": "project-planning",
+      "observations": [
+        "Dashboard & POS restoration plan to revert from shadcn dashboard-01 to cannabis-specific MVP",
+        "Current state: Main dashboard uses generic template, POS page exists but not accessible via navigation",
+        "Problem: User wants cannabis-focused dashboard, not generic template",
+        "Solution: Update AppSidebar navigation, simplify main dashboard, keep POS as-is",
+        "Phase 1: Update AppSidebar with cannabis CRM navigation (Dashboard, POS, Inventory, Customers, Reports, Settings)",
+        "Phase 2: Simplify dashboard to focus on cannabis metrics, alerts, recent activity",
+        "Phase 3: Keep template as reference, ensure POS accessible via sidebar",
+        "Phase 4: Verify navigation works, all routes accessible",
+        "Files to modify: src/lib/components/app-sidebar.svelte, src/routes/+page.svelte",
+        "Icons: LayoutDashboard, ShoppingCart, Package, Users, BarChart, Settings from lucide-svelte",
+        "Testing: Navigate to / and /pos, verify sidebar active states, responsive design"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "handoff-svelte5-implementation",
+      "entityType": "implementation",
+      "observations": [
+        "Handoff: Cannabis CRM POS - Svelte 5 Implementation COMPLETED",
+        "Project: hightown-supabase, Svelte 5 + TypeScript 5.9+ + Supabase + Tailwind CSS 4+",
+        "Phase 1: Setup - 11/11 tasks complete (infrastructure, database, build tools)",
+        "Phase 2: Foundation - 24/24 tasks complete (core services, UI components, authentication)",
+        "Phase 3: US1 Sales - Ready to start after auth completion",
+        "Database schema: Complete with Thai regulations compliance (7-year audit, 0.01g precision, Thai Baht)",
+        "Current state: All critical components implemented, authentication system ready",
+        "Agent continuation: Claude (49 exchanges), Gemini (49 exchanges)",
+        "Next priority: Complete authentication system to unlock Phase 3",
+        "Git status: All changes committed with descriptive messages"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "02-current-state",
+      "entityType": "project-planning",
+      "observations": [
+        "Current state of Cannabis CRM POS project as of 2025-10-24",
+        "Phase progress: Phase 1 (Setup) ✅ Complete, Phase 2 (Foundation) ✅ Complete, Phase 3 (US1 Sales) ⏸️ Ready to start",
+        "Phase 2 complete: Authentication system (auth utilities, auth store, login page, protected routes)",
+        "Database & Schema: ✅ Complete with RLS policies",
+        "Services & Stores: ✅ CannabisAPIService, cannabis store, auth store, validation schemas",
+        "UI Components: ✅ BaseLayout, Navigation, LoadingSpinner, ErrorMessage, EmptyState, ProductCard, ProductList",
+        "Pages: ✅ POS page, Inventory page, Login page, placeholder pages",
+        "Architecture: Static deployment compatible, client-side auth, RLS security",
+        "Next priority: Phase 3 US1 Sales Flow (product selection, cart, checkout, receipt)",
+        "Time estimate: 3-4 hours for first MVP feature",
+        "Dependencies: None - Phase 2 complete"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "phase1-code-review-findings",
+      "entityType": "quality-review",
+      "observations": [
+        "Phase 1 code review findings from 2025-01-27",
+        "Overall assessment: Solid foundation with robust backend, but missing frontend UI",
+        "Strengths: Comprehensive backend architecture, API service layer, type safety, validation with Zod, Supabase integration",
+        "Critical issues: Missing frontend implementation (0 UI components), default SvelteKit page, no POS interface",
+        "Linting errors: Unused TransactionProductSchema and TransactionProductInput imports",
+        "Incomplete transaction handling: No inventory updates, no optimistic concurrency",
+        "Missing core features: No POS, no inventory management, no customer management, no reporting",
+        "Technical debt: Unused imports, missing error handling, hardcoded values, performance issues",
+        "Implementation status: Database 100%, API 100%, State 100%, Validation 100%, UI 0%",
+        "Recommendations: Fix linting, create basic UI components, implement POS interface, add error handling",
+        "Next steps: Week 1 fix linting/UI, Week 2 POS/catalog, Week 3 inventory/customers, Week 4 reporting"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "pos-application-flows-and-test-cases",
+      "entityType": "testing-documentation",
+      "observations": [
+        "Multi-Bill POS System - Application Flows & Test Cases",
+        "Complete POS transaction flow diagram with multi-bill management",
+        "Application flows: Complete transaction, multi-bill management, cart operations, checkout & payment",
+        "Domain layer tests: Bill service (create, switch, close), Cart service (add/remove/update, calculate totals), Checkout service, Product service",
+        "Integration tests: Bills store, Cart store, POS session store",
+        "E2E test scenarios: Complete checkout flow, multi-bill workflow, empty bill closure, stock validation",
+        "Test coverage goals: Domain services 100%, stores 90%+, components 80%+, E2E critical paths 100%",
+        "Testing tools: Vitest (unit), Playwright (E2E), coverage reporting",
+        "Key flows: Product selection → Cart management → Customer assignment → Checkout → Payment → Receipt → Bill management"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "sidebar-implementation",
+      "entityType": "implementation",
+      "observations": [
+        "Sidebar implementation with shadcn-svelte from 2025-10-24",
+        "Replaced basic custom sidebar with official shadcn-svelte Sidebar component",
+        "Features: Collapsible sidebar, active state highlighting, responsive design, accessibility",
+        "AppSidebar component: Sidebar.Root, Sidebar.Content, Sidebar.Group, Sidebar.Menu, Sidebar.Footer",
+        "Navigation items: Dashboard, POS, Inventory, Customers, Reports, Locations, Staff, Settings with lucide icons",
+        "Icon system: Replaced emoji with lucide-svelte icons (professional, consistent, SVG)",
+        "Layout integration: SidebarProvider in root, SidebarInset for content, SidebarTrigger for collapse",
+        "Page updates: All pages use new sidebar pattern with SidebarInset and header",
+        "Svelte 5 patterns: Named snippets ({@snippet child({ props })}), dynamic components",
+        "Derived state: $derived for current path and active state calculation",
+        "Build status: TypeScript 0 errors, production ready",
+        "Next steps: Add tooltips for collapsed state, sub-menus, keyboard shortcuts, user avatar"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "session-start-prompt",
+      "entityType": "workflow-process",
+      "observations": [
+        "Session start guide for efficient development workflow",
+        "Project: Cannabis CRM POS - Svelte 5 + SvelteKit + Supabase + TypeScript",
+        "Phase 2 (Foundation) - 75% complete, current priority: authentication system",
+        "Essential commands: npm run dev, npm run build, npm test, npm run supabase:start",
+        "Workflow: Single-agent mode, Serena handles everything",
+        "Pattern: User describes task → Serena executes → Done",
+        "Tool usage: Serena symbolic tools (95%), other MCPs (5%)",
+        "Code reading: find_symbol, get_symbols_overview, search_for_pattern (minimal)",
+        "Editing: replace_symbol_body, insert_after_symbol, insert_before_symbol",
+        "Quality: Build passes, tests pass, TypeScript valid",
+        "Memory system: Project context in memories (00-START-HERE, 02-current-state, tech-stack, etc.)",
+        "Session start: Read current state, ask what to work on, execute directly"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "design-system-neutral-theme",
+      "entityType": "implementation",
+      "observations": [
+        "shadcn-svelte neutral gray theme implementation",
+        "Migrated from bluish slate colors to pure neutral gray palette using OKLCH color space",
+        "Color system: Zero chroma (pure grays), OKLCH space for uniform perception",
+        "Light mode: Pure white background, dark gray foreground, medium grays for primary/secondary",
+        "Dark mode: Very dark gray background, almost white foreground, light grays for primary",
+        "Files: src/app.css (OKLCH colors), tailwind.config.ts (semantic references)",
+        "Screenshots: design-system-typography.png, design-system-colors.png, design-system-components.png, design-system-patterns.png",
+        "Design philosophy: Neutral grays without color bias, professional appearance, versatile",
+        "Component usage: Card.Root, Button, Badge, Input, Label, etc.",
+        "Build status: Successful, production ready",
+        "Next steps: Add accent colors if needed, more shadcn components"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "00-START-HERE",
+      "entityType": "project-setup",
+      "observations": [
+        "Project overview and session start guide for Cannabis CRM POS",
+        "Project: hightown-supabase, Svelte 5 + SvelteKit + Supabase + TypeScript",
+        "Branch: 001-cannabis-crm-pos, Phase 2 (Foundation) 75% complete",
+        "Tech stack: Svelte 5 + SvelteKit, Supabase, Tailwind CSS, shadcn-svelte, Vitest, Playwright",
+        "Essential commands: npm run dev, npm run build, npm test, npm run supabase:start",
+        "Memory system: 00-START-HERE (overview), 02-current-state (progress), tech-stack (decisions), critical-issues-fixed (problems), workflow-simple (how to work)",
+        "Starting session: Read current state, ask user what to work on, execute directly",
+        "Workflow: Single-agent (Serena), symbolic tools for code reading/editing, verify build after changes",
+        "Current priority: Complete authentication system to unlock Phase 3",
+        "Project structure: src/routes/, src/components/, src/lib/, src/services/, supabase/"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "pos-refactoring-current-status",
+      "entityType": "project-planning",
+      "observations": [
+        "Multi-Bill POS System current status report",
+        "Completed: Critical fixes & foundation - syntax errors resolved, system fully operational",
+        "Working features: Product browsing/search, multi-bill management, customer assignment, cart operations, checkout, receipt generation, audit logging, Thai VAT calculation",
+        "Remaining: Full refactoring implementation (domain services, reactive stores, component extraction)",
+        "Phase 2: Complete domain layer (checkout & product services, testing infrastructure)",
+        "Phase 3: Store layer (Svelte 5 runes stores)",
+        "Phase 4: Component extraction (BillTabs, ProductGrid, CartSidebar, etc.)",
+        "Phase 5: Testing & quality (integration tests, E2E tests, documentation)",
+        "MVP assessment: Current implementation production ready, refactoring for long-term maintainability",
+        "Success metrics: 0 syntax errors, all features functional, TDD foundation established"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "milestone-v0.0.1-shadcn-integration",
+      "entityType": "project-planning",
+      "observations": [
+        "Milestone v0.0.1 - shadcn-svelte Design System Integration",
+        "Date: 2025-10-24, Branch: shadcn-linear-design → main, Tag: v0.0.1",
+        "Achievements: Complete design system integration, 40+ shadcn components, dashboard-01 block, sidebar-07 navigation",
+        "Core features: Sticky header, theme toggle, language selector, collapsible sidebar, interactive charts, data tables",
+        "Redesigned screens: Dashboard (cannabis metrics), POS (product selection), Customers (management), Staff (performance), Reports (analytics)",
+        "Technical: TypeScript 5.9+, Svelte 5 runes, Tailwind CSS 4, OKLCH colors, semantic design",
+        "Build status: Zero errors, production ready, 203 files changed, 10,065 additions",
+        "Breaking changes: New layout structure, component imports, theme system",
+        "Next steps: Backend integration, authentication, CRUD operations, testing suite",
+        "Success metrics: All builds passing, professional UI, responsive design, accessible"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "critical-issues-fixed",
+      "entityType": "quality-review",
+      "observations": [
+        "Critical issues fixed in Cannabis CRM POS system",
+        "Issue 1: Security vulnerability - RLS policies fixed (were allowing unauthorized access)",
+        "Issue 2: TypeScript compilation error - Json type mismatch in audit trail function",
+        "Issue 3: Hardcoded IP address - made optional parameter for audit trail",
+        "Issue 4: Package.json dependencies - removed Vue.js plugins from Svelte project",
+        "Issue 5: Input validation & error handling - added comprehensive Zod schemas",
+        "Files modified: supabase/migrations/, src/services/cannabis-api.ts, src/lib/validation.ts, package.json",
+        "Security status: RLS policies restrict to authenticated users, input validation prevents injection",
+        "Code quality: TypeScript errors resolved, proper error handling, clean dependencies",
+        "Next steps: Implement UI components for POS functionality"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "workflow-safety-rules",
+      "entityType": "workflow-process",
+      "observations": [
+        "Safety rules and best practices for development workflow",
+        "Code safety: Read code before changes, test locally, use version control, write tests",
+        "Database safety: Backup before changes, test migrations, use transactions, validate data",
+        "AI agent safety: Review AI suggestions, test generated code, don't commit without review",
+        "Security best practices: Supabase Auth, RLS policies, validate inputs, HTTPS, CORS",
+        "Testing safety: Run all tests before deployment, test database migrations, verify security",
+        "Development workflow: TypeScript strict mode, ESLint rules, meaningful commits, semantic versioning",
+        "Collaboration: Feature branches, review changes, document decisions, share knowledge",
+        "Emergency procedures: Don't panic, use version control, identify issues, revert if needed",
+        "Database issues: Stop application, check logs, verify migrations, restore backup"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "gemini-feedback",
+      "entityType": "quality-review",
+      "observations": [
+        "Gemini performance feedback for Phase 1 troubleshooting session",
+        "Prime directive: Convention over command - identify established workflows first",
+        "Key issues: Not prioritizing Serena/Supabase MCP tools, constant supervision required, ignoring instructions",
+        "Mistakes: Defaulting to shell commands instead of project tools, getting stuck in loops, security violations (.env access)",
+        "Corrective actions: Prioritize MCP tools for speed/safety, adhere to instructions, commit frequently",
+        "Future expectations: Trust tools, avoid loops, seek clarification when unsure, security first",
+        "This memory loaded only in Gemini context as constant reminder of required workflow"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "workflow-testing",
+      "entityType": "workflow-process",
+      "observations": [
+        "Testing workflow for the project",
+        "Testing strategy: Unit tests (Vitest), E2E tests (Playwright), database tests",
+        "Playwright integration: Browser testing, element interaction, screenshot capture, form submission, API testing",
+        "MCP browser tools: Page navigation, element interaction, screenshot capture, form submission, API testing",
+        "Testing patterns: Component testing (props/events/rendering), E2E testing (user journeys, auth flows, data persistence)",
+        "Database testing: Real database, MCP setup, cleanup, edge cases",
+        "Best practices: Write tests before implementation (TDD), descriptive names, independent tests, mock services",
+        "Page Object Model for E2E, screenshots for debugging, multiple browsers, automated runs"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "workflow-simple",
+      "entityType": "workflow-process",
+      "observations": [
+        "Simple single-agent workflow for efficient development",
+        "Core principle: One agent (Serena) handles everything, no parallel agents or handoffs",
+        "Standard flow: User describes task → Serena executes → Done",
+        "Tool usage: Serena tools (95% - symbolic analysis/editing), other MCPs (5% - Supabase/Svelte docs)",
+        "When to use tools: Serena for components/routes/services, Supabase for DB queries, Svelte for docs, Context7 for libraries",
+        "Rules: Trust Serena for full features, commit when complete, verify build/tests",
+        "Anti-patterns: Multiple agents, manual fixes, over-planning, reading entire files",
+        "Verification: Build passes, tests pass, lint clean, TypeScript valid",
+        "Memory system: Project context in memories, update for major changes",
+        "Session start: Read current state, ask what to work on, execute directly"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "memory_first_workflow",
+      "entityType": "development-pattern",
+      "observations": [
+        "Memory MCP is primary knowledge base - query before files/git/anything",
+        "Update memory every 10-15min during work, more often than git commits",
+        "Memory stores: decisions, edge cases, file:line locations, library@version, patterns",
+        "Observation format: 'Feature: file.ts:line' or 'Uses library@version for X'",
+        "Relations: implements, depends_on, fixes, tested_by",
+        "Token cost: memory query ~500 vs file read ~5k (10x efficiency)",
+        "Priority: memory > serena symbols > git > files",
+        "Workflows in .kilocode/workflows/ - start, save, load, find, overview, db, test, scan, status, trim, end"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "serena_usage_pattern",
+      "entityType": "development-pattern",
+      "observations": [
+        "Serena for symbol navigation ONLY - not file reading",
+        "Use find_symbol with name_path for functions/classes/methods",
+        "Use get_symbols_overview for file structure (no bodies)",
+        "Never use include_body=true unless explicitly needed",
+        "Format: find_symbol('ClassName/methodName') for nested symbols",
+        "Token cost: symbol search ~200 vs full file ~5k",
+        "After memory query points to general area, Serena finds exact symbol",
+        "Store found symbols in memory for future sessions"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "token_optimization_strategy",
+      "entityType": "development-pattern",
+      "observations": [
+        "Baseline: ~3.5k tokens (memory 1k + serena 2k + git 500)",
+        "Traditional approach: 80k+ tokens reading files",
+        "Memory-first approach: 5k tokens total (16x efficiency)",
+        "On-demand MCPs: supabase 4k, playwright 5k, semgrep 3k",
+        "Enable heavy MCPs temporarily, disable immediately after",
+        "Target per workflow: start <2k, save <1k, load <2k, find <1k",
+        "Status check shows token usage and recommends /trim when needed",
+        "Trim workflow stores insights in memory before clearing conversation"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "10x-mapmaster-1.0.0-release-prep",
+      "entityType": "project-milestone",
+      "observations": [
+        "Session Date: October 25, 2025",
+        "Branch: release-1.0.0-improvements",
+        "Original User Concerns: (1) UX missing stats and questions not random/engaging, (2) Users don't know how to describe places properly, (3) Confidence levels always 70-80% which doesn't look realistic",
+        "TRACK 1 - Confidence Algorithm: Created migration 000005_improve_confidence.sql to rebalance weights from 50/50 to 75% semantic similarity + 25% spatial clustering for more varied scores",
+        "TRACK 1 - Confidence Filtering: Created migration 000006_increase_min_confidence.sql to increase MIN_CONFIDENCE from 0.1 to 0.3 for stricter candidate filtering",
+        "TRACK 2 - UX Improvements: Enhanced PlaceSearch.vue with interactive description examples when input is empty",
+        "TRACK 2 - UX Examples: Added 5 example descriptions like 'A tall iron tower in Paris built for a world fair' to guide users",
+        "TRACK 2 - Input Validation: Added minimum 3 character requirement with helpful feedback messages",
+        "TRACK 2 - Translations: Added missing i18n keys 'too_short' and 'examples_title' to en.ts locale",
+        "Code Cleanup: Removed test scripts (sql-game-simulator.ts, analyze-confidence.ts, question-report.ts) to keep codebase lean",
+        "CRITICAL BUG FIX: Resolved 'registerUnmountHandler' undefined error in map initialization",
+        "Map Fix - BaseMap.vue: Added mapLoaded state flag and @load event handler to ensure map is fully initialized before rendering layers",
+        "Map Fix - BaseMap.vue: Changed clustering layers condition from 'isBrowseMode && placesGeoJson' to 'mapLoaded && isBrowseMode && placesGeoJson'",
+        "Map Fix - BaseMap.vue: Added 'v-if=mapLoaded' to slot for regular game markers to prevent premature layer registration",
+        "Map Fix - MapMarker.vue: Added coordinate validation 'v-if=coordinates && coordinates.length === 2' to prevent invalid marker creation",
+        "Map Fix - MapMarker.vue: Wrapped MglPopup in template tag for non-game markers to fix component mounting issues",
+        "Commits Made: (1) 'feat: improve confidence algorithm and UX' with migrations and input improvements, (2) Attempted 'fix: resolve map layer initialization errors' (user denied final commit)",
+        "Files Modified: supabase/migrations/000005_improve_confidence.sql, supabase/migrations/000006_increase_min_confidence.sql, src/components/game/PlaceSearch.vue, src/i18n/locales/en.ts, src/components/map/BaseMap.vue, src/components/map/MapMarker.vue",
+        "Files Deleted: scripts/sql-game-simulator.ts, scripts/analyze-confidence.ts, scripts/question-report.ts"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "10x-mapmaster",
+      "entityType": "project",
+      "observations": [
+        "Vue 3 + Supabase geography guessing game using vector embeddings for place matching",
+        "Players describe a place, system asks yes/no questions to identify it",
+        "Uses pgvector for semantic similarity and PostGIS for geographic filtering",
+        "Current version 0.0.0, preparing for 1.0.0 release",
+        "Database layer verified for confidence normalization (10/10 tests passing)",
+        "Frontend implementation needed: normalizeConfidencePercentile() in src/stores/game.ts",
+        "Frontend implementation needed: normalizedTopCandidates getter in game store",
+        "Frontend implementation needed: Update GameView.vue to use normalized scores",
+        "Production database has 20 places, 33 questions, 29 game sessions",
+        "Test sessions available for development: 177cf025-f0bc-4fba-9838-b395e5cee5b7, e13cb2b4-73b2-436f-97e1-31fd6c32ab2c",
+        "Database functions: get_candidates(), match_places(), get_next_question() all working correctly",
+        "Database test suite: 53/53 tests passing as of October 25, 2025",
+        "Fixed JSONB null handling bug in get_candidates() function",
+        "Migration 000004_refactor_get_candidates.sql updated to properly handle null metadata_filter values",
+        "All test suites green: confidence_scores, match_quality, metadata_filters, question_effectiveness, session_first"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "confidence-clustering-issue",
+      "entityType": "bug",
+      "observations": [
+        "Primary blocker for 1.0.0 release",
+        "Composite confidence scores cluster tightly (85.5%, 81.2%, 80.8%, 80.8%, 80.3%)",
+        "Top 5 candidates all show 80-85% making it impossible to differentiate",
+        "Confirmed with real production data from session 177cf025-f0bc-4fba-9838-b395e5cee5b7",
+        "Query was 'A tall iron tower that sparkles at night in Paris'",
+        "Root cause: cosine similarity on embeddings naturally produces clustered scores (0.78-0.85 range)",
+        "Current formula: composite_confidence = semantic_similarity * 0.95 + spatial_confidence * 0.05"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "percentile-normalization-solution",
+      "entityType": "solution",
+      "observations": [
+        "Applies percentile ranking to amplify small differences in raw scores",
+        "Formula: confidence = 0.95 - ((rank - 1) / (total - 1)) * 0.80",
+        "Transforms clustered scores (85%, 81%, 80%, 80%, 80%) to spread (95%, 86%, 77%, 68%, 59%)",
+        "Implementation in frontend game store, not database",
+        "Database keeps raw composite_confidence for learning/logic",
+        "Frontend computes normalizedTopCandidates for display only",
+        "Results in better badge distribution: 2 green (≥80%), 4 yellow (50-80%), 4 gray (<50%)",
+        "Successfully tested with real production data from session 177cf025-f0bc-4fba-9838-b395e5cee5b7",
+        "Results: Raw clustered (85.5%, 81.2%, 80.8%, 80.8%, 80.3%) → Normalized spread (95%, 86%, 77%, 68%, 59%)",
+        "Badge distribution improved: Before (5 HIGH, 0 MED, 5 LOW) → After (2 HIGH, 4 MED, 4 LOW)",
+        "Database test file created: supabase/tests/test_confidence_scores.sql",
+        "Tests verify clustering problem and normalization solution with 10 test scenarios",
+        "Edge cases tested: single candidate (95%), 3 candidates (95%, 55%, 15%), 10+ candidates (linear spread)"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "database-test-scenarios",
+      "entityType": "test-plan",
+      "observations": [
+        "Test file: supabase/tests/test_confidence_scores.sql",
+        "Scenario 1: Verify raw score clustering with similar places (expect 0.75-0.85 range)",
+        "Scenario 2: Verify diverse places give natural spread (expect 0.40-0.90 range)",
+        "Scenario 3: Verify session-based filtering maintains score order after answering questions",
+        "Scenario 4: Document clustering evidence as justification for frontend normalization",
+        "Manual verification: Query get_candidates(session_id) to inspect semantic_similarity and composite_confidence",
+        "Database tests verify raw scores are correct, normalization happens in frontend",
+        "All 10 database tests passing successfully",
+        "Test file supabase/tests/test_confidence_scores.sql fully functional",
+        "Tests create 20 test places with embeddings automatically",
+        "Tests verify: clustering problem, normalization formula, edge cases, rank preservation",
+        "Tests use dummy embeddings: array_fill(0.1::float, ARRAY[384])::vector(384)",
+        "Tests run with `npm run test:db` command",
+        "Tests are isolated - create own data, don't rely on production sessions"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "1.0.0-release-plan",
+      "entityType": "milestone",
+      "observations": [
+        "Primary blocker: confidence differentiation - SOLVED with percentile normalization",
+        "Database testing complete - ready for frontend implementation",
+        "Remaining concerns for 1.0.0: user guidance (examples), question engagement, missing stats",
+        "User guidance issue: users type minimal descriptions like 'A tower' and system guesses immediately",
+        "Question engagement issue: questions don't feel random/varied enough",
+        "Missing stats: specific statistics view needs enhancement",
+        "Confidence fix verified with real production data from session 177cf025-f0bc-4fba-9838-b395e5cee5b7"
+      ]
+    },
+    {
+      "type": "entity",
+      "name": "test-session-first-failures",
+      "entityType": "bug",
+      "observations": [
+        "Session Date: October 25, 2025",
+        "Test file: supabase/tests/test_session_first.sql",
+        "Tests 6 and 8 failing: wrong guess candidate filtering",
+        "Test 6: 'Wrong guess reduces candidate count to 2' expects 2, got 0",
+        "Test 8: 'Multiple wrong guesses leave only correct place' expects 1, also failing",
+        "get_candidates() function at supabase/migrations/000004_refactor_get_candidates.sql:118",
+        "Eliminated places logic at lines 149-155: SELECT array_agg(ga.place_id) WHERE answer_type = 'wrong_guess'",
+        "Filtering logic at line 186: AND (sc.eliminated_place_ids IS NULL OR p.id <> ALL(sc.eliminated_place_ids))",
+        "Logic appears correct - need to investigate actual behavior",
+        "Bug FIXED on October 25, 2025",
+        "Root cause: JSONB null handling in metadata_filter check at line 239",
+        "Problem: q.value->'metadata_filter' IS NOT NULL returns TRUE even when value is JSONB null",
+        "In JSONB, {\"metadata_filter\": null} has the key present with null value",
+        "Fix: Added AND jsonb_typeof(q.value->'metadata_filter') != 'null' to line 240",
+        "File: supabase/migrations/000004_refactor_get_candidates.sql:239-241",
+        "Result: All 53 database tests passing (100% pass rate)",
+        "Test suite breakdown: test_confidence_scores.sql (7/7), test_match_quality.sql (9/9), test_metadata_filters.sql (8/8), test_question_effectiveness.sql (2/2), test_session_first.sql (8/8)"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "type": "relation",
+      "from": "pos-refactoring-tdd-plan",
+      "to": "pos-application-flows-and-test-cases",
+      "relationType": "implements"
+    },
+    {
+      "type": "relation",
+      "from": "pos-refactoring-tdd-plan",
+      "to": "pos-refactoring-current-status",
+      "relationType": "tracks_progress_of"
+    },
+    {
+      "type": "relation",
+      "from": "workflow-database",
+      "to": "critical-issues-fixed",
+      "relationType": "resolves_issues_in"
+    },
+    {
+      "type": "relation",
+      "from": "browser-testing-results",
+      "to": "phase2-ui-components",
+      "relationType": "identifies_need_for"
+    },
+    {
+      "type": "relation",
+      "from": "browser-testing-results",
+      "to": "ui-redesign-shadcn-components",
+      "relationType": "leads_to"
+    },
+    {
+      "type": "relation",
+      "from": "404-page-design",
+      "to": "design-system-shadcn-linear",
+      "relationType": "uses_components_from"
+    },
+    {
+      "type": "relation",
+      "from": "handoff-phase1-fixes",
+      "to": "workflow-troubleshooting-phase1",
+      "relationType": "documented_in"
+    },
+    {
+      "type": "relation",
+      "from": "handoff-phase1-fixes",
+      "to": "critical-issues-fixed",
+      "relationType": "addresses_issues_in"
+    },
+    {
+      "type": "relation",
+      "from": "workflow-troubleshooting-phase1",
+      "to": "gemini-feedback",
+      "relationType": "provides_context_for"
+    },
+    {
+      "type": "relation",
+      "from": "phase2-ui-components",
+      "to": "sidebar-implementation",
+      "relationType": "replaced_by"
+    },
+    {
+      "type": "relation",
+      "from": "design-system-shadcn-linear",
+      "to": "design-system-neutral-theme",
+      "relationType": "evolved_into"
+    },
+    {
+      "type": "relation",
+      "from": "dashboard-01-implementation",
+      "to": "milestone-v0.0.1-shadcn-integration",
+      "relationType": "part_of"
+    },
+    {
+      "type": "relation",
+      "from": "ui-redesign-shadcn-components",
+      "to": "milestone-v0.0.1-shadcn-integration",
+      "relationType": "part_of"
+    },
+    {
+      "type": "relation",
+      "from": "sidebar-implementation",
+      "to": "milestone-v0.0.1-shadcn-integration",
+      "relationType": "part_of"
+    },
+    {
+      "type": "relation",
+      "from": "dashboard-pos-restoration-plan",
+      "to": "sidebar-implementation",
+      "relationType": "requires_changes_to"
+    },
+    {
+      "type": "relation",
+      "from": "handoff-svelte5-implementation",
+      "to": "02-current-state",
+      "relationType": "updates"
+    },
+    {
+      "type": "relation",
+      "from": "02-current-state",
+      "to": "session-start-prompt",
+      "relationType": "referenced_by"
+    },
+    {
+      "type": "relation",
+      "from": "phase1-code-review-findings",
+      "to": "critical-issues-fixed",
+      "relationType": "identifies_issues_addressed_by"
+    },
+    {
+      "type": "relation",
+      "from": "pos-application-flows-and-test-cases",
+      "to": "workflow-testing",
+      "relationType": "uses_tools_from"
+    },
+    {
+      "type": "relation",
+      "from": "sidebar-implementation",
+      "to": "dashboard-pos-restoration-plan",
+      "relationType": "implements"
+    },
+    {
+      "type": "relation",
+      "from": "session-start-prompt",
+      "to": "workflow-simple",
+      "relationType": "complements"
+    },
+    {
+      "type": "relation",
+      "from": "design-system-neutral-theme",
+      "to": "milestone-v0.0.1-shadcn-integration",
+      "relationType": "part_of"
+    },
+    {
+      "type": "relation",
+      "from": "00-START-HERE",
+      "to": "02-current-state",
+      "relationType": "references"
+    },
+    {
+      "type": "relation",
+      "from": "pos-refactoring-current-status",
+      "to": "pos-refactoring-tdd-plan",
+      "relationType": "reports_on"
+    },
+    {
+      "type": "relation",
+      "from": "milestone-v0.0.1-shadcn-integration",
+      "to": "02-current-state",
+      "relationType": "achieved_in"
+    },
+    {
+      "type": "relation",
+      "from": "critical-issues-fixed",
+      "to": "handoff-phase1-fixes",
+      "relationType": "complements"
+    },
+    {
+      "type": "relation",
+      "from": "workflow-safety-rules",
+      "to": "workflow-simple",
+      "relationType": "provides_safety_for"
+    },
+    {
+      "type": "relation",
+      "from": "gemini-feedback",
+      "to": "workflow-troubleshooting-phase1",
+      "relationType": "critiques_performance_in"
+    },
+    {
+      "type": "relation",
+      "from": "workflow-testing",
+      "to": "pos-application-flows-and-test-cases",
+      "relationType": "supports_testing_of"
+    },
+    {
+      "type": "relation",
+      "from": "workflow-simple",
+      "to": "session-start-prompt",
+      "relationType": "detailed_in"
+    },
+    {
+      "type": "relation",
+      "from": "memory_first_workflow",
+      "to": "serena_usage_pattern",
+      "relationType": "uses"
+    },
+    {
+      "type": "relation",
+      "from": "memory_first_workflow",
+      "to": "token_optimization_strategy",
+      "relationType": "implements"
+    },
+    {
+      "type": "relation",
+      "from": "serena_usage_pattern",
+      "to": "token_optimization_strategy",
+      "relationType": "contributes_to"
+    },
+    {
+      "type": "relation",
+      "from": "confidence-clustering-issue",
+      "to": "10x-mapmaster",
+      "relationType": "blocks release of"
+    },
+    {
+      "type": "relation",
+      "from": "percentile-normalization-solution",
+      "to": "confidence-clustering-issue",
+      "relationType": "solves"
+    },
+    {
+      "type": "relation",
+      "from": "database-test-scenarios",
+      "to": "percentile-normalization-solution",
+      "relationType": "validates"
+    },
+    {
+      "type": "relation",
+      "from": "database-test-scenarios",
+      "to": "1.0.0-release-plan",
+      "relationType": "enables"
+    },
+    {
+      "type": "relation",
+      "from": "percentile-normalization-solution",
+      "to": "1.0.0-release-plan",
+      "relationType": "unblocks"
+    }
+  ]
+}
