@@ -72,7 +72,7 @@ onUnmounted(() => {
         :loading="gameStore.loading"
         :min-length="gameFlow.MIN_DESCRIPTION_LENGTH"
         :max-length="gameFlow.MAX_DESCRIPTION_LENGTH"
-        @update:description="gameFlow.userDescription = $event"
+        @update:description="(val) => { gameFlow.userDescription = val }"
         @start="gameFlow.startGame(unref(gameFlow.userDescription))"
         @go-home="gameFlow.goHome"
       />
@@ -106,7 +106,7 @@ onUnmounted(() => {
       <GamePlaceSearch
         v-else-if="currentGameState === 'placeSearch'"
         @select="gameFlow.selectPlace"
-        @cancel="() => { gameFlow.showPlaceSearch = false }"
+        @cancel="() => { gameFlow.showPlaceSearch.value = false }"
       />
     </div>
   </div>
