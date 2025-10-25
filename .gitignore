@@ -52,7 +52,6 @@ Thumbs.db
 # Context Portal
 context_portal/*.db-journal
 context_portal/*.db-wal
-context_portal/context.db
 
 # MCP Runtime
 .playwright-mcp/
