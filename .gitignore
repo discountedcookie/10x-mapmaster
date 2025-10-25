@@ -56,3 +56,5 @@ context_portal/**/__pycache__/
 
 # MCP Runtime
 .playwright-mcp/
+
+backups/
