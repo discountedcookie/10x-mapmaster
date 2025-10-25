@@ -51,7 +51,7 @@ onUnmounted(() => {
     <div class="pointer-events-auto max-w-2xl w-full max-h-[calc(100vh-6rem)]">
       <!-- Resume Game Dialog -->
       <GameResumeDialog
-        v-if="gameFlow.gameState === 'resumeDialog'"
+        v-if="gameFlow.gameState as string === 'resumeDialog'"
         :question-count="gameStore.questionCount"
         :max-questions="MAX_QUESTIONS"
         :candidates-count="gameStore.topCandidates.length"
@@ -61,22 +61,22 @@ onUnmounted(() => {
 
       <!-- Start Screen -->
       <GameStartScreen
-        v-else-if="gameFlow.gameState === 'start'"
-        :description="gameFlow.userDescription"
-        :validation-message="gameFlow.validationMessage"
-        :description-length="gameFlow.descriptionLength"
-        :is-valid="gameFlow.isDescriptionValid"
+        v-else-if="gameFlow.gameState as string === 'start'"
+        :description="gameFlow.userDescription as string"
+        :validation-message="gameFlow.validationMessage as string"
+        :description-length="gameFlow.descriptionLength as number"
+        :is-valid="gameFlow.isDescriptionValid as boolean"
         :loading="gameStore.loading"
         :min-length="gameFlow.MIN_DESCRIPTION_LENGTH"
         :max-length="gameFlow.MAX_DESCRIPTION_LENGTH"
-        @update:description="(val) => gameFlow.userDescription = val"
-        @start="gameFlow.startGame(gameFlow.userDescription)"
+        @update:description="gameFlow.userDescription = $event"
+        @start="gameFlow.startGame(gameFlow.userDescription as string)"
         @go-home="gameFlow.goHome"
       />
 
       <!-- Question Phase -->
       <GameQuestionCard
-        v-else-if="gameFlow.gameState === 'question' && gameStore.currentQuestion"
+        v-else-if="(gameFlow.gameState as string) === 'question' && gameStore.currentQuestion"
         :question="gameStore.currentQuestion.text"
         :question-number="gameStore.questionCount + 1"
         :total-questions="MAX_QUESTIONS"
@@ -91,9 +91,9 @@ onUnmounted(() => {
 
       <!-- Result Phase -->
       <GameResultCard
-        v-else-if="gameFlow.gameState === 'result'"
+        v-else-if="(gameFlow.gameState as string) === 'result'"
         :guess="gameStore.gameResult"
-        :disabled="gameFlow.saving"
+        :disabled="gameFlow.saving as boolean"
         @correct="gameFlow.handleCorrectGuess"
         @incorrect="gameFlow.handleIncorrectGuess"
         @play-again="gameFlow.playAgain"
@@ -101,9 +101,9 @@ onUnmounted(() => {
 
       <!-- Place Search -->
       <GamePlaceSearch
-        v-else-if="gameFlow.gameState === 'placeSearch'"
+        v-else-if="(gameFlow.gameState as string) === 'placeSearch'"
         @select="gameFlow.selectPlace"
-        @cancel="gameFlow.showPlaceSearch = false"
+        @cancel="() => { gameFlow.showPlaceSearch = false }"
       />
     </div>
   </div>
