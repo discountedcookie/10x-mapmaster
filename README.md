@@ -88,9 +88,18 @@ To set up and run the project locally, follow these steps:
 
 ## For AI Agents
 
-This project is designed to be developed with the assistance of AI agents. All agent-specific operational guidelines, development standards, and project knowledge are stored within **Serena's memory system** (`.serena/memories/`).
+This project uses **ConPort** for minimal context workflow:
 
-Agents should always call `serena initial_instructions` at the start of each session, then consult memories relevant to their specific task.
+1. **Start**: Run `/init` command to load critical project context from ConPort
+2. **Work**: Use ConPort for progress tracking and decisions
+3. **Handoff**: Run `/handoff` command to document work for the next agent
+
+Available commands in `.claude/commands/`:
+- `/init` - Load minimal critical context
+- `/audit-memory` - Check ConPort usage and cleanup candidates
+- `/handoff` - Prepare context for next agent
+
+All project architecture, decisions, and workflow patterns are stored in ConPort for efficient, scalable context management.
 
 ## License
 
