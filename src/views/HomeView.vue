@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import MapLayout from '@/layouts/MapLayout.vue'
+import { computed, onMounted, watchEffect, onUnmounted } from 'vue'
 import HeroCard from '@/components/HeroCard.vue'
 import MapMarker from '@/components/map/MapMarker.vue'
 import { usePlaces } from '@/composables/usePlaces'
 import { useMapMarkers } from '@/composables/map/useMapMarkers'
+import { useMapState } from '@/composables/map/useMapState'
 
 const placesStore = usePlaces()
+const { setMapState, clearMapState } = useMapState()
 
 // Fetch places on mount
 onMounted(() => {
@@ -27,15 +28,23 @@ const { markerNodes, bounds } = useMapMarkers({
     gameCount: place.game_count,
   })
 })
+
+// Update map state when markers change
+watchEffect(() => {
+  setMapState(bounds.value, markerNodes.value)
+})
+
+// Clear map state when component unmounts
+onUnmounted(() => {
+  clearMapState()
+})
 </script>
 
 <template>
-  <MapLayout :bounds="bounds">
-    <template #markers>
-      <component :is="() => markerNodes" />
-    </template>
-    <template #overlay>
+  <!-- Hero Card centered -->
+  <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+    <div class="pointer-events-auto">
       <HeroCard />
-    </template>
-  </MapLayout>
+    </div>
+  </div>
 </template>
