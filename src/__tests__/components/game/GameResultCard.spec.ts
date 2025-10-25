@@ -61,7 +61,8 @@ describe('GameResultCard', () => {
             expect(wrapper.text()).toContain(i18n.global.t('game.result_card.overall_match'))
             const badge = wrapper.findComponent({ name: 'ConfidenceBadge' })
             expect(badge.exists()).toBe(true)
-            expect(badge.props('confidence')).toBe(0.87)
+            // Confidence is now normalized: 0.15 + (0.87 * 0.80) = 0.846
+            expect(badge.props('confidence')).toBe(0.15 + (0.87 * 0.80))
         })
 
         it('should emit correct event when "Yes, that\'s it!" is clicked', async () => {
@@ -303,7 +304,8 @@ describe('GameResultCard', () => {
                 },
             })
 
-            expect(wrapper.vm.confidencePercent).toBe(87)
+            // Normalized: 0.15 + (0.87 * 0.80) = 0.846, rounded to 85%
+            expect(wrapper.vm.confidencePercent).toBe(85)
         })
 
         it('should detect low confidence correctly', () => {

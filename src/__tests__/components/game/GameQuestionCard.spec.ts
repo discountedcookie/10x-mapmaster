@@ -10,6 +10,11 @@ describe('GameQuestionCard', () => {
     totalQuestions: 20,
     candidatesCount: 15,
     confidence: 0.65,
+    topCandidates: [
+      { name: 'Paris', confidence: 0.65 },
+      { name: 'London', confidence: 0.60 },
+      { name: 'Berlin', confidence: 0.55 },
+    ],
   }
 
   it('should render question text', () => {
@@ -49,24 +54,24 @@ describe('GameQuestionCard', () => {
 
   it('should display candidates count with singular form', () => {
     const wrapper = mount(GameQuestionCard, {
-      props: { ...defaultProps, candidatesCount: 1 },
+      props: { ...defaultProps, candidatesCount: 1, topCandidates: undefined },
       global: {
         plugins: [i18n],
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.places_remaining', { count: 1 }))
+    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.candidates_remaining', { count: 1 }))
   })
 
   it('should display candidates count with plural form', () => {
     const wrapper = mount(GameQuestionCard, {
-      props: { ...defaultProps, candidatesCount: 15 },
+      props: { ...defaultProps, candidatesCount: 15, topCandidates: undefined },
       global: {
         plugins: [i18n],
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.places_remaining', { count: 15 }))
+    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.candidates_remaining', { count: 15 }))
   })
 
   it('should display confidence badge when provided', () => {
@@ -77,14 +82,14 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.top_match'))
+    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.top_candidates'))
     const confidenceBadge = wrapper.findComponent({ name: 'ConfidenceBadge' })
     expect(confidenceBadge.exists()).toBe(true)
     expect(confidenceBadge.props('confidence')).toBe(0.65)
   })
 
   it('should not display confidence when not provided', () => {
-    const propsWithoutConfidence = { ...defaultProps }
+    const propsWithoutConfidence = { ...defaultProps, topCandidates: undefined }
     delete propsWithoutConfidence.confidence
 
     const wrapper = mount(GameQuestionCard, {
@@ -94,7 +99,7 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    expect(wrapper.text()).not.toContain(i18n.global.t('game.question_card.top_match'))
+    expect(wrapper.text()).not.toContain(i18n.global.t('game.question_card.top_candidates'))
     const confidenceBadge = wrapper.findComponent({ name: 'ConfidenceBadge' })
     expect(confidenceBadge.exists()).toBe(false)
   })
@@ -147,13 +152,13 @@ describe('GameQuestionCard', () => {
 
   it('should handle 0 candidates', () => {
     const wrapper = mount(GameQuestionCard, {
-      props: { ...defaultProps, candidatesCount: 0 },
+      props: { ...defaultProps, candidatesCount: 0, topCandidates: undefined },
       global: {
         plugins: [i18n],
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.places_remaining', { count: 0 }))
+    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.candidates_remaining', { count: 0 }))
   })
 
   it('should show 100% progress when on last question', () => {

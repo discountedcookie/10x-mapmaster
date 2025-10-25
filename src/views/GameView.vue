@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watchEffect, unref } from 'vue'
 import { useGameFlow } from '@/composables/game'
-import { useGameStore, MAX_QUESTIONS } from '@/stores/game'
+import { useGameStore, MAX_QUESTIONS, normalizeConfidenceForDisplay } from '@/stores/game'
 import GameStartScreen from '@/components/game/GameStartScreen.vue'
 import GameResumeDialog from '@/components/game/GameResumeDialog.vue'
 import GameLoadingOverlay from '@/components/game/GameLoadingOverlay.vue'
@@ -10,9 +10,11 @@ import GameResultCard from '@/components/game/GameResultCard.vue'
 import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
 import { useMapBounds } from '@/composables/map/useMapBounds'
 import { useMapState } from '@/composables/map/useMapState'
+import { usePlaces } from '@/composables/usePlaces'
 
 const gameStore = useGameStore()
 const gameFlow = useGameFlow()
+const placesStore = usePlaces()
 const { setMapState } = useMapState()
 
 // Computed for current state value
@@ -46,7 +48,20 @@ const markerCoordinates = computed(() => {
 
 const bounds = useMapBounds(markerCoordinates, 0.25)
 
-// Update map state when game is active (question or result phase)
+// Compute all places for map when game is not active
+const allPlaces = computed(() => {
+  return placesStore.places.filter(p => p.lat !== null && p.lng !== null)
+})
+
+const allPlacesMarkers = computed(() => {
+  return allPlaces.value.map(place => ({
+    coordinates: [place.lng!, place.lat!] as [number, number]
+  }))
+})
+
+const allPlacesBounds = useMapBounds(allPlacesMarkers)
+
+// Update map state based on game phase
 watchEffect(() => {
   const gameState = currentGameState.value
   const isGameActive = gameState === 'question' || gameState === 'result'
@@ -55,9 +70,14 @@ watchEffect(() => {
     const validMarkers = gameMarkers.value.filter(m =>
       typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng)
     )
-    // Only show candidates when game is actively running
+    // Show candidate markers when game is actively running
     if (validMarkers.length > 0 && bounds.value && Array.isArray(bounds.value) && bounds.value.length === 2) {
       setMapState(bounds.value, validMarkers as any)
+    }
+  } else {
+    // Show all places when game is not active (start, placeSearch, resumeDialog, idle)
+    if (allPlaces.value.length > 0 && allPlacesBounds.value) {
+      setMapState(allPlacesBounds.value, allPlaces.value)
     }
   }
 })
@@ -99,10 +119,10 @@ watchEffect(() => {
         :question-number="gameStore.questionCount + 1"
         :total-questions="MAX_QUESTIONS"
         :candidates-count="gameStore.candidates.length"
-        :confidence="gameStore.confidence"
+        :confidence="gameStore.displayConfidence"
         :top-candidates="gameStore.topCandidates.map(candidate => ({
           name: candidate.name,
-          confidence: candidate.composite_confidence
+          confidence: normalizeConfidenceForDisplay(candidate.composite_confidence)
         }))"
         @answer="gameFlow.answerQuestion"
       />

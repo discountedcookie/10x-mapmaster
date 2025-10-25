@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import ConfidenceBadge from '@/components/ConfidenceBadge.vue'
 import type { Tables } from '@/types/database'
-import { LOW_CONFIDENCE_MIN, LOW_CONFIDENCE_MAX } from '@/stores/game'
+import { LOW_CONFIDENCE_MIN, LOW_CONFIDENCE_MAX, normalizeConfidenceForDisplay } from '@/stores/game'
 
 interface PlaceWithScore extends Tables<'places'> {
   semantic_similarity: number
@@ -35,7 +35,7 @@ const showAnalysis = ref(false)
 
 const confidencePercent = computed(() => {
   if (!props.guess?.composite_confidence) return
-  return Math.round(props.guess.composite_confidence * 100)
+  return Math.round(normalizeConfidenceForDisplay(props.guess.composite_confidence) * 100)
 })
 
 const isLowConfidence = computed(() => {
@@ -89,7 +89,7 @@ const spatialPercent = computed(() => {
         <!-- Confidence Badge -->
         <div class="flex items-center gap-2">
           <span class="text-sm text-muted-foreground">{{ t('game.result_card.overall_match') }}:</span>
-          <ConfidenceBadge :confidence="guess.composite_confidence" />
+          <ConfidenceBadge :confidence="normalizeConfidenceForDisplay(guess.composite_confidence)" />
         </div>
 
         <!-- Collapsible Match Analysis -->

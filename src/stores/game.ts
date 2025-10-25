@@ -27,6 +27,17 @@ const _MATCH_THRESHOLD = 0.1
 export const LOW_CONFIDENCE_MIN = 0.5
 export const LOW_CONFIDENCE_MAX = 0.8
 
+/**
+ * Normalize raw confidence score to display percentile (15-95% range).
+ * Use this for displaying confidence scores in the UI.
+ *
+ * @param rawScore - Raw composite_confidence from database (0-1 range)
+ * @returns Normalized score for display (0.15-0.95 range)
+ */
+export function normalizeConfidenceForDisplay(rawScore: number): number {
+  return 0.15 + (rawScore * 0.80)
+}
+
 // Interface for place with similarity and confidence scores
 interface PlaceWithScore extends Place {
   semantic_similarity: number
@@ -85,6 +96,21 @@ export const useGameStore = defineStore('game', () => {
   const confidence = computed(() => {
     const top = topCandidate.value
     return top?.composite_confidence ?? 0
+  })
+
+  /**
+   * Normalize confidence score to percentile range (15-95%) for UI display.
+   *
+   * Database returns raw composite_confidence (0-1). Due to natural clustering
+   * of semantic similarity scores, we normalize to a 15-95% display range for
+   * better UX clarity while preserving raw scores for game logic.
+   *
+   * @returns Normalized confidence score (0.15-0.95 range)
+   */
+  const displayConfidence = computed(() => {
+    const raw = confidence.value
+    // Linear mapping: 0 -> 0.15, 1 -> 0.95
+    return 0.15 + (raw * 0.80)
   })
 
   const isLowConfidence = computed(() => {
@@ -537,6 +563,7 @@ export const useGameStore = defineStore('game', () => {
     topCandidates,
     topCandidate,
     confidence,
+    displayConfidence,
 
     // Actions
     answerQuestion,
