@@ -17,10 +17,16 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { t } = useI18n()
 
-/** Confidence level classification */
+/** Confidence level classification
+ * Note: Receives normalized confidence (15-95% range)
+ * Thresholds adjusted for percentile-normalized scores
+ */
 const level = computed(() => {
-  if (props.confidence >= 0.8) return 'high'
-  if (props.confidence >= 0.5) return 'medium'
+  // High: 75%+ of normalized range (0.75 normalized = ~75% raw score)
+  if (props.confidence >= 0.75) return 'high'
+  // Medium: 45-75% of normalized range
+  if (props.confidence >= 0.45) return 'medium'
+  // Low: below 45%
   return 'low'
 })
 
