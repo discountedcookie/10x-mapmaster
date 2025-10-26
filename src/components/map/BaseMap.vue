@@ -17,12 +17,12 @@ const props = withDefaults(defineProps<Props>(), {
 const { resolvedTheme } = useTheme()
 const mapRef = ref()
 
-// Map configuration - theme-aware styles
+// Map configuration - theme-aware styles using free OSM tiles
 const mapStyle = computed(() => {
   const isDark = resolvedTheme.value === 'dark'
   return isDark
-    ? 'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json'
-    : 'https://tiles.stadiamaps.com/styles/alidade_smooth.json'
+    ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+    : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 })
 </script>
 

@@ -13,9 +13,20 @@ export const useAuthStore = defineStore('auth', () => {
   async function initialize() {
     try {
       loading.value = true
-      const { data } = await supabase.auth.getSession()
-      session.value = data.session
-      user.value = data.session?.user ?? null
+      const { data, error } = await supabase.auth.getSession()
+
+      // Handle invalid refresh tokens gracefully
+      if (error) {
+        console.warn('Session restoration failed:', error.message)
+        // Clear invalid session
+        await supabase.auth.signOut()
+        session.value = null
+        user.value = null
+      }
+      else {
+        session.value = data.session
+        user.value = data.session?.user ?? null
+      }
 
       // Listen for auth changes
       supabase.auth.onAuthStateChange((_event, newSession) => {
