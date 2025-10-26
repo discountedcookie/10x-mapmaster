@@ -106,7 +106,7 @@ export function useMapMarkers<T>(
 **Step 3: Commit map composables**
 
 ```bash
-cd /Users/ciaastek/Projects/Sirocco/10x-mapmaster/.worktrees/refactor-map-game
+cd .worktrees/refactor-map-game
 git add src/composables/map/
 git commit -m "feat(map): add useMapMarkers and useMapBounds composables
 
@@ -657,7 +657,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Step 1: Rename QuestionCard**
 
 ```bash
-cd /Users/ciaastek/Projects/Sirocco/10x-mapmaster/.worktrees/refactor-map-game
+cd .worktrees/refactor-map-game
 git mv src/components/game/QuestionCard.vue src/components/game/GameQuestionCard.vue
 ```
 
@@ -1218,7 +1218,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Step 1: Rename test files**
 
 ```bash
-cd /Users/ciaastek/Projects/Sirocco/10x-mapmaster/.worktrees/refactor-map-game
+cd .worktrees/refactor-map-game
 git mv src/__tests__/components/game/QuestionCard.spec.ts src/__tests__/components/game/GameQuestionCard.spec.ts
 git mv src/__tests__/components/game/ResultCard.spec.ts src/__tests__/components/game/GameResultCard.spec.ts
 git mv src/__tests__/components/game/PlaceSearch.spec.ts src/__tests__/components/game/GamePlaceSearch.spec.ts
@@ -1284,7 +1284,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Step 1: Run unit tests**
 
 ```bash
-cd /Users/ciaastek/Projects/Sirocco/10x-mapmaster/.worktrees/refactor-map-game
+cd .worktrees/refactor-map-game
 npm run test:unit
 ```
 
@@ -1436,5 +1436,5 @@ Verify all criteria are met:
 - Commit frequently (after each task completion)
 - Test incrementally - don't wait until the end
 - If a test fails, investigate before proceeding
-- The worktree is at: `/Users/ciaastek/Projects/Sirocco/10x-mapmaster/.worktrees/refactor-map-game`
+- The worktree is at: `.worktrees/refactor-map-game`
 - After completion, use @superpowers:finishing-a-development-branch for merge/PR workflow
