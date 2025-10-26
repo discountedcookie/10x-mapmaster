@@ -14,36 +14,8 @@ on:
 permissions: read-all
 
 jobs:
-  codeql:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'javascript-typescript' ]
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          queries: security-extended,security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
+  # CodeQL runs via GitHub's default setup - see Security settings
+  # Removed custom CodeQL job to avoid conflict
 
   dependency-audit:
     name: NPM Audit
@@ -176,14 +148,14 @@ jobs:
   security-summary:
     name: Security Summary
     runs-on: ubuntu-latest
-    needs: [codeql, dependency-audit, semgrep, secret-scan]
+    needs: [dependency-audit, semgrep, secret-scan]
     if: always()
 
     steps:
       - name: Check results
         run: |
           echo "Security scans completed"
-          echo "CodeQL: ${{ needs.codeql.result }}"
           echo "Dependency Audit: ${{ needs.dependency-audit.result }}"
           echo "Semgrep Scan: ${{ needs.semgrep.result }}"
           echo "Secret Scan: ${{ needs.secret-scan.result }}"
+          echo "CodeQL runs separately via GitHub default setup"
