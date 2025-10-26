@@ -1,47 +1,16 @@
 # Audit ConPort Memory Usage
 
-## Purpose
 Monitor context usage and identify items for archival or cleanup.
 
-## Steps
+## Workflow Reference
+- **System Pattern**: `audit-memory-workflow` (tags: audit, maintenance)
+- **Detailed Steps**: ConPort Custom Data → AuditWorkflow/steps
 
-1. **Get ConPort Statistics**
-   - Query Decisions count by tag
-   - Query Custom Data count by category
-   - Get recent activity (last 7 days)
-   - Calculate total ConPort size
+## Execution
 
-2. **Analyze Usage Patterns**
-   - List decisions accessed >30 days ago (archive candidates)
-   - List custom data entries unused >14 days (cleanup candidates)
-   - Check Active Context for stale entries
-   - Identify redundant entries
+1. Get statistics: `get_decisions()`, `get_custom_data()`, `get_recent_activity_summary(hours_ago=168)`
+2. Analyze patterns: Identify decisions unused >30d (archive), custom data unused >14d (cleanup), stale entries, redundancies
+3. Generate report: Statistics + Archive candidates + Cleanup candidates + Recommendations
+4. Suggest actions: Archive old decisions, delete redundant data, consolidate overlapping entries
 
-3. **Generate Report**
-   ```
-   ConPort Audit Report - [date]
-
-   Statistics:
-   - Decisions: N (tags: ...)
-   - Custom Data: N (categories: ...)
-   - Recent Activity: N entries
-
-   Archive Candidates (unused >30 days):
-   - [Decision: summary]
-
-   Cleanup Candidates (unused >14 days):
-   - [Custom Data: category/key]
-
-   Recommendations:
-   - Archive: [items]
-   - Delete: [items]
-   ```
-
-4. **Suggest Actions**
-   - Archive old decisions to external storage
-   - Delete redundant custom data
-   - Consolidate overlapping entries
-
-## Related Commands
-- `/init` - Load critical context
-- `/handoff` - Prepare for next agent
+**Thresholds**: Archive decisions >30 days unused, cleanup custom data >14 days unused
