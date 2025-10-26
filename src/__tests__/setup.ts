@@ -3,6 +3,14 @@ import { createI18n } from 'vue-i18n'
 import en from '../i18n/locales/en'
 import { messageCompiler } from '../i18n/compiler'
 
+// Mock vue-maplibre-gl to prevent initialization errors
+vi.mock('@indoorequal/vue-maplibre-gl', () => ({
+  default: {},
+  MglMap: { name: 'MglMap' },
+  MglMarker: { name: 'MglMarker' },
+  MglPopup: { name: 'MglPopup' },
+}))
+
 // Mock Supabase globally to prevent initialization errors in tests
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -26,6 +34,11 @@ vi.mock('@/lib/supabase', () => ({
       delete: vi.fn(),
     })),
     rpc: vi.fn(),
+    channel: vi.fn(() => ({
+      on: vi.fn(function(this: any) { return this }),
+      subscribe: vi.fn(() => {}),
+    })),
+    removeChannel: vi.fn(),
   },
 }))
 

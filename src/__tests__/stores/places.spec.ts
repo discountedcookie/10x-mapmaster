@@ -7,14 +7,23 @@ vi.mock('@/lib/supabase', () => {
     const mockSelect = vi.fn()
     const mockOrder = vi.fn()
     const mockFrom = vi.fn()
+    const mockChannel = vi.fn(() => ({
+        on: vi.fn(function(this: any) { return this }),
+        subscribe: vi.fn(() => {}),
+    }))
+    const mockRemoveChannel = vi.fn()
 
     return {
         supabase: {
             from: mockFrom,
+            channel: mockChannel,
+            removeChannel: mockRemoveChannel,
         },
         mockSelect,
         mockOrder,
         mockFrom,
+        mockChannel,
+        mockRemoveChannel,
     }
 })
 
@@ -70,15 +79,20 @@ describe('usePlacesStore', () => {
         // Suppress console errors/warnings (they're intentional for error handling tests)
         vi.spyOn(console, 'error').mockImplementation(() => { })
         vi.spyOn(console, 'warn').mockImplementation(() => { })
+        vi.spyOn(console, 'log').mockImplementation(() => { })
 
-        // Default mock setup
-        mockFrom.mockReturnValue({
-            select: mockSelect.mockReturnValue({
-                order: mockOrder.mockResolvedValue({
-                    data: mockPlaces,
-                    error: null,
-                }),
+        // Default mock setup - chain includes .not() calls
+        const mockNot = vi.fn()
+        mockNot.mockReturnValue({
+            not: mockNot,
+            order: mockOrder.mockResolvedValue({
+                data: mockPlaces,
+                error: null,
             }),
+        })
+
+        mockFrom.mockReturnValue({
+            select: mockSelect.mockReturnValue(mockNot()),
         })
     })
 
@@ -95,7 +109,7 @@ describe('usePlacesStore', () => {
             await store.fetchAllPlaces()
 
             expect(mockFrom).toHaveBeenCalledWith('places')
-            expect(mockSelect).toHaveBeenCalledWith('id, name, lat, lng, game_count, descriptors')
+            expect(mockSelect).toHaveBeenCalledWith('id, name, lat, lng, game_count')
             expect(mockOrder).toHaveBeenCalledWith('name')
             expect(store.places).toEqual(mockPlaces)
         })
