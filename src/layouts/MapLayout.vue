@@ -23,7 +23,7 @@ onUnmounted(() => {
 // Calculate bounds for all places
 const markers = computed(() => {
   return placesStore.places.map(place => ({
-    coordinates: [place.lng!, place.lat!] as [number, number]
+    coordinates: [place.lng!, place.lat!] as [number, number],
   }))
 })
 

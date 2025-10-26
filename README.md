@@ -3,7 +3,6 @@
 [![CI/CD](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml)
 [![Security Scan](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml)
 [![codecov](https://codecov.io/gh/discountedcookie/10x-mapmaster/branch/main/graph/badge.svg)](https://codecov.io/gh/discountedcookie/10x-mapmaster)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=discountedcookie_10x-mapmaster&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=discountedcookie_10x-mapmaster)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/discountedcookie/10x-mapmaster/badge)](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster)
 
 

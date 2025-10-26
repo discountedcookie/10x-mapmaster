@@ -1,8 +1,8 @@
 # Quality & Security Tooling Setup Guide
 
-This project uses 8 complementary tools for comprehensive quality assurance. Most are auto-configured, but some require one-time setup.
+This project uses 7 complementary tools for comprehensive quality assurance. All are auto-configured and ready to use.
 
-## ✅ Already Working (No Setup Required)
+## ✅ All Tools Configured (No Setup Required)
 
 ### 1. **Codecov** - Test Coverage
 - **Status:** ✅ Configured (CODECOV_TOKEN added)
@@ -45,33 +45,6 @@ This project uses 8 complementary tools for comprehensive quality assurance. Mos
 
 ---
 
-## ⚙️ Requires Setup
-
-### 8. **SonarCloud** - Code Quality Analysis
-
-**Setup Steps:**
-
-1. **Create SonarCloud Account**
-   - Go to https://sonarcloud.io
-   - Sign in with GitHub
-   - Create organization: `discountedcookie`
-
-2. **Import Repository**
-   - Click "+ Analyze new project"
-   - Select `10x-mapmaster`
-   - Choose "With GitHub Actions"
-
-3. **Add Secret to GitHub**
-   - SonarCloud will show you a token
-   - Go to GitHub repo → Settings → Secrets → Actions
-   - Add new secret: `SONAR_TOKEN` = [your token]
-
-4. **Verify Workflow**
-   - Push a commit (or manually trigger workflow)
-   - Check https://sonarcloud.io/dashboard?id=discountedcookie_10x-mapmaster
-
----
-
 ## Tool Matrix
 
 | Tool | Purpose | Trigger | Setup Needed |
@@ -80,7 +53,6 @@ This project uses 8 complementary tools for comprehensive quality assurance. Mos
 | Dependabot | Dependency updates | Weekly | ✅ Auto |
 | Bundle Size | Bundle monitoring | PR | ✅ Auto |
 | Lighthouse | Performance/A11y | Push, PR | ✅ Auto |
-| SonarCloud | Code quality | Push, PR | ⚙️ **Required** |
 | Release Please | Versioning | Push (main) | ✅ Auto |
 | OSSF Scorecard | Security score | Weekly, Push | ✅ Auto |
 | Axe-core | A11y tests | Unit tests | ✅ Done |
@@ -89,10 +61,9 @@ This project uses 8 complementary tools for comprehensive quality assurance. Mos
 
 ## Next Steps
 
-1. **Setup SonarCloud** (see above)
-2. **Monitor workflows** at https://github.com/discountedcookie/10x-mapmaster/actions
-3. **Review first Dependabot PRs** (coming Monday)
-4. **Check badges** in README once workflows complete
+1. **Monitor workflows** at https://github.com/discountedcookie/10x-mapmaster/actions
+2. **Review first Dependabot PRs** (coming Monday)
+3. **Check badges** in README once workflows complete
 
 ---
 
@@ -118,5 +89,4 @@ it('should not have accessibility violations', async () => {
 
 **Bundle Size fails:** Check that build secrets (VITE_SUPABASE_*) are set in GitHub
 **Lighthouse fails:** May need to adjust thresholds in `lighthouserc.json`
-**SonarCloud fails:** Ensure SONAR_TOKEN secret is set correctly
 **OSSF Scorecard low score:** Review security recommendations at https://scorecard.dev

@@ -13,7 +13,7 @@ const markers = computed(() => {
   return placesStore.places
     .filter(p => p.lat !== null && p.lng !== null)
     .map(place => ({
-      coordinates: [place.lng!, place.lat!] as [number, number]
+      coordinates: [place.lng!, place.lat!] as [number, number],
     }))
 })
 
