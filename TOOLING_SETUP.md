@@ -1,6 +1,6 @@
 # Quality & Security Tooling Setup Guide
 
-This project uses 2 automated tools for quality assurance. Both are fully configured and require no setup.
+This project uses 3 automated tools for quality assurance. All are fully configured and require no setup.
 
 ## ✅ Configured Tools
 
@@ -19,6 +19,13 @@ This project uses 2 automated tools for quality assurance. Both are fully config
   - Separate PRs for major updates
   - Updates npm packages and GitHub Actions
 
+### 3. **Bundle Size Tracking**
+- **Status:** ✅ Auto-enabled
+- **Runs:** On pull requests
+- **Action:** Automatically comments on PRs with bundle size changes
+- **Threshold:** Alerts on changes >100 bytes
+- **Tracks:** Gzipped JS and CSS files in `dist/assets/`
+
 ---
 
 ## Tool Matrix
@@ -27,6 +34,7 @@ This project uses 2 automated tools for quality assurance. Both are fully config
 |------|---------|---------|--------------|
 | Codecov | Coverage tracking | Push, PR | ✅ Done |
 | Dependabot | Dependency updates | Weekly | ✅ Auto |
+| Bundle Size | Bundle monitoring | PR | ✅ Auto |
 
 ---
 
