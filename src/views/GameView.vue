@@ -24,7 +24,7 @@ const currentGameState = computed(() => unref(gameFlow.gameState))
 const gameMarkers = computed(() => {
   return gameStore.topCandidates
     .filter(c => c.lat !== null && c.lng !== null)
-    .map((candidate) => ({
+    .map(candidate => ({
       id: `game-${candidate.id}`,
       name: candidate.name,
       lat: candidate.lat!,
@@ -40,9 +40,9 @@ const gameMarkers = computed(() => {
 // Calculate bounds for game markers
 const markerCoordinates = computed(() => {
   return gameMarkers.value
-    .filter(m => typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng))
+    .filter(m => typeof m.lat === 'number' && typeof m.lng === 'number' && !Number.isNaN(m.lat) && !Number.isNaN(m.lng))
     .map(marker => ({
-      coordinates: [marker.lng, marker.lat] as [number, number]
+      coordinates: [marker.lng, marker.lat] as [number, number],
     }))
 })
 
@@ -55,7 +55,7 @@ const allPlaces = computed(() => {
 
 const allPlacesMarkers = computed(() => {
   return allPlaces.value.map(place => ({
-    coordinates: [place.lng!, place.lat!] as [number, number]
+    coordinates: [place.lng!, place.lat!] as [number, number],
   }))
 })
 
@@ -68,13 +68,14 @@ watchEffect(() => {
 
   if (isGameActive) {
     const validMarkers = gameMarkers.value.filter(m =>
-      typeof m.lat === 'number' && typeof m.lng === 'number' && !isNaN(m.lat) && !isNaN(m.lng)
+      typeof m.lat === 'number' && typeof m.lng === 'number' && !Number.isNaN(m.lat) && !Number.isNaN(m.lng),
     )
     // Show candidate markers when game is actively running
     if (validMarkers.length > 0 && bounds.value && Array.isArray(bounds.value) && bounds.value.length === 2) {
       setMapState(bounds.value, validMarkers as any)
     }
-  } else {
+  }
+  else {
     // Show all places when game is not active (start, placeSearch, resumeDialog, idle)
     if (allPlaces.value.length > 0 && allPlacesBounds.value) {
       setMapState(allPlacesBounds.value, allPlaces.value)
