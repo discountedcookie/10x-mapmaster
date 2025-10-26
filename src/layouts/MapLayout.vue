@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, watchEffect } from 'vue'
 import FloatingNavbar from '@/components/FloatingNavbar.vue'
 import BaseMap from '@/components/map/BaseMap.vue'
 import MapMarker from '@/components/map/MapMarker.vue'
@@ -10,26 +10,27 @@ import { useMapBounds } from '@/composables/map/useMapBounds'
 const { mapState, setMapState } = useMapState()
 const placesStore = usePlaces()
 
-// Fetch places on mount
+// Fetch places on mount (will also set up realtime subscription)
 onMounted(() => {
   placesStore.fetchAllPlaces()
 })
 
+// Clean up realtime subscription on unmount
+onUnmounted(() => {
+  placesStore.unsubscribeRealtime()
+})
+
 // Calculate bounds for all places
 const markers = computed(() => {
-  return placesStore.places
-    .filter(p => p.lat !== null && p.lng !== null)
-    .map(place => ({
-      coordinates: [place.lng!, place.lat!] as [number, number]
-    }))
+  return placesStore.places.map(place => ({
+    coordinates: [place.lng!, place.lat!] as [number, number]
+  }))
 })
 
 const bounds = useMapBounds(markers)
 
 // Store places for rendering in MapLayout
-const places = computed(() => {
-  return placesStore.places.filter(p => p.lat !== null && p.lng !== null)
-})
+const places = computed(() => placesStore.places)
 
 // Update map state with bounds and place data
 watchEffect(() => {
