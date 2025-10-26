@@ -1,7 +1,14 @@
-import { beforeEach, vi } from 'vitest'
+import { beforeEach, vi, expect } from 'vitest'
 import { createI18n } from 'vue-i18n'
 import en from '../i18n/locales/en'
 import { messageCompiler } from '../i18n/compiler'
+import { axe, toHaveNoViolations } from 'vitest-axe'
+
+// Extend Vitest's expect with axe matchers
+expect.extend(toHaveNoViolations)
+
+// Export axe for use in tests
+export { axe }
 
 // Mock vue-maplibre-gl to prevent initialization errors
 vi.mock('@indoorequal/vue-maplibre-gl', () => ({
