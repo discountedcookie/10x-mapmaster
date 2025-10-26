@@ -4,9 +4,28 @@
 [![Security Scan](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml)
 [![codecov](https://codecov.io/gh/discountedcookie/10x-mapmaster/branch/main/graph/badge.svg)](https://codecov.io/gh/discountedcookie/10x-mapmaster)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/discountedcookie/10x-mapmaster/badge)](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster)
-
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-success?logo=dependabot)](https://github.com/discountedcookie/10x-mapmaster/security/dependabot)
 
 **10x-mapmaster** is an intelligent geography guessing game where players describe a place, and the system asks yes/no questions to identify it. The game learns from every session, improving its ability to match descriptions with places using vector embeddings and accumulated gameplay knowledge.
+
+---
+
+## 📊 Quality & Security Dashboard
+
+### Test Coverage
+[![Codecov Graph](https://codecov.io/gh/discountedcookie/10x-mapmaster/graphs/sunburst.svg?height=200&width=200)](https://codecov.io/gh/discountedcookie/10x-mapmaster)
+
+**[View detailed coverage report →](https://codecov.io/gh/discountedcookie/10x-mapmaster)**
+
+### Active Monitoring
+| Tool | Status | Purpose | Dashboard |
+|------|--------|---------|-----------|
+| 🧪 **Codecov** | [![codecov](https://codecov.io/gh/discountedcookie/10x-mapmaster/branch/main/graph/badge.svg)](https://codecov.io/gh/discountedcookie/10x-mapmaster) | Test coverage tracking | [View Dashboard](https://codecov.io/gh/discountedcookie/10x-mapmaster) |
+| 🔒 **OSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/discountedcookie/10x-mapmaster/badge)](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster) | Security best practices | [View Scorecard](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster) |
+| 📦 **Dependabot** | [![Dependabot](https://img.shields.io/badge/enabled-success?logo=dependabot)](https://github.com/discountedcookie/10x-mapmaster/security/dependabot) | Dependency updates | [View PRs](https://github.com/discountedcookie/10x-mapmaster/pulls) |
+| 📏 **Bundle Size** | On PRs | Bundle monitoring | [Latest Analysis](https://github.com/discountedcookie/10x-mapmaster/pulls) |
+
+---
 
 ## Core Concept
 
