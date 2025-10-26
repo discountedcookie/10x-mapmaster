@@ -1,0 +1,38 @@
+{
+    "mcpServers": {
+        "conport": {
+            "command": "uv",
+            "args": [
+                "run",
+                "--directory",
+                "{{CONTEXT_PORTAL}}",
+                "conport-mcp",
+                "--mode",
+                "stdio",
+                "--log-file",
+                "./logs/conport-dev.log",
+                "--log-level",
+                "DEBUG"
+            ]
+        },
+        "context7": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@upstash/context7-mcp",
+                "--api-key",
+                "{{CONTEXT7_API_KEY}}"
+            ]
+        },
+        "playwright": {
+            "command": "npx",
+            "args": [
+                "@playwright/mcp@latest"
+            ]
+        },
+        "supabase": {
+            "type": "http",
+            "url": "https://mcp.supabase.com/mcp?project_ref={{SUPABASE_PROJECT_REF}}"
+        }
+    }
+}

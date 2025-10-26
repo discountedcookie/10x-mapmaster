@@ -54,7 +54,8 @@ context_portal/*.db-journal
 context_portal/*.db-wal
 context_portal/**/__pycache__/
 
-# MCP Runtime
+# MCP
+.mcp.json
 .playwright-mcp/
 
 backups/
