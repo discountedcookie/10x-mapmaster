@@ -1,6 +1,7 @@
 # 10x-mapmaster 🗺️
 
 [![CI/CD](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/codeql.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/codeql.yml)
 [![Security Scan](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml)
 [![codecov](https://codecov.io/gh/discountedcookie/10x-mapmaster/branch/main/graph/badge.svg)](https://codecov.io/gh/discountedcookie/10x-mapmaster)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/discountedcookie/10x-mapmaster/badge)](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster)
@@ -21,7 +22,9 @@
 | Tool | Status | Purpose | Dashboard |
 |------|--------|---------|-----------|
 | 🧪 **Codecov** | [![codecov](https://codecov.io/gh/discountedcookie/10x-mapmaster/branch/main/graph/badge.svg)](https://codecov.io/gh/discountedcookie/10x-mapmaster) | Test coverage tracking | [View Dashboard](https://codecov.io/gh/discountedcookie/10x-mapmaster) |
-| 🔒 **OSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/discountedcookie/10x-mapmaster/badge)](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster) | Security best practices | [View Scorecard](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster) |
+| 🔒 **CodeQL** | [![CodeQL](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/codeql.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/security/code-scanning) | Code vulnerability scanning | [View Alerts](https://github.com/discountedcookie/10x-mapmaster/security/code-scanning) |
+| 🛡️ **Semgrep** | [![Security Scan](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml) | Static security analysis | [View Workflow](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml) |
+| 🔐 **OSSF Scorecard** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/discountedcookie/10x-mapmaster/badge)](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster) | Security best practices | [View Scorecard](https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster) |
 | 📦 **Dependabot** | [![Dependabot](https://img.shields.io/badge/enabled-success?logo=dependabot)](https://github.com/discountedcookie/10x-mapmaster/security/dependabot) | Dependency updates | [View PRs](https://github.com/discountedcookie/10x-mapmaster/pulls) |
 | 📏 **Bundle Size** | On PRs | Bundle monitoring | [Latest Analysis](https://github.com/discountedcookie/10x-mapmaster/pulls) |
 
