@@ -1,6 +1,6 @@
 # Quality & Security Tooling Setup Guide
 
-This project uses 3 automated tools for quality assurance. All are fully configured and require no setup.
+This project uses 4 automated tools for quality assurance. All are fully configured and require no setup.
 
 ## ✅ Configured Tools
 
@@ -26,6 +26,14 @@ This project uses 3 automated tools for quality assurance. All are fully configu
 - **Threshold:** Alerts on changes >100 bytes
 - **Tracks:** Gzipped JS and CSS files in `dist/assets/`
 
+### 4. **OSSF Scorecard** - Security Best Practices
+- **Status:** ✅ Auto-enabled
+- **Runs:** Weekly on Saturdays + on main branch pushes
+- **Badge:** Shows in README
+- **Dashboard:** https://scorecard.dev/viewer/?uri=github.com/discountedcookie/10x-mapmaster
+- **Results:** GitHub Security tab
+- **Checks:** Security best practices (dependency pinning, branch protection, code review, etc.)
+
 ---
 
 ## Tool Matrix
@@ -35,6 +43,7 @@ This project uses 3 automated tools for quality assurance. All are fully configu
 | Codecov | Coverage tracking | Push, PR | ✅ Done |
 | Dependabot | Dependency updates | Weekly | ✅ Auto |
 | Bundle Size | Bundle monitoring | PR | ✅ Auto |
+| OSSF Scorecard | Security posture | Weekly, Push | ✅ Auto |
 
 ---
 
