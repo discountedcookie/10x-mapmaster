@@ -1,4 +1,4 @@
-import { ref, shallowRef } from 'vue'
+import { shallowRef } from 'vue'
 
 export type Bounds = [[number, number], [number, number]] | undefined
 
