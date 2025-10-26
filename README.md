@@ -2,6 +2,7 @@
 
 [![CI/CD](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/ci.yml)
 [![Security Scan](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml/badge.svg)](https://github.com/discountedcookie/10x-mapmaster/actions/workflows/security-scan.yml)
+[![codecov](https://codecov.io/gh/discountedcookie/10x-mapmaster/branch/main/graph/badge.svg)](https://codecov.io/gh/discountedcookie/10x-mapmaster)
 
 
 **10x-mapmaster** is an intelligent geography guessing game where players describe a place, and the system asks yes/no questions to identify it. The game learns from every session, improving its ability to match descriptions with places using vector embeddings and accumulated gameplay knowledge.
