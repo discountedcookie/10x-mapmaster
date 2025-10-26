@@ -72,15 +72,27 @@ To set up and run the project locally, follow these steps:
     npx supabase db reset
     ```
 
-5.  **Seed the database (requires environment variables):**
-    *   Create a `.env.local` file in the project root with your Supabase project URL and anon key.
+5.  **Set up environment variables:**
+    *   Copy the example file and fill in your values:
+        ```bash
+        cp .env.example .env.local
+        ```
+    *   Required variables for development:
+        - `VITE_SUPABASE_URL` - Your Supabase project URL
+        - `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+    *   Optional variables for MCP servers (AI agent development):
+        - `CONTEXT7_API_KEY` - Context7 API key
+        - `SUPABASE_PROJECT_REF` - Supabase project reference
+        - `CONPORT_PATH` - Path to context-portal installation
+
+6.  **Seed the database:**
     *   Run the seed scripts:
         ```bash
         npm run seed:places
         npm run seed:questions
         ```
 
-6.  **Run the development server:**
+7.  **Run the development server:**
     ```bash
     npm dev
     ```
