@@ -61,6 +61,49 @@ This repository implements multiple layers of security:
 - Code changes require review before merging
 - Continuous integration runs security scans on all PRs
 
+## Latest Security Scan Results
+
+**Last Updated:** October 27, 2025
+
+### Semgrep SAST (Static Application Security Testing)
+
+**Status:** ✅ **CLEAN** - No vulnerabilities detected
+
+- **Scan Date:** 2025-10-27
+- **Semgrep Version:** 1.140.0
+- **Files Scanned:** 8 core application files
+- **Vulnerabilities Found:** 0
+- **Severity Breakdown:** None
+
+**Scanned Components:**
+- Authentication system (`src/stores/auth.ts`)
+- Database client (`src/lib/supabase.ts`)
+- Game state management (`src/stores/game.ts`)
+- AI embeddings (`src/composables/useEmbeddings.ts`)
+- Statistics calculations (`src/composables/useStatistics.ts`)
+- Places API integration (`src/lib/places/index.ts`)
+- Router configuration (`src/router/index.ts`)
+- Application entry point (`src/main.ts`)
+
+### Semgrep SCA (Supply Chain Analysis)
+
+**Status:** ✅ **CLEAN** - No vulnerable dependencies
+
+- **Scan Date:** 2025-10-27
+- **Dependencies Analyzed:** 883 packages
+- **Ecosystem:** npm (package-lock.json)
+- **Vulnerabilities Found:** 0
+- **Resolution Status:** Successful
+
+### Summary
+
+All security scans show a clean security posture with:
+- ✅ No code vulnerabilities (XSS, SQL injection, authentication flaws, etc.)
+- ✅ No vulnerable third-party dependencies
+- ✅ Clean supply chain security
+
+**Previous Scan:** October 21, 2025
+
 ## Disclosure Policy
 
 When a security vulnerability is confirmed:

@@ -110,6 +110,7 @@ export default {
         forgot_password: 'Forgot Password?',
         no_account: "Don't have an account?",
         have_account: 'Already have an account?',
+        or_continue_with: 'Or continue with',
         toast: {
             account_created_title: 'Account created!',
             account_created_body: 'Please check your email to verify your account before signing in.',
@@ -129,6 +130,7 @@ export default {
             signed_out_success: 'Signed out successfully',
             sign_out_failed_title: 'Failed to sign out',
             sign_out_failed_body: 'Please try again.',
+            oauth_failed_generic: 'Failed to sign in with OAuth provider',
         },
         validation: {
             invalid_email: 'Please enter a valid email address',
