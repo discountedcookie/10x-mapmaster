@@ -75,7 +75,7 @@ async function signInWithGitHub() {
   }
   catch (error) {
     console.error('GitHub login error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to sign in with GitHub'
+    const errorMessage = error instanceof Error ? error.message : t('auth.toast.oauth_failed_generic')
     toast.error(t('auth.toast.sign_in_failed_title'), {
       description: errorMessage,
     })
@@ -174,7 +174,7 @@ function goToLogin() {
               </div>
               <div class="relative flex justify-center text-xs uppercase">
                 <span class="bg-background px-2 text-muted-foreground">
-                  Or continue with
+                  {{ t('auth.or_continue_with') }}
                 </span>
               </div>
             </div>
