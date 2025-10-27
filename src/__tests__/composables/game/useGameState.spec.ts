@@ -3,18 +3,22 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useGameState } from '@/composables/game/useGameState'
 
 // Mock the game store with reactive properties
-import { ref } from 'vue'
+// Using reactive() with getters to mimic Pinia's auto-unwrapping behavior
+import { reactive } from 'vue'
 
-const topCandidates = ref<any[]>([])
-const questionCount = ref(0)
-const isGameComplete = ref(false)
-const currentQuestion = ref<any>(null)
+const mockStoreState = reactive({
+  topCandidates: [] as any[],
+  questionCount: 0,
+  isGameComplete: false,
+  currentQuestion: null as any,
+})
 
+// Create computed properties that auto-unwrap (mimics Pinia behavior)
 const mockGameStore = {
-  get topCandidates() { return topCandidates.value },
-  get questionCount() { return questionCount.value },
-  get isGameComplete() { return isGameComplete.value },
-  get currentQuestion() { return currentQuestion.value },
+  get topCandidates() { return mockStoreState.topCandidates },
+  get questionCount() { return mockStoreState.questionCount },
+  get isGameComplete() { return mockStoreState.isGameComplete },
+  get currentQuestion() { return mockStoreState.currentQuestion },
 }
 
 vi.mock('@/stores/game', () => ({
@@ -26,11 +30,11 @@ describe('useGameState', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
 
-    // Reset mock store state
-    topCandidates.value = []
-    questionCount.value = 0
-    isGameComplete.value = false
-    currentQuestion.value = null
+    // Reset mock store state - modifying reactive object updates all refs
+    mockStoreState.topCandidates = []
+    mockStoreState.questionCount = 0
+    mockStoreState.isGameComplete = false
+    mockStoreState.currentQuestion = null
   })
 
   describe('Initial State', () => {
@@ -52,32 +56,32 @@ describe('useGameState', () => {
   describe('hasExistingGame', () => {
     it('should be false when no candidates or questions', () => {
       const state = useGameState()
-      topCandidates.value = []
-      questionCount.value = 0
+      mockStoreState.topCandidates = []
+      mockStoreState.questionCount = 0
 
       expect(state.hasExistingGame.value).toBe(false)
     })
 
     it('should be true when there are candidates', () => {
       const state = useGameState()
-      topCandidates.value = [{ id: 'place-1', name: 'Paris' }]
-      questionCount.value = 0
+      mockStoreState.topCandidates = [{ id: 'place-1', name: 'Paris' }]
+      mockStoreState.questionCount = 0
 
       expect(state.hasExistingGame.value).toBe(true)
     })
 
     it('should be true when question count is greater than 0', () => {
       const state = useGameState()
-      topCandidates.value = []
-      questionCount.value = 5
+      mockStoreState.topCandidates = []
+      mockStoreState.questionCount = 5
 
       expect(state.hasExistingGame.value).toBe(true)
     })
 
     it('should be true when both candidates and questions exist', () => {
       const state = useGameState()
-      topCandidates.value = [{ id: 'place-1', name: 'Paris' }]
-      questionCount.value = 5
+      mockStoreState.topCandidates = [{ id: 'place-1', name: 'Paris' }]
+      mockStoreState.questionCount = 5
 
       expect(state.hasExistingGame.value).toBe(true)
     })
@@ -110,7 +114,7 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = true
       state.showPlaceSearch.value = false
-      isGameComplete.value = true
+      mockStoreState.isGameComplete = true
 
       expect(state.gameState.value).toBe('result')
     })
@@ -119,8 +123,8 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = true
       state.showPlaceSearch.value = false
-      isGameComplete.value = false
-      currentQuestion.value = { id: 'q1', text: 'Is it in Europe?' }
+      mockStoreState.isGameComplete = false
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Is it in Europe?' }
 
       expect(state.gameState.value).toBe('question')
     })
@@ -129,8 +133,8 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = true
       state.showPlaceSearch.value = false
-      isGameComplete.value = false
-      currentQuestion.value = null
+      mockStoreState.isGameComplete = false
+      mockStoreState.currentQuestion = null
 
       expect(state.gameState.value).toBe('idle')
     })
@@ -142,8 +146,8 @@ describe('useGameState', () => {
       state.showResumeDialog.value = true
       state.gameStarted.value = true
       state.showPlaceSearch.value = true
-      isGameComplete.value = true
-      currentQuestion.value = { id: 'q1', text: 'Test?' }
+      mockStoreState.isGameComplete = true
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Test?' }
 
       expect(state.gameState.value).toBe('resumeDialog')
     })
@@ -152,7 +156,7 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = false
       state.showPlaceSearch.value = true
-      isGameComplete.value = true
+      mockStoreState.isGameComplete = true
 
       expect(state.gameState.value).toBe('start')
     })
@@ -161,8 +165,8 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = true
       state.showPlaceSearch.value = true
-      isGameComplete.value = true
-      currentQuestion.value = { id: 'q1', text: 'Test?' }
+      mockStoreState.isGameComplete = true
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Test?' }
 
       expect(state.gameState.value).toBe('placeSearch')
     })
@@ -171,8 +175,8 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = true
       state.showPlaceSearch.value = false
-      isGameComplete.value = true
-      currentQuestion.value = { id: 'q1', text: 'Test?' }
+      mockStoreState.isGameComplete = true
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Test?' }
 
       expect(state.gameState.value).toBe('result')
     })
@@ -181,7 +185,7 @@ describe('useGameState', () => {
   describe('checkForExistingGame', () => {
     it('should show resume dialog when existing game and not started', () => {
       const state = useGameState()
-      topCandidates.value = [{ id: 'place-1', name: 'Paris' }]
+      mockStoreState.topCandidates = [{ id: 'place-1', name: 'Paris' }]
       state.gameStarted.value = false
 
       state.checkForExistingGame()
@@ -191,8 +195,8 @@ describe('useGameState', () => {
 
     it('should not show resume dialog when no existing game', () => {
       const state = useGameState()
-      topCandidates.value = []
-      questionCount.value = 0
+      mockStoreState.topCandidates = []
+      mockStoreState.questionCount = 0
       state.gameStarted.value = false
 
       state.checkForExistingGame()
@@ -202,7 +206,7 @@ describe('useGameState', () => {
 
     it('should not show resume dialog when game already started', () => {
       const state = useGameState()
-      topCandidates.value = [{ id: 'place-1', name: 'Paris' }]
+      mockStoreState.topCandidates = [{ id: 'place-1', name: 'Paris' }]
       state.gameStarted.value = true
 
       state.checkForExistingGame()
@@ -212,8 +216,8 @@ describe('useGameState', () => {
 
     it('should detect existing game from question count only', () => {
       const state = useGameState()
-      topCandidates.value = []
-      questionCount.value = 3
+      mockStoreState.topCandidates = []
+      mockStoreState.questionCount = 3
       state.gameStarted.value = false
 
       state.checkForExistingGame()
@@ -260,11 +264,11 @@ describe('useGameState', () => {
       const state = useGameState()
       state.gameStarted.value = true
 
-      currentQuestion.value = { id: 'q1', text: 'Test?' }
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Test?' }
       expect(state.gameState.value).toBe('question')
 
-      currentQuestion.value = null
-      isGameComplete.value = true
+      mockStoreState.currentQuestion = null
+      mockStoreState.isGameComplete = true
       expect(state.gameState.value).toBe('result')
     })
   })
@@ -278,12 +282,12 @@ describe('useGameState', () => {
 
       // User starts game
       state.gameStarted.value = true
-      currentQuestion.value = { id: 'q1', text: 'Is it in Europe?' }
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Is it in Europe?' }
       expect(state.gameState.value).toBe('question')
 
       // Game completes
-      currentQuestion.value = null
-      isGameComplete.value = true
+      mockStoreState.currentQuestion = null
+      mockStoreState.isGameComplete = true
       expect(state.gameState.value).toBe('result')
     })
 
@@ -291,14 +295,14 @@ describe('useGameState', () => {
       const state = useGameState()
 
       // User has existing game
-      topCandidates.value = [{ id: 'place-1', name: 'Paris' }]
+      mockStoreState.topCandidates = [{ id: 'place-1', name: 'Paris' }]
       state.checkForExistingGame()
       expect(state.gameState.value).toBe('resumeDialog')
 
       // User chooses to resume
       state.showResumeDialog.value = false
       state.gameStarted.value = true
-      currentQuestion.value = { id: 'q1', text: 'Test?' }
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Test?' }
       expect(state.gameState.value).toBe('question')
     })
 
@@ -307,8 +311,8 @@ describe('useGameState', () => {
       state.gameStarted.value = true
 
       // Game is complete but user rejected the guess
-      isGameComplete.value = true
-      currentQuestion.value = null
+      mockStoreState.isGameComplete = true
+      mockStoreState.currentQuestion = null
       expect(state.gameState.value).toBe('result')
 
       // User says "no, that's wrong" - show place search
@@ -334,13 +338,13 @@ describe('useGameState', () => {
       state.gameStarted.value = true
       expect(state.gameState.value).toBe('idle')
 
-      currentQuestion.value = { id: 'q1', text: 'Test?' }
+      mockStoreState.currentQuestion = { id: 'q1', text: 'Test?' }
       expect(state.gameState.value).toBe('question')
     })
 
     it('should not interfere with existing game check when already started', () => {
       const state = useGameState()
-      topCandidates.value = [{ id: 'place-1', name: 'Paris' }]
+      mockStoreState.topCandidates = [{ id: 'place-1', name: 'Paris' }]
       state.gameStarted.value = true
 
       const initialResumeState = state.showResumeDialog.value
