@@ -76,10 +76,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function signInWithGitHub() {
+    // Use Vite's base URL to handle both dev (/) and production (/10x-mapmaster/)
+    const baseUrl = import.meta.env.BASE_URL
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: {
-        redirectTo: `${window.location.origin}/game`,
+        redirectTo: `${window.location.origin}${baseUrl}game`,
       },
     })
     if (error)
