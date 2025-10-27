@@ -10,6 +10,7 @@ vi.mock('@/lib/supabase', () => {
     const mockSignInWithPassword = vi.fn()
     const mockSignUp = vi.fn()
     const mockSignOut = vi.fn()
+    const mockSignInWithOAuth = vi.fn()
 
     return {
         supabase: {
@@ -19,6 +20,7 @@ vi.mock('@/lib/supabase', () => {
                 signInWithPassword: mockSignInWithPassword,
                 signUp: mockSignUp,
                 signOut: mockSignOut,
+                signInWithOAuth: mockSignInWithOAuth,
             },
         },
         mockGetSession,
@@ -26,10 +28,11 @@ vi.mock('@/lib/supabase', () => {
         mockSignInWithPassword,
         mockSignUp,
         mockSignOut,
+        mockSignInWithOAuth,
     }
 })
 
-const { mockGetSession, mockOnAuthStateChange, mockSignInWithPassword, mockSignUp, mockSignOut } = await import('@/lib/supabase') as any
+const { mockGetSession, mockOnAuthStateChange, mockSignInWithPassword, mockSignUp, mockSignOut, mockSignInWithOAuth } = await import('@/lib/supabase') as any
 
 describe('useAuthStore', () => {
     let store: ReturnType<typeof useAuthStore>
@@ -260,6 +263,47 @@ describe('useAuthStore', () => {
             await expect(
                 store.signUpWithEmail('test@example.com', 'password123')
             ).rejects.toThrow('Server error')
+        })
+    })
+
+    describe('signInWithGitHub', () => {
+        it('should initiate GitHub OAuth flow successfully', async () => {
+            const mockData = { provider: 'github', url: 'https://github.com/oauth' }
+            mockSignInWithOAuth.mockResolvedValueOnce({
+                data: mockData,
+                error: null,
+            })
+
+            const result = await store.signInWithGitHub()
+
+            expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+                provider: 'github',
+                options: {
+                    redirectTo: `${window.location.origin}/game`,
+                },
+            })
+            expect(result).toEqual(mockData)
+        })
+
+        it('should throw error on OAuth failure', async () => {
+            mockSignInWithOAuth.mockResolvedValueOnce({
+                data: null,
+                error: new Error('OAuth provider error'),
+            })
+
+            await expect(store.signInWithGitHub()).rejects.toThrow('OAuth provider error')
+        })
+
+        it('should use correct redirect URL', async () => {
+            mockSignInWithOAuth.mockResolvedValueOnce({
+                data: { provider: 'github', url: 'https://github.com/oauth' },
+                error: null,
+            })
+
+            await store.signInWithGitHub()
+
+            const callArgs = mockSignInWithOAuth.mock.calls[0][0]
+            expect(callArgs.options.redirectTo).toContain('/game')
         })
     })
 

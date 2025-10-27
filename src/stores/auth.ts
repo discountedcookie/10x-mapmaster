@@ -75,6 +75,18 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
+  async function signInWithGitHub() {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}/game`,
+      },
+    })
+    if (error)
+      throw error
+    return data
+  }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut()
     if (error)
@@ -91,6 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
     initialize,
     signInWithEmail,
     signUpWithEmail,
+    signInWithGitHub,
     signOut,
   }
 })

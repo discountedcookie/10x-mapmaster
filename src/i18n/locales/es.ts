@@ -110,6 +110,7 @@ export default {
         forgot_password: '¿Olvidaste tu contraseña?',
         no_account: '¿No tienes una cuenta?',
         have_account: '¿Ya tienes una cuenta?',
+        or_continue_with: 'O continuar con',
         toast: {
             account_created_title: '¡Cuenta creada!',
             account_created_body: 'Por favor, revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión.',
@@ -129,6 +130,7 @@ export default {
             signed_out_success: 'Sesión cerrada correctamente',
             sign_out_failed_title: 'Error al cerrar sesión',
             sign_out_failed_body: 'Por favor, inténtalo de nuevo.',
+            oauth_failed_generic: 'Error al iniciar sesión con el proveedor OAuth',
         },
         validation: {
             invalid_email: 'Por favor, ingresa una dirección de correo válida',
