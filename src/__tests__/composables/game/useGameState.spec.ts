@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useGameState } from '@/composables/game/useGameState'
 
 // Mock the game store with reactive properties
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 
 const topCandidates = ref<any[]>([])
 const questionCount = ref(0)

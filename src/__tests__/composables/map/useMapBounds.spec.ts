@@ -170,7 +170,7 @@ describe('useMapBounds', () => {
       ])
       const bounds = useMapBounds(markers, 0.1)
 
-      const [[minLng, minLat], [maxLng, maxLat]] = bounds.value!
+      const [[_minLng, minLat], [_maxLng, maxLat]] = bounds.value!
 
       // Range is 20, padding is 2
       expect(minLat).toBeCloseTo(-12, 10)
@@ -184,7 +184,7 @@ describe('useMapBounds', () => {
       ])
       const bounds = useMapBounds(markers, 0.1)
 
-      const [[minLng, minLat], [maxLng, maxLat]] = bounds.value!
+      const [[minLng, _minLat], [maxLng, _maxLat]] = bounds.value!
 
       // Range is 20, padding is 2
       expect(minLng).toBeCloseTo(-12, 10)
