@@ -64,6 +64,7 @@ This repository implements multiple layers of security:
 ## Latest Security Scan Results
 
 **Last Updated:** October 27, 2025
+**Latest Commit:** 2f71cb2 (feat: Add GitHub OAuth Login #10)
 
 ### Semgrep SAST (Static Application Security Testing)
 
@@ -71,17 +72,18 @@ This repository implements multiple layers of security:
 
 - **Scan Date:** 2025-10-27
 - **Semgrep Version:** 1.140.0
-- **Files Scanned:** 8 core application files
+- **Files Scanned:** 9 core application files (including new OAuth implementation)
 - **Vulnerabilities Found:** 0
 - **Severity Breakdown:** None
 
 **Scanned Components:**
-- Authentication system (`src/stores/auth.ts`)
+- Authentication system with GitHub OAuth (`src/stores/auth.ts`)
+- Login page (`src/views/LoginView.vue`)
+- Signup page (`src/views/SignupView.vue`)
 - Database client (`src/lib/supabase.ts`)
 - Game state management (`src/stores/game.ts`)
 - AI embeddings (`src/composables/useEmbeddings.ts`)
 - Statistics calculations (`src/composables/useStatistics.ts`)
-- Places API integration (`src/lib/places/index.ts`)
 - Router configuration (`src/router/index.ts`)
 - Application entry point (`src/main.ts`)
 
@@ -95,12 +97,26 @@ This repository implements multiple layers of security:
 - **Vulnerabilities Found:** 0
 - **Resolution Status:** Successful
 
+### OAuth Security Review
+
+**GitHub OAuth Implementation:** ✅ **SECURE**
+
+The OAuth login feature was manually reviewed for security best practices:
+
+- ✅ **OAuth Flow:** Uses Supabase's built-in OAuth provider (no custom implementation)
+- ✅ **Session Management:** Handles invalid sessions gracefully with automatic cleanup
+- ✅ **Input Validation:** Email and password validation with Zod schema
+- ✅ **XSS Protection:** Vue template binding auto-escapes all output, no innerHTML usage
+- ✅ **Error Handling:** Specific user-friendly errors without leaking sensitive info
+- ✅ **Redirect Security:** Internal redirects only via Vue Router, no open redirect vulnerability
+
 ### Summary
 
 All security scans show a clean security posture with:
 - ✅ No code vulnerabilities (XSS, SQL injection, authentication flaws, etc.)
 - ✅ No vulnerable third-party dependencies
 - ✅ Clean supply chain security
+- ✅ OAuth implementation follows security best practices
 
 **Previous Scan:** October 21, 2025
 
