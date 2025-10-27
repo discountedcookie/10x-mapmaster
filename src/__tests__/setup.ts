@@ -1,6 +1,8 @@
 import { beforeEach, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
 import en from '../i18n/locales/en'
+import es from '../i18n/locales/es'
+import pl from '../i18n/locales/pl'
 import { messageCompiler } from '../i18n/compiler'
 
 // Mock vue-maplibre-gl to prevent initialization errors
@@ -48,6 +50,8 @@ export const i18n = createI18n({
   messageCompiler, // Use ICU MessageFormat for advanced formatting
   messages: {
     en,
+    es,
+    pl,
   },
 })
 
