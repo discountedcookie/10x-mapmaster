@@ -27,6 +27,7 @@ const { t, locale } = useI18n()
 const availableLanguages = [
   { code: 'en', name: 'English', icon: '🇬🇧' },
   { code: 'es', name: 'Español', icon: '🇪🇸' },
+  { code: 'pl', name: 'Polski', icon: '🇵🇱' },
 ]
 
 /** Switch language */
