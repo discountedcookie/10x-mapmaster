@@ -23,6 +23,7 @@ export default mergeConfig(
           '*.config.ts',
           '*.config.js',
           'src/main.ts',
+          'src/i18n/locales/**',
         ],
       },
     },
