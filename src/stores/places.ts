@@ -88,7 +88,7 @@ export const usePlacesStore = defineStore('places', () => {
                     handleRealtimeChange(payload)
                 }
             )
-            .subscribe((status) => {
+            .subscribe((_status) => {
                 // Subscription status updated
             })
     }

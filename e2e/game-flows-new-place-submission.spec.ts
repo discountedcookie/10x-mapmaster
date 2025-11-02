@@ -1,29 +1,12 @@
-import { test, expect } from './fixtures'
+import { test, expect, handleAuth } from './fixtures'
 
 test.describe('Game Flow: New Place Submission', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to game page
     await page.goto('/game')
 
-    // Handle authentication
-    await page.waitForTimeout(1000)
-
-    // If sign in modal appears, create test account
-    if (await page.getByRole('heading', { name: 'Sign In' }).isVisible()) {
-      await page.getByText('Need an account? Sign up').click()
-      const uniqueEmail = `test-${Date.now()}@example.com`
-      await page.getByPlaceholder('you@example.com').fill(uniqueEmail)
-      await page.getByPlaceholder('••••••••').fill('testpassword123')
-      await page.getByRole('button', { name: 'Sign Up' }).click()
-
-      // Wait for auth to complete
-      await expect(page.getByRole('heading', { name: 'Sign In' })).not.toBeVisible({
-        timeout: 5000,
-      })
-    }
-
-    // Verify we're on the game page
-    await expect(page.getByText('Describe a Place')).toBeVisible()
+    // Handle authentication with improved logic
+    await handleAuth(page)
   })
 
   test('should allow submission of a new place when not found in database', async ({ page }) => {
@@ -95,7 +78,7 @@ test.describe('Game Flow: New Place Submission', () => {
   })
 
   test('should store new place and allow game to continue', async ({ page }) => {
-    const description = 'A custom landmark that I'm creating for this test with unique coordinates'
+    const description = "A custom landmark that I'm creating for this test with unique coordinates"
 
     await page.getByPlaceholder(/e.g.,/).fill(description)
     await page.getByRole('button', { name: 'Start Game' }).click()
@@ -142,13 +125,7 @@ test.describe('Game Flow: New Place Submission', () => {
       const placeNameInput = page.getByPlaceholder(/place name|name of/i)
 
       if (await placeNameInput.isVisible()) {
-        // Try to submit without filling in required fields
-        const submitFormButton = page.getByRole('button', { name: /submit|save|add/i })
-
-        // Submit button should exist but might be disabled
-        // or form should show validation errors
-        const formVisible = await page.getByText(/required|please|invalid|error/i).isVisible()
-
+        // Form is visible for place submission
         if (submitButton) {
           expect(submitButton).toBeDefined()
         }

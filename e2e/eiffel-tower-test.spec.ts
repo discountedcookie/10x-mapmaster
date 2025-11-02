@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, handleAuth } from './fixtures'
 
 test.describe('Eiffel Tower Scenario', () => {
   test('should handle Eiffel Tower description and complete game flow', async ({ page }) => {
@@ -7,20 +7,8 @@ test.describe('Eiffel Tower Scenario', () => {
     // Click "Get Started" button
     await page.getByRole('button', { name: /get started/i }).click()
 
-    // Handle auth if modal appears
-    await page.waitForTimeout(1000)
-    const authModalVisible = await page.getByRole('heading', { name: 'Sign In' }).isVisible().catch(() => false)
-
-    if (authModalVisible) {
-      // Sign up with test account
-      await page.getByText('Need an account? Sign up').click()
-      await page.getByPlaceholder('you@example.com').fill(`test-eiffel-${Date.now()}@example.com`)
-      await page.getByPlaceholder('••••••••').fill('testpassword123')
-      await page.getByRole('button', { name: 'Sign Up' }).click()
-
-      // Wait for auth to complete and modal to disappear
-      await expect(page.getByRole('heading', { name: 'Sign In' })).not.toBeVisible({ timeout: 5000 })
-    }
+    // Handle authentication with improved logic
+    await handleAuth(page)
 
     // Enter Eiffel Tower description
     const description = 'A tall iron tower in a European capital city, iconic landmark you can climb'

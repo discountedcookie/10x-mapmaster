@@ -1,22 +1,13 @@
-import { test, expect } from './fixtures'
+import { test, expect, handleAuth } from './fixtures'
 
 test.describe('Complete Game Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/game')
+    // Handle authentication with improved logic
+    await handleAuth(page)
   })
 
   test('should complete game with successful guess', async ({ page }) => {
-    // Wait for auth modal to appear
-    await expect(page.getByRole('heading', { name: 'Sign In' })).toBeVisible()
-
-    // Sign up with test account
-    await page.getByText('Need an account? Sign up').click()
-    await page.getByPlaceholder('you@example.com').fill(`test-${Date.now()}@example.com`)
-    await page.getByPlaceholder('••••••••').fill('testpassword123')
-    await page.getByRole('button', { name: 'Sign Up' }).click()
-
-    // Wait for game start screen
-    await expect(page.getByText('Describe a Place')).toBeVisible()
 
     // Enter description (Eiffel Tower)
     const description = 'A famous iron tower in Paris with a lattice structure, built for the 1889 World\'s Fair'

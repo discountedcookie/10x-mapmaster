@@ -1,29 +1,12 @@
-import { test, expect } from './fixtures'
+import { test, expect, handleAuth } from './fixtures'
 
 test.describe('Game Flow: Successful Guess', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to game page
     await page.goto('/game')
 
-    // Handle authentication
-    await page.waitForTimeout(1000)
-
-    // If sign in modal appears, create test account
-    if (await page.getByRole('heading', { name: 'Sign In' }).isVisible()) {
-      await page.getByText('Need an account? Sign up').click()
-      const uniqueEmail = `test-${Date.now()}@example.com`
-      await page.getByPlaceholder('you@example.com').fill(uniqueEmail)
-      await page.getByPlaceholder('••••••••').fill('testpassword123')
-      await page.getByRole('button', { name: 'Sign Up' }).click()
-
-      // Wait for auth to complete
-      await expect(page.getByRole('heading', { name: 'Sign In' })).not.toBeVisible({
-        timeout: 5000,
-      })
-    }
-
-    // Verify we're on the game page
-    await expect(page.getByText('Describe a Place')).toBeVisible()
+    // Handle authentication with improved logic
+    await handleAuth(page)
   })
 
   test('should complete game successfully with direct high-confidence guess', async ({ page }) => {
@@ -101,10 +84,6 @@ test.describe('Game Flow: Successful Guess', () => {
       if (!questionVisible) {
         break
       }
-
-      // Get the question text
-      const questionHeading = page.getByRole('heading').filter({ hasText: /Question/ })
-      const questionText = await questionHeading.textContent()
 
       // Answer with "Yes" (consistent answering pattern)
       const yesButton = page.getByRole('button', { name: 'Yes' }).first()

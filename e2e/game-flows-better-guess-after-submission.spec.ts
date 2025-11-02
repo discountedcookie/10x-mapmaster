@@ -1,29 +1,12 @@
-import { test, expect } from './fixtures'
+import { test, expect, handleAuth } from './fixtures'
 
 test.describe('Game Flow: Better Guess After Place Submission', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to game page
     await page.goto('/game')
 
-    // Handle authentication
-    await page.waitForTimeout(1000)
-
-    // If sign in modal appears, create test account
-    if (await page.getByRole('heading', { name: 'Sign In' }).isVisible()) {
-      await page.getByText('Need an account? Sign up').click()
-      const uniqueEmail = `test-${Date.now()}@example.com`
-      await page.getByPlaceholder('you@example.com').fill(uniqueEmail)
-      await page.getByPlaceholder('••••••••').fill('testpassword123')
-      await page.getByRole('button', { name: 'Sign Up' }).click()
-
-      // Wait for auth to complete
-      await expect(page.getByRole('heading', { name: 'Sign In' })).not.toBeVisible({
-        timeout: 5000,
-      })
-    }
-
-    // Verify we're on the game page
-    await expect(page.getByText('Describe a Place')).toBeVisible()
+    // Handle authentication with improved logic
+    await handleAuth(page)
   })
 
   test('should recognize place after it has been submitted once', async ({ page }) => {
@@ -70,11 +53,6 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
     })
 
     await page.waitForTimeout(500)
-
-    // Record the initial result/confidence level
-    const firstGameStatus = await page
-      .getByText(/Question|Is this your place|I'm narrowing/)
-      .textContent()
 
     // Try to complete first game if possible
     const firstGameButton = page.getByRole('button', { name: /Yes|No|Tell me|Submit/i })
@@ -214,9 +192,6 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
       timeout: 10000,
     })
-
-    // Record what the game found
-    const firstResult = await page.getByText(/Question|Is this|I'm narrowing|No matches/).textContent()
 
     // Complete or cancel the first game
     const continueButton = page.getByRole('button', { name: /Yes|No|submit|Tell me/i })
