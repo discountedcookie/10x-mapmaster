@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { logger } from '@/lib/logger'
 import type { User, Session } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -17,7 +18,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       // Handle invalid refresh tokens gracefully
       if (error) {
-        console.warn('Session restoration failed:', error.message)
+        logger.warn('Session restoration failed', {
+          error: error.message,
+          code: 'AUTH_SESSION_RESTORATION_FAILED'
+        })
         // Clear invalid session
         await supabase.auth.signOut()
         session.value = null

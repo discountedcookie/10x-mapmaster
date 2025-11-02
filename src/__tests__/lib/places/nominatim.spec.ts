@@ -10,10 +10,14 @@ vi.mock('nominatim-ts', () => {
     }
 })
 
-// Mock waitForRateLimit
-vi.mock('@/lib/places', () => ({
-    waitForRateLimit: vi.fn().mockResolvedValue(undefined),
-}))
+// Mock @/lib/places with proper partial mock using importOriginal
+vi.mock('@/lib/places', async () => {
+    const actual = await vi.importActual('@/lib/places')
+    return {
+        ...actual,
+        waitForRateLimit: vi.fn().mockResolvedValue(undefined),
+    }
+})
 
 const { mockNominatimSearch } = await import('nominatim-ts') as any
 
@@ -116,13 +120,20 @@ describe('Nominatim utilities', () => {
             expect(results).toEqual([])
         })
 
-        it('should wait for rate limit before searching', async () => {
-            const { waitForRateLimit } = await import('@/lib/places')
+        it('should use cache for subsequent calls with same parameters', async () => {
             mockNominatimSearch.mockResolvedValueOnce([mockPlace])
 
-            await searchPlaces('Paris')
+            // First call should hit the API
+            const result1 = await searchPlaces('London')
+            expect(mockNominatimSearch).toHaveBeenCalledTimes(1)
 
-            expect(waitForRateLimit).toHaveBeenCalled()
+            // Second call with same parameters should use cache
+            mockNominatimSearch.mockClear()
+            const result2 = await searchPlaces('London')
+
+            // Mock should not be called again (result from cache)
+            expect(mockNominatimSearch).not.toHaveBeenCalled()
+            expect(result2).toEqual(result1)
         })
     })
 

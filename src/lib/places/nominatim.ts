@@ -8,7 +8,7 @@
 import * as Nominatim from 'nominatim-ts'
 import type { JSONPlace, AddressDetails, ExtraTags } from 'nominatim-ts/lib/types'
 import type { PlaceDescriptors } from './types'
-import { waitForRateLimit } from './index'
+import { waitForRateLimit, withCache } from './index'
 
 // Re-export nominatim-ts types for convenience
 export type { JSONPlace, AddressDetails, ExtraTags }
@@ -37,18 +37,21 @@ export async function searchPlaces(
         return []
     }
 
-    await waitForRateLimit()
+    const cacheKey = `nominatim-search:${query}:${JSON.stringify(options)}`
 
-    const results = await Nominatim.search({
-        q: query,
-        format: 'json',
-        addressdetails: options.addressdetails ?? 1,
-        extratags: options.extratags ?? 1,
-        limit: options.limit ?? 5,
-        acceptlanguage: 'en', // Force English results for better embeddings
-    })
+    return withCache(cacheKey, async () => {
+        await waitForRateLimit()
 
-    return results as unknown as NominatimPlace[]
+        const results = await Nominatim.search({
+            q: query,
+            format: 'json',
+            addressdetails: options.addressdetails ?? 1,
+            extratags: options.extratags ?? 1,
+            limit: options.limit ?? 5,
+            acceptlanguage: 'en', // Force English results for better embeddings
+        })
+        return results
+    }, 600000) // 10 minutes cache for place searches
 }
 
 /**

@@ -58,7 +58,6 @@ export const usePlacesStore = defineStore('places', () => {
             }
             catch (err) {
                 error.value = err instanceof Error ? err.message : 'Failed to fetch places'
-                console.error('Error fetching places:', err)
             }
             finally {
                 loading.value = false
@@ -86,12 +85,11 @@ export const usePlacesStore = defineStore('places', () => {
                     table: 'places'
                 },
                 (payload) => {
-                    console.log('[Places Store] Realtime event received:', payload.eventType, payload)
                     handleRealtimeChange(payload)
                 }
             )
             .subscribe((status) => {
-                console.log('[Places Store] Subscription status:', status)
+                // Subscription status updated
             })
     }
 
@@ -101,7 +99,6 @@ export const usePlacesStore = defineStore('places', () => {
         switch (eventType) {
             case 'INSERT': {
                 const place = newRecord as Place
-                console.log('[Places Store] INSERT event:', place)
                 // Only add if it has valid coordinates and doesn't already exist
                 if (place.lat !== null && place.lng !== null) {
                     const exists = places.value.some(p => p.id === place.id)
@@ -109,45 +106,34 @@ export const usePlacesStore = defineStore('places', () => {
                         places.value.push(place)
                         // Sort by name to maintain order
                         places.value.sort((a, b) => a.name.localeCompare(b.name))
-                        console.log('[Places Store] Place added. Total places:', places.value.length)
-                    } else {
-                        console.log('[Places Store] Place already exists, skipping')
                     }
-                } else {
-                    console.log('[Places Store] Place has null coordinates, skipping')
                 }
                 break
             }
             case 'UPDATE': {
                 const place = newRecord as Place
                 const index = places.value.findIndex(p => p.id === place.id)
-                console.log('[Places Store] UPDATE event:', place, 'index:', index)
 
                 if (index !== -1) {
                     // Update existing place
                     if (place.lat !== null && place.lng !== null) {
                         places.value[index] = place
-                        console.log('[Places Store] Place updated at index', index)
                     } else {
                         // Remove if coordinates became null
                         places.value.splice(index, 1)
-                        console.log('[Places Store] Place removed (coordinates became null)')
                     }
                 } else if (place.lat !== null && place.lng !== null) {
                     // Add if it wasn't in the list but now has valid coordinates
                     places.value.push(place)
                     places.value.sort((a, b) => a.name.localeCompare(b.name))
-                    console.log('[Places Store] Place added via UPDATE. Total places:', places.value.length)
                 }
                 break
             }
             case 'DELETE': {
                 const deletedId = oldRecord.id
                 const index = places.value.findIndex(p => p.id === deletedId)
-                console.log('[Places Store] DELETE event:', deletedId, 'index:', index)
                 if (index !== -1) {
                     places.value.splice(index, 1)
-                    console.log('[Places Store] Place removed. Total places:', places.value.length)
                 }
                 break
             }

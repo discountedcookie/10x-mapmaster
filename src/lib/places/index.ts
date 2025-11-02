@@ -9,6 +9,54 @@
  * - Type definitions
  */
 
+// Response caching system for API optimization
+interface CacheEntry<T> {
+  data: T
+  timestamp: number
+  ttl: number
+}
+
+class APICache {
+  private cache = new Map<string, CacheEntry<any>>()
+
+  set<T>(key: string, data: T, ttlMs: number): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl: ttlMs
+    })
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key)
+    if (!entry) return null
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key)
+      return null
+    }
+
+    return entry.data
+  }
+
+  clear(): void {
+    this.cache.clear()
+  }
+
+  // Clean expired entries periodically
+  cleanup(): void {
+    const now = Date.now()
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.cache.delete(key)
+      }
+    }
+  }
+}
+
+// Global cache instance
+export const apiCache = new APICache()
+
 // Rate limiting (shared across all place APIs)
 let lastRequestTime = 0
 const MIN_REQUEST_INTERVAL = 1000
@@ -24,6 +72,27 @@ export async function waitForRateLimit(): Promise<void> {
   }
 
   lastRequestTime = Date.now()
+}
+
+// Cache wrapper for API calls
+export async function withCache<T>(
+  key: string,
+  fn: () => Promise<T>,
+  ttlMs: number = 300000 // 5 minutes default
+): Promise<T> {
+  const cached = apiCache.get<T>(key)
+  if (cached) {
+    return cached
+  }
+
+  const result = await fn()
+  apiCache.set(key, result, ttlMs)
+  return result
+}
+
+// Cleanup cache every 10 minutes
+if (typeof window !== 'undefined') {
+  setInterval(() => apiCache.cleanup(), 600000)
 }
 
 // Nominatim client

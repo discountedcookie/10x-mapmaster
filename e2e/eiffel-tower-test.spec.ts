@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 test.describe('Eiffel Tower Scenario', () => {
   test('should handle Eiffel Tower description and complete game flow', async ({ page }) => {
