@@ -69,7 +69,7 @@ jobs:
           fetch-depth: 0
 
       - name: Scan for secrets
-        uses: trufflesecurity/trufflehog@b84c3d14d189e16da175e2c27fa8136603783ffc # main
+        uses: trufflesecurity/trufflehog@aade3bff5594fe8808578dd4db3dfeae9bf2abdc # main
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
