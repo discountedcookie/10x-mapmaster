@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { createPopper } from '@popperjs/core'
-import type { Instance as PopperInstance, Placement } from '@popperjs/core'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MglMarker, MglPopup } from '@indoorequal/vue-maplibre-gl'
 
-interface Props {
+interface Properties {
   coordinates: [number, number]
   name: string
   backgroundColor?: string
@@ -13,91 +11,86 @@ interface Props {
   similarity?: number
   gameCount?: number
   index?: number
+  rank?: number // 1-based rank (1 = top candidate)
+  threshold?: number // Winning threshold (default 0.85)
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const properties = withDefaults(defineProps<Properties>(), {
   backgroundColor: '#3b82f6',
   opacity: 1,
   index: 0,
+  rank: 999,
+  threshold: 0.85,
 })
 
 const { t } = useI18n()
 
-// Refs for Popper
-const markerRef = ref<HTMLElement>()
-const tooltipRef = ref<HTMLElement>()
-let popperInstance: PopperInstance | undefined
-
-// Determine if this is a game marker (has similarity score)
-const isGameMarker = props.similarity !== undefined
-
-// Calculate placement based on index to avoid overlap
-const getPlacement = (index: number): Placement => {
-  const placements: Placement[] = ['top', 'top-start', 'top-end', 'bottom', 'bottom-start', 'bottom-end', 'left', 'right']
-  return placements[index % placements.length] || 'top'
+// Helper function to calculate marker color based on confidence
+const getMarkerColor = (confidence: number): string => {
+  // HSL color: 0=red (0%), 60=yellow (50%), 120=green (100%)
+  const hue = confidence * 120
+  return `hsl(${hue}, 70%, 50%)`
 }
 
-onMounted(async () => {
-  await nextTick()
+// Helper function to calculate marker size based on confidence and rank
+const getMarkerSize = (confidence: number, rank: number): number => {
+  if (rank === 1 && confidence > properties.threshold) {
+    return 48 // Extra large for winning candidate
+  } else if (rank <= 3) {
+    // Top 3: size grows with confidence (20px to 40px)
+    return 20 + confidence * 20
+  } else {
+    return 16 // Small for others
+  }
+}
 
-  // Only create Popper for game markers (with similarity scores)
-  if (isGameMarker && markerRef.value && tooltipRef.value) {
-    popperInstance = createPopper(markerRef.value, tooltipRef.value, {
-      placement: getPlacement(props.index),
-      strategy: 'fixed',
-      modifiers: [
-        {
-          name: 'offset',
-          options: {
-            offset: [0, 12],
-          },
-        },
-        {
-          name: 'preventOverflow',
-          options: {
-            padding: 16,
-            boundary: 'viewport',
-          },
-        },
-        {
-          name: 'flip',
-          options: {
-            fallbackPlacements: ['top', 'bottom', 'left', 'right', 'top-start', 'top-end', 'bottom-start', 'bottom-end'],
-          },
-        },
-        {
-          name: 'shift',
-          options: {
-            padding: 8,
-          },
-        },
-        {
-          name: 'hide',
-        },
-      ],
-    })
+// Computed marker styles
+const markerStyle = computed(() => {
+  const confidence = properties.similarity ?? 0
+  const rank = properties.rank
+  const isGameMarker = properties.similarity !== undefined
 
-    // Force update after a short delay to ensure proper positioning
-    setTimeout(() => {
-      if (popperInstance) {
-        popperInstance.update()
-      }
-    }, 100)
+  if (!isGameMarker) {
+    return {
+      backgroundColor: properties.backgroundColor,
+      opacity: properties.opacity,
+      width: '28px',
+      height: '28px',
+      borderWidth: '2px',
+    }
+  }
+
+  const size = getMarkerSize(confidence, rank)
+  const color = getMarkerColor(confidence)
+  const opacity = rank <= 3 ? 0.3 + confidence * 0.7 : 0.3
+
+  return {
+    backgroundColor: color,
+    opacity,
+    width: `${size}px`,
+    height: `${size}px`,
+    borderWidth: rank === 1 ? '4px' : '3px',
   }
 })
 
-// Watch for changes and update Popper
-watch([markerRef, tooltipRef], () => {
-  if (popperInstance) {
-    popperInstance.update()
+// Computed classes for animations
+const markerClasses = computed(() => {
+  const confidence = properties.similarity ?? 0
+  const rank = properties.rank
+  const isWinner = rank === 1 && confidence > properties.threshold
+  const isTopCandidate = rank === 1
+  const isCloseToWin = rank === 1 && confidence > 0.75
+
+  return {
+    'animate-marker-pulse-glow': isTopCandidate && !isWinner,
+    'animate-pulse': isTopCandidate,
+    'radar-rings': isCloseToWin || isWinner,
+    'animate-bounce-in': isWinner,
   }
 })
 
-onUnmounted(() => {
-  if (popperInstance) {
-    popperInstance.destroy()
-  }
-})
+// Determine if this is a game marker (has similarity score)
+const isGameMarker = properties.similarity !== undefined
 </script>
 
 <template>
@@ -106,48 +99,26 @@ onUnmounted(() => {
       <div class="relative">
         <!-- Marker pin -->
         <div
-          ref="markerRef"
-          class="w-7 h-7 rounded-full border-2 border-white shadow-xl cursor-pointer hover:scale-110 transition-transform"
-          :class="{ 'animate-pulse': isGameMarker }"
-          :style="{
-            backgroundColor,
-            opacity,
-            borderWidth: isGameMarker ? '3px' : '2px'
-          }"
-          :aria-label="t('map.marker_aria_label', {
-            name,
-            percent: isGameMarker ? Math.round(similarity! * 100) : ''
-          })"
+          class="rounded-full border-white shadow-xl cursor-pointer hover:scale-110 transition-all duration-300"
+          :class="markerClasses"
+          :style="markerStyle"
+          :aria-label="
+            t('map.marker_aria_label', {
+              name,
+              percent: isGameMarker ? Math.round(similarity! * 100) : '',
+            })
+          "
         />
 
-        <!-- Popper tooltip only for game markers -->
-        <div
-          v-if="isGameMarker"
-          ref="tooltipRef"
-          class="popper-tooltip px-3 py-2 rounded-lg shadow-xl border-2 bg-card/98 text-card-foreground backdrop-blur-md whitespace-nowrap max-w-xs z-50"
-          data-popper-arrow
-        >
-          <div class="text-sm font-semibold truncate">
-            {{ name }}
-          </div>
-          <div class="text-xs text-muted-foreground">
-            {{ t('map.match') }}: {{ Math.round(similarity! * 100) }}%
-          </div>
-        </div>
+        <!-- Popper tooltip removed for cleaner map during active games -->
       </div>
     </template>
 
     <!-- Popup for non-game markers (fallback) -->
-    <MglPopup
-      v-if="!isGameMarker"
-      :close-button="false"
-    >
+    <MglPopup v-if="!isGameMarker" :close-button="false">
       <div class="rounded-lg shadow-lg p-3 border bg-card text-card-foreground">
         <strong>{{ name }}</strong>
-        <div
-          v-if="gameCount && gameCount > 0"
-          class="text-xs mt-1"
-        >
+        <div v-if="gameCount && gameCount > 0" class="text-xs mt-1">
           {{ t('map.played', { count: gameCount }) }}
         </div>
       </div>

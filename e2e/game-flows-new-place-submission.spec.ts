@@ -19,7 +19,7 @@ test.describe('Game Flow: New Place Submission', () => {
 
     // Wait for analysis to complete
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -84,7 +84,7 @@ test.describe('Game Flow: New Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -110,7 +110,7 @@ test.describe('Game Flow: New Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -124,11 +124,11 @@ test.describe('Game Flow: New Place Submission', () => {
       // Check for form validation
       const placeNameInput = page.getByPlaceholder(/place name|name of/i)
 
-      if (await placeNameInput.isVisible()) {
-        // Form is visible for place submission
-        if (submitButton) {
-          expect(submitButton).toBeDefined()
-        }
+      if (
+        (await placeNameInput.isVisible()) && // Form is visible for place submission
+        submitButton
+      ) {
+        expect(submitButton).toBeDefined()
       }
     }
   })
@@ -140,7 +140,7 @@ test.describe('Game Flow: New Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -149,7 +149,9 @@ test.describe('Game Flow: New Place Submission', () => {
     const latInput = page.getByPlaceholder(/latitude|lat/i)
     const longInput = page.getByPlaceholder(/longitude|long/i)
 
-    const hasLocationFields = (await latInput.isVisible().catch(() => false)) || (await longInput.isVisible().catch(() => false))
+    const hasLocationFields =
+      (await latInput.isVisible().catch(() => false)) ||
+      (await longInput.isVisible().catch(() => false))
 
     // Location fields might be in a submission form, so check if we need to open form first
     if (!hasLocationFields) {
@@ -186,13 +188,16 @@ test.describe('Game Flow: New Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
 
     // Map should be visible on the page for location reference/selection
-    const mapVisible = await page.locator('canvas.maplibregl-canvas').isVisible().catch(() => false)
+    const mapVisible = await page
+      .locator('canvas.maplibregl-canvas')
+      .isVisible()
+      .catch(() => false)
 
     expect(mapVisible).toBe(true)
 
@@ -203,7 +208,10 @@ test.describe('Game Flow: New Place Submission', () => {
       await submitButton.click()
 
       // After opening form, map should still be visible for reference
-      const mapStillVisible = await page.locator('canvas.maplibregl-canvas').isVisible().catch(() => false)
+      const mapStillVisible = await page
+        .locator('canvas.maplibregl-canvas')
+        .isVisible()
+        .catch(() => false)
 
       expect(mapStillVisible).toBe(true)
     }
@@ -216,7 +224,7 @@ test.describe('Game Flow: New Place Submission', () => {
     await page.getByPlaceholder(/e.g.,/).fill(description)
 
     // Before starting game, verify description is ready
-    await expect(page.getByText(`${description.length}/500`)).toBeVisible()
+    await expect(page.getByText(`${description.length}/200`)).toBeVisible()
 
     await page.getByRole('button', { name: 'Start Game' }).click()
 
@@ -243,7 +251,7 @@ test.describe('Game Flow: New Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -269,7 +277,10 @@ test.describe('Game Flow: New Place Submission', () => {
 
           expect(
             disabled ||
-              (await page.getByText(/invalid|error|range|latitude/i).isVisible().catch(() => false))
+              (await page
+                .getByText(/invalid|error|range|latitude/i)
+                .isVisible()
+                .catch(() => false))
           ).toBe(true)
         }
       }

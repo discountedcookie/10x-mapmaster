@@ -31,4 +31,3 @@ Add screenshots or videos for UI changes.
 ## Additional Notes
 
 Any additional context or notes for reviewers.
-

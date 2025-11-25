@@ -8,17 +8,14 @@ import type { MessageCompiler, CompileError, MessageContext } from 'vue-i18n'
  * @see https://vue-i18n.intlify.dev/guide/advanced/format.html#custom-message-format
  * @see https://formatjs.io/docs/intl-messageformat/
  */
-export const messageCompiler: MessageCompiler = (
-  message,
-  { locale, key, onError }
-) => {
+export const messageCompiler: MessageCompiler = (message, { locale, key, onError }) => {
   if (typeof message === 'string') {
     /**
      * You can tune your message compiler performance more with your cache strategy or also memoization at here
      */
     const formatter = new IntlMessageFormat(message, locale)
-    return (ctx: MessageContext) => {
-      return formatter.format(ctx.values) as string
+    return (context: MessageContext) => {
+      return formatter.format(context.values) as string
     }
   } else {
     /**

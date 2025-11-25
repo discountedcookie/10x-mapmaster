@@ -3,12 +3,10 @@ import { useEmbeddings } from '@/composables/useEmbeddings'
 
 // Mock the Supabase client
 vi.mock('@/lib/supabase', () => {
-  const mockInvoke = vi.fn()
+  const mockRpc = vi.fn()
   return {
     supabase: {
-      functions: {
-        invoke: mockInvoke,
-      },
+      rpc: mockRpc,
     },
   }
 })
@@ -25,11 +23,11 @@ describe('useEmbeddings', () => {
 
   describe('generateEmbedding', () => {
     it('should generate embedding successfully', async () => {
-      const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
+      const mockEmbedding = Array.from({ length: 1024 }, () => 0.1)
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValueOnce({
-        data: { embedding: mockEmbedding },
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValueOnce({
+        data: `[${mockEmbedding.join(',')}]`,
         error: null,
       })
 
@@ -37,15 +35,15 @@ describe('useEmbeddings', () => {
       const result = await generateEmbedding('test description')
 
       expect(result).toEqual(mockEmbedding)
-      expect(result).toHaveLength(384)
+      expect(result).toHaveLength(1024)
     })
 
     it('should enforce rate limiting between requests', async () => {
-      const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
+      const mockEmbedding = Array.from({ length: 1024 }, () => 0.1)
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValue({
-        data: { embedding: mockEmbedding },
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValue({
+        data: `[${mockEmbedding.join(',')}]`,
         error: null,
       })
 
@@ -59,11 +57,11 @@ describe('useEmbeddings', () => {
     })
 
     it('should allow request after cooldown period', async () => {
-      const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
+      const mockEmbedding = Array.from({ length: 1024 }, () => 0.1)
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValue({
-        data: { embedding: mockEmbedding },
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValue({
+        data: `[${mockEmbedding.join(',')}]`,
         error: null,
       })
 
@@ -82,21 +80,21 @@ describe('useEmbeddings', () => {
 
     it('should throw user-friendly error on 429 status', async () => {
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValueOnce({
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValueOnce({
         data: null,
         error: { message: 'Rate limit: 429' },
       })
 
       const { generateEmbedding } = useEmbeddings()
 
-      await expect(generateEmbedding('test')).rejects.toThrow('Too many requests')
+      await expect(generateEmbedding('test')).rejects.toThrow('Unable to process description')
     })
 
     it('should throw user-friendly error on server errors', async () => {
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValueOnce({
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValueOnce({
         data: null,
         error: { message: 'Internal server error' },
       })
@@ -107,19 +105,19 @@ describe('useEmbeddings', () => {
     })
 
     it('should enforce maximum requests per session', async () => {
-      const mockEmbedding = Array.from({ length: 384 }, () => 0.1)
+      const mockEmbedding = Array.from({ length: 1024 }, () => 0.1)
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValue({
-        data: { embedding: mockEmbedding },
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValue({
+        data: `[${mockEmbedding.join(',')}]`,
         error: null,
       })
 
       const { generateEmbedding } = useEmbeddings()
 
       // Make 50 requests (the maximum)
-      for (let i = 0; i < 50; i++) {
-        await generateEmbedding(`request ${i}`)
+      for (let index = 0; index < 50; index++) {
+        await generateEmbedding(`request ${index}`)
         vi.advanceTimersByTime(2000) // Advance to avoid rate limit
       }
 
@@ -128,17 +126,17 @@ describe('useEmbeddings', () => {
     })
 
     it('should reject invalid embedding dimensions', async () => {
-      const invalidEmbedding = Array.from({ length: 256 }, () => 0.1) // Wrong size
+      const invalidEmbedding = Array.from({ length: 512 }, () => 0.1) // Wrong size (not 1024)
       const { supabase } = await import('@/lib/supabase')
-      const mockInvoke = supabase.functions.invoke as ReturnType<typeof vi.fn>
-      mockInvoke.mockResolvedValueOnce({
-        data: { embedding: invalidEmbedding },
+      const mockRpc = supabase.rpc as ReturnType<typeof vi.fn>
+      mockRpc.mockResolvedValueOnce({
+        data: `[${invalidEmbedding.join(',')}]`,
         error: null,
       })
 
       const { generateEmbedding } = useEmbeddings()
 
-      await expect(generateEmbedding('test')).rejects.toThrow('invalid response')
+      await expect(generateEmbedding('test')).rejects.toThrow('Received invalid embedding')
     })
   })
 

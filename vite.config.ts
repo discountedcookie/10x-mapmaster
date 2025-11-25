@@ -46,11 +46,6 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
   },
   optimizeDeps: {
-    include: [
-      'vue',
-      'pinia',
-      '@supabase/supabase-js',
-      '@indoorequal/vue-maplibre-gl',
-    ],
+    include: ['vue', 'pinia', '@supabase/supabase-js', '@indoorequal/vue-maplibre-gl'],
   },
 })

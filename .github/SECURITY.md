@@ -2,87 +2,77 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in this project, please report it by:
+If you discover a security vulnerability in this project:
 
 1. **DO NOT** open a public GitHub issue
-2. Email the maintainers directly with details
+2. Use [GitHub Security Advisories](../../security/advisories/new) to report privately
 3. Provide steps to reproduce (if applicable)
 4. Allow up to 48 hours for initial response
 
 We take all security reports seriously and will acknowledge receipt within 48 hours.
 
-## Security Measures
-
-This project implements the following security best practices:
-
-### Authentication & Authorization
-- ✅ Supabase Authentication for user management
-- ✅ Row Level Security (RLS) policies on all database tables
-- ✅ Session management via secure HTTP-only cookies
-- ✅ No passwords stored in frontend code
-
-### Data Protection
-- ✅ All sensitive credentials stored as environment variables
-- ✅ No hardcoded secrets in codebase
-- ✅ `.env` files excluded from version control
-- ✅ SQL injection protection via Supabase query builder
-- ✅ XSS protection via Vue 3 template escaping
-
-### API Security
-- ✅ Rate limiting on embedding generation endpoints
-- ✅ Input validation on client and server
-- ✅ CORS properly configured for Edge Functions
-- ✅ Authorization headers required for API calls
-
-### Dependencies
-- ✅ Regular dependency audits via `npm audit`
-- ✅ Automated Dependabot security updates (GitHub)
-- ✅ All dependencies kept up-to-date
-
-## Security Checklist for Deployment
-
-Before deploying to production:
-
-- [ ] All dependencies audited (`npm audit` returns 0 vulnerabilities)
-- [ ] Environment variables properly configured
-- [ ] `.env` files not committed to repository
-- [ ] GitHub secret scanning enabled
-- [ ] Dependabot alerts enabled
-- [ ] Branch protection rules configured
-- [ ] Supabase RLS policies tested and verified
-- [ ] Rate limiting verified on production endpoints
-
 ## Supported Versions
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.x.x   | :white_check_mark: |
+| main    | :white_check_mark: |
 
-## Known Security Considerations
+This project is in active development. Security updates are applied to the main branch.
 
-### Public API Keys (Safe)
-This project uses Supabase anon keys which are safe to expose publicly:
-- `VITE_SUPABASE_URL` - Safe (protected by RLS)
-- `VITE_SUPABASE_ANON_KEY` - Safe (protected by RLS)
+## Security Measures
 
-These keys only provide access to data allowed by Row Level Security policies.
+### Authentication & Authorization
 
-### Private Keys (Never Expose)
-The following should NEVER be committed or exposed:
+- Supabase Authentication for user management
+- Row Level Security (RLS) policies on all database tables
+- SECURITY DEFINER functions validate auth.uid()
+- Anonymous and registered user support with proper isolation
+
+### Data Protection
+
+- All sensitive credentials stored as environment variables
+- API keys stored in Supabase Vault (never in database)
+- `.env` files excluded from version control
+- SQL injection protection via parameterized queries
+- XSS protection via Vue 3 template escaping
+
+### Input Validation
+
+- Description length limits enforced (max 200 characters)
+- Prompt injection pattern detection
+- Language code format validation
+- All validation in PostgreSQL (single source of truth)
+
+### Rate Limiting
+
+- Database-enforced per-user rate limits
+- `start_game`: 10 per minute
+- `play_turn`: 60 per minute
+- `submit_place`: 10 per minute
+
+### Automated Security Scanning
+
+- **CodeQL** - Code vulnerability scanning
+- **Semgrep** - Static security analysis
+- **Dependabot** - Dependency vulnerability alerts
+- **TruffleHog** - Secret detection in commits
+- **OSSF Scorecard** - Security best practices
+
+## Public vs Private Keys
+
+### Safe to Expose (Protected by RLS)
+
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Anonymous access key
+
+### Never Expose
+
+- `SUPABASE_SERVICE_KEY` - Bypasses RLS
 - `SUPABASE_DB_PASSWORD` - Database password
-- `SUPABASE_ACCESS_TOKEN` - Supabase API access token
-- `SUPABASE_SERVICE_KEY` - Bypasses RLS (admin access)
-
-## Security Audit History
-
-- **2025-10-21**: Initial security audit completed using Semgrep
-  - No critical vulnerabilities found
-  - 1 moderate Vite vulnerability fixed
-  - All security best practices verified
+- LLM/Embedding provider API keys
 
 ## Additional Resources
 
 - [Supabase Security Best Practices](https://supabase.com/docs/guides/platform/security)
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Vue.js Security Best Practices](https://vuejs.org/guide/best-practices/security.html)
-

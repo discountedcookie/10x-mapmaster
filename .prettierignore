@@ -1,0 +1,8 @@
+# Ignore artifacts:
+.github
+.opencode
+build
+coverage
+
+# Ignore seed data files (contain long WKT strings that shouldn't be formatted)
+supabase/seeds/

@@ -36,13 +36,6 @@ function setLanguage(lang: string) {
   localStorage.setItem('preferred-language', lang)
 }
 
-/** Navigation items */
-const navItems = computed(() => [
-  { id: 'home', label: t('nav.home'), path: '/' },
-  { id: 'game', label: t('nav.game'), path: '/game' },
-  { id: 'statistics', label: t('nav.statistics'), path: '/statistics' },
-])
-
 /** User initials for avatar */
 const userInitials = computed(() => {
   if (!authStore.user?.email) return '?'
@@ -58,29 +51,13 @@ const userDisplayName = computed(() => {
   return authStore.user?.email?.split('@')[0] || 'User'
 })
 
-/** Check if nav item is active */
-function isActive(path: string) {
-  return route.path === path
-}
-
-/** Navigate to route */
-function navigateTo(path: string) {
-  // Prevent navigation if requires auth and not authenticated
-  if (path === '/game' && !authStore.isAuthenticated) {
-    router.push('/login')
-    return
-  }
-  router.push(path)
-}
-
 /** Sign out handler */
 async function handleSignOut() {
   try {
     await authStore.signOut()
     toast.success(t('auth.toast.signed_out_success'))
     router.push('/')
-  }
-  catch (error) {
+  } catch (error) {
     console.error('Sign out failed:', error)
     toast.error(t('auth.toast.sign_out_failed_title'), {
       description: t('auth.toast.sign_out_failed_body'),
@@ -96,28 +73,13 @@ function handleLogin() {
 
 <template>
   <nav class="fixed top-0 left-0 right-0 z-50 px-4 py-3 flex justify-center">
-    <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg rounded-full px-4 py-2 flex items-center gap-3">
+    <div
+      class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-lg rounded-full px-4 py-2 flex items-center gap-3"
+    >
       <!-- Logo -->
-      <div class="flex items-center gap-2">
-        <Icon
-          icon="radix-icons:globe"
-          class="h-5 w-5 text-primary"
-        />
+      <div class="flex items-center gap-2 cursor-pointer" @click="router.push('/')">
+        <Icon icon="radix-icons:globe" class="h-5 w-5 text-primary" />
         <span class="font-bold text-base hidden sm:inline">{{ t('home.title') }}</span>
-      </div>
-
-      <!-- Navigation Links -->
-      <div class="flex items-center gap-1">
-        <Button
-          v-for="item in navItems"
-          :key="item.id"
-          :variant="isActive(item.path) ? 'default' : 'ghost'"
-          size="sm"
-          class="rounded-full h-8"
-          @click="navigateTo(item.path)"
-        >
-          {{ item.label }}
-        </Button>
       </div>
 
       <!-- Theme, Language, and User Menus -->
@@ -131,38 +93,23 @@ function handleLogin() {
               class="rounded-full h-8 w-8"
               :title="t('theme.toggle_theme')"
             >
-              <Icon
-                icon="radix-icons:moon"
-                class="h-4 w-4"
-              />
+              <Icon icon="radix-icons:moon" class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            class="w-48"
-          >
+          <DropdownMenuContent align="end" class="w-48">
             <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">
               {{ t('theme.title') }}
             </DropdownMenuLabel>
             <DropdownMenuItem @click="setLight">
-              <Icon
-                icon="radix-icons:sun"
-                class="mr-2 h-4 w-4"
-              />
+              <Icon icon="radix-icons:sun" class="mr-2 h-4 w-4" />
               {{ t('theme.light') }}
             </DropdownMenuItem>
             <DropdownMenuItem @click="setDark">
-              <Icon
-                icon="radix-icons:moon"
-                class="mr-2 h-4 w-4"
-              />
+              <Icon icon="radix-icons:moon" class="mr-2 h-4 w-4" />
               {{ t('theme.dark') }}
             </DropdownMenuItem>
             <DropdownMenuItem @click="setAuto">
-              <Icon
-                icon="radix-icons:desktop"
-                class="mr-2 h-4 w-4"
-              />
+              <Icon icon="radix-icons:desktop" class="mr-2 h-4 w-4" />
               {{ t('theme.system') }}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -177,16 +124,10 @@ function handleLogin() {
               class="rounded-full h-8 w-8"
               :title="t('language.title')"
             >
-              <Icon
-                icon="radix-icons:globe"
-                class="h-4 w-4"
-              />
+              <Icon icon="radix-icons:globe" class="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            class="w-48"
-          >
+          <DropdownMenuContent align="end" class="w-48">
             <DropdownMenuLabel class="text-xs font-normal text-muted-foreground">
               {{ t('language.title') }}
             </DropdownMenuLabel>
@@ -198,11 +139,7 @@ function handleLogin() {
             >
               <span class="mr-2">{{ lang.icon }}</span>
               {{ lang.name }}
-              <Icon
-                v-if="locale === lang.code"
-                icon="radix-icons:check"
-                class="ml-auto h-4 w-4"
-              />
+              <Icon v-if="locale === lang.code" icon="radix-icons:check" class="ml-auto h-4 w-4" />
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -210,30 +147,16 @@ function handleLogin() {
         <!-- User Dropdown -->
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
-            <Button
-              variant="ghost"
-              size="icon"
-              class="rounded-full h-8 w-8"
-            >
-              <Icon
-                v-if="!authStore.isAuthenticated"
-                icon="radix-icons:person"
-                class="h-4 w-4"
-              />
-              <Avatar
-                v-else
-                class="h-7 w-7"
-              >
+            <Button variant="ghost" size="icon" class="rounded-full h-8 w-8">
+              <Icon v-if="!authStore.isAuthenticated" icon="radix-icons:person" class="h-4 w-4" />
+              <Avatar v-else class="h-7 w-7">
                 <AvatarFallback class="bg-primary text-primary-foreground text-xs font-semibold">
                   {{ userInitials }}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            class="w-56"
-          >
+          <DropdownMenuContent align="end" class="w-56">
             <!-- User info (when logged in) -->
             <template v-if="authStore.isAuthenticated">
               <DropdownMenuLabel>
@@ -250,24 +173,12 @@ function handleLogin() {
             </template>
 
             <!-- Auth Actions -->
-            <DropdownMenuItem
-              v-if="authStore.isAuthenticated"
-              @click="handleSignOut"
-            >
-              <Icon
-                icon="radix-icons:exit"
-                class="mr-2 h-4 w-4"
-              />
+            <DropdownMenuItem v-if="authStore.isAuthenticated" @click="handleSignOut">
+              <Icon icon="radix-icons:exit" class="mr-2 h-4 w-4" />
               {{ t('nav.logout') }}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              v-else
-              @click="handleLogin"
-            >
-              <Icon
-                icon="radix-icons:enter"
-                class="mr-2 h-4 w-4"
-              />
+            <DropdownMenuItem v-else @click="handleLogin">
+              <Icon icon="radix-icons:enter" class="mr-2 h-4 w-4" />
               {{ t('nav.login') }}
             </DropdownMenuItem>
           </DropdownMenuContent>

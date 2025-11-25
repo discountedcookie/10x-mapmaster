@@ -1,43 +1,31 @@
 import { shallowRef } from 'vue'
+import type { PlaceWithScore } from '@/stores/game'
 
-export type Bounds = [[number, number], [number, number]] | undefined
-
-interface Place {
-  id: string
-  name: string
-  lat: number | null
-  lng: number | null
-  game_count?: number
-}
-
+/**
+ * Simplified map state that only tracks candidates from active games.
+ * Bounds are calculated automatically in MapLayout based on visible markers.
+ * Places are fetched directly from the places store.
+ */
 interface MapState {
-  bounds: Bounds
-  places: Place[]
+  candidates: PlaceWithScore[]
 }
 
 const mapState = shallowRef<MapState>({
-  bounds: undefined,
-  places: []
+  candidates: [],
 })
 
 export function useMapState() {
-  function setMapState(
-    bounds: Bounds,
-    places: Place[]
-  ) {
-    mapState.value = { bounds, places }
+  function setCandidates(candidates: PlaceWithScore[]) {
+    mapState.value = { candidates }
   }
 
   function clearMapState() {
-    mapState.value = {
-      bounds: undefined,
-      places: []
-    }
+    mapState.value = { candidates: [] }
   }
 
   return {
     mapState,
-    setMapState,
-    clearMapState
+    setCandidates,
+    clearMapState,
   }
 }

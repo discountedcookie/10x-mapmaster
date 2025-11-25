@@ -17,18 +17,17 @@ export interface UseMapMarkersReturn {
   markerNodes: ComputedRef<VNode[]>
 }
 
-export function useMapMarkers<T>(
-  options: UseMapMarkersOptions<T>
-): UseMapMarkersReturn {
+export function useMapMarkers<T>(options: UseMapMarkersOptions<T>): UseMapMarkersReturn {
   const markers = computed(() => {
     return options.data.value
-      .filter((item: any) => item.lat != null && item.lng != null)
+      .filter((item: any) => item.lat != undefined && item.lng != undefined)
       .map((item, index) => options.computeMarker(item, index))
   })
 
-  const bounds = options.boundsOptions?.enabled === false
-    ? computed(() => undefined)
-    : useMapBounds(markers, options.boundsOptions?.padding)
+  const bounds =
+    options.boundsOptions?.enabled === false
+      ? computed(() => {})
+      : useMapBounds(markers, options.boundsOptions?.padding)
 
   const markerNodes = computed(() => {
     return markers.value.map((marker, index) =>

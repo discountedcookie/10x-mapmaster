@@ -15,10 +15,18 @@ const mockStoreState = reactive({
 
 // Create computed properties that auto-unwrap (mimics Pinia behavior)
 const mockGameStore = {
-  get topCandidates() { return mockStoreState.topCandidates },
-  get questionCount() { return mockStoreState.questionCount },
-  get isGameComplete() { return mockStoreState.isGameComplete },
-  get currentQuestion() { return mockStoreState.currentQuestion },
+  get topCandidates() {
+    return mockStoreState.topCandidates
+  },
+  get questionCount() {
+    return mockStoreState.questionCount
+  },
+  get isGameComplete() {
+    return mockStoreState.isGameComplete
+  },
+  get currentQuestion() {
+    return mockStoreState.currentQuestion
+  },
 }
 
 vi.mock('@/stores/game', () => ({

@@ -18,7 +18,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
 
     // Wait for analysis
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -49,7 +49,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -80,7 +80,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
       await page.getByRole('button', { name: 'Start Game' }).click()
 
       await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-        timeout: 10000,
+        timeout: 10_000,
       })
 
       await page.waitForTimeout(500)
@@ -121,9 +121,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
       // and can be used for database storage
 
       // Form should be ready to capture place details
-      const formElements = await page
-        .getByPlaceholder(/place name|latitude|longitude/i)
-        .count()
+      const formElements = await page.getByPlaceholder(/place name|latitude|longitude/i).count()
 
       expect(formElements).toBeGreaterThan(0)
     }
@@ -156,7 +154,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
 
       // Wait for loading
       await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-        timeout: 10000,
+        timeout: 10_000,
       })
 
       await page.waitForTimeout(500)
@@ -190,7 +188,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     // Complete or cancel the first game
@@ -212,7 +210,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
       await page.getByRole('button', { name: 'Start Game' }).click()
 
       await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-        timeout: 10000,
+        timeout: 10_000,
       })
 
       // Results should be similar/consistent
@@ -236,7 +234,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -290,7 +288,7 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
     await page.getByRole('button', { name: 'Start Game' }).click()
 
     await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -316,13 +314,11 @@ test.describe('Game Flow: Better Guess After Place Submission', () => {
       await page.getByRole('button', { name: 'Start Game' }).click()
 
       await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-        timeout: 10000,
+        timeout: 10_000,
       })
 
       // Game should show improved results due to learning
-      const improvedResult = await page
-        .getByText(/Question|Is this|I'm narrowing/)
-        .isVisible()
+      const improvedResult = await page.getByText(/Question|Is this|I'm narrowing/).isVisible()
 
       expect(improvedResult).toBe(true)
     }

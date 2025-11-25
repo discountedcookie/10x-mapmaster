@@ -1,19 +1,25 @@
 import { defineConfig } from 'eslint/config'
 import eslintPluginVue from 'eslint-plugin-vue'
-import stylistic from '@stylistic/eslint-plugin'
 import eslintPluginTypescript from 'typescript-eslint'
 import eslintPluginUnicorn from 'eslint-plugin-unicorn'
+import eslintConfigPrettier from 'eslint-config-prettier'
 
 export default defineConfig([
   {
-    ignores: [
-      'dist/**',
-      'coverage/**',
-    ],
+    ignores: ['dist/**', 'coverage/**'],
   },
   eslintPluginUnicorn.configs.recommended,
   eslintPluginVue.configs['flat/recommended'],
-  stylistic.configs.recommended,
+  ...eslintPluginTypescript.configs.recommended,
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parserOptions: {
+        parser: eslintPluginTypescript.parser,
+        ecmaVersion: 'latest',
+      },
+    },
+  },
   {
     languageOptions: {
       ecmaVersion: 'latest',
@@ -22,10 +28,22 @@ export default defineConfig([
       },
     },
     rules: {
+      'max-lines': ['warn', { max: 200, skipBlankLines: true, skipComments: false }],
       'unicorn/filename-case': 'off',
-      'unicorn/prevent-abbreviations': 'off',
-      'vue/multi-word-component-names': 'off',
-      'vue/require-default-prop': 'off',
     },
   },
+  {
+    files: ['e2e/**/*.ts'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      parserOptions: {
+        parser: eslintPluginTypescript.parser,
+      },
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': 'error',
+    },
+  },
+  eslintConfigPrettier,
 ])

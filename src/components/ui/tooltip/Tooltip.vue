@@ -2,17 +2,14 @@
 import type { TooltipRootEmits, TooltipRootProps } from 'reka-ui'
 import { TooltipRoot, useForwardPropsEmits } from 'reka-ui'
 
-const props = defineProps<TooltipRootProps>()
+const properties = defineProps<TooltipRootProps>()
 const emits = defineEmits<TooltipRootEmits>()
 
-const forwarded = useForwardPropsEmits(props, emits)
+const forwarded = useForwardPropsEmits(properties, emits)
 </script>
 
 <template>
-  <TooltipRoot
-    data-slot="tooltip"
-    v-bind="forwarded"
-  >
+  <TooltipRoot data-slot="tooltip" v-bind="forwarded">
     <slot />
   </TooltipRoot>
 </template>

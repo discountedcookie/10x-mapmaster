@@ -29,10 +29,7 @@ function formatAverage(value: number): string {
       <Card class="shadow-2xl">
         <CardHeader class="text-center space-y-3">
           <CardTitle class="text-3xl font-bold flex items-center justify-center gap-3">
-            <Icon
-              icon="radix-icons:bar-chart"
-              class="h-10 w-10 text-primary"
-            />
+            <Icon icon="radix-icons:bar-chart" class="h-10 w-10 text-primary" />
             {{ t('statistics.title') }}
           </CardTitle>
           <CardDescription class="text-lg">
@@ -41,42 +38,23 @@ function formatAverage(value: number): string {
         </CardHeader>
         <CardContent class="py-6">
           <!-- Loading State -->
-          <div
-            v-if="loading"
-            class="space-y-4"
-          >
+          <div v-if="loading" class="space-y-4">
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <Skeleton
-                v-for="i in 6"
-                :key="i"
-                class="h-24"
-              />
+              <Skeleton v-for="i in 6" :key="i" class="h-24" />
             </div>
           </div>
 
           <!-- Error State -->
-          <div
-            v-else-if="error"
-            class="text-center py-8 space-y-4"
-          >
-            <Icon
-              icon="radix-icons:cross-circled"
-              class="h-16 w-16 mx-auto text-destructive"
-            />
+          <div v-else-if="error" class="text-center py-8 space-y-4">
+            <Icon icon="radix-icons:cross-circled" class="h-16 w-16 mx-auto text-destructive" />
             <p class="text-destructive">
               {{ error }}
             </p>
           </div>
 
           <!-- No Data State -->
-          <div
-            v-else-if="statistics.gamesPlayed === 0"
-            class="text-center py-8 space-y-4"
-          >
-            <Icon
-              icon="radix-icons:info-circled"
-              class="h-16 w-16 mx-auto text-muted-foreground"
-            />
+          <div v-else-if="statistics.gamesPlayed === 0" class="text-center py-8 space-y-4">
+            <Icon icon="radix-icons:info-circled" class="h-16 w-16 mx-auto text-muted-foreground" />
             <p class="text-lg font-medium">
               {{ t('statistics.no_games_yet') }}
             </p>
@@ -86,18 +64,12 @@ function formatAverage(value: number): string {
           </div>
 
           <!-- Statistics Display -->
-          <div
-            v-else
-            class="space-y-6"
-          >
+          <div v-else class="space-y-6">
             <!-- Main Stats Grid -->
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
               <!-- Games Played -->
               <div class="bg-accent/50 rounded-lg p-4 text-center">
-                <Icon
-                  icon="radix-icons:target"
-                  class="h-8 w-8 mx-auto mb-2 text-primary"
-                />
+                <Icon icon="radix-icons:target" class="h-8 w-8 mx-auto mb-2 text-primary" />
                 <div class="text-3xl font-bold">
                   {{ statistics.gamesPlayed }}
                 </div>

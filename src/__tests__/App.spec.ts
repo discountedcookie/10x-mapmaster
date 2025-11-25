@@ -8,7 +8,7 @@ import { i18n } from './setup'
 
 // Mock window.matchMedia for theme detection
 beforeAll(() => {
-  Object.defineProperty(window, 'matchMedia', {
+  Object.defineProperty(globalThis, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({
       matches: false,

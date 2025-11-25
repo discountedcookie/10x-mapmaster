@@ -105,7 +105,7 @@ export const seedPlaces = [
   {
     name: 'Mount Everest',
     lat: 27.9881,
-    lng: 86.9250,
+    lng: 86.925,
     descriptors: {
       country_code: 'np',
       type: 'peak',
@@ -226,7 +226,7 @@ export const seedPlaces = [
   {
     name: 'Machu Picchu',
     lat: -13.1631,
-    lng: -72.5450,
+    lng: -72.545,
     descriptors: {
       country_code: 'pe',
       type: 'monument',

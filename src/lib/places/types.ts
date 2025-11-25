@@ -9,18 +9,17 @@ import type { AddressDetails, ExtraTags } from 'nominatim-ts/lib/types'
  * Combines Nominatim data with enrichment fields
  */
 export interface PlaceDescriptors {
-    // From Nominatim
-    lat: number
-    lng: number
-    type: string
-    class: string
-    country_code: string
-    address: AddressDetails
-    extratags: ExtraTags
-    // From enrichment APIs
-    elevation_meters?: number
-    height_meters?: number
-    enrichment_timestamp?: string
-    enrichment_source?: string
+  // From Nominatim
+  lat: number
+  lng: number
+  type: string
+  class: string
+  country_code: string
+  address: AddressDetails
+  extratags: ExtraTags
+  // From enrichment APIs
+  elevation_meters?: number
+  height_meters?: number
+  enrichment_timestamp?: string
+  enrichment_source?: string
 }
-

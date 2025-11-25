@@ -1,42 +1,65 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import HeroCard from '@/components/HeroCard.vue'
-import { usePlaces } from '@/composables/usePlaces'
-import { useMapBounds } from '@/composables/map/useMapBounds'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useMapState } from '@/composables/map/useMapState'
+import { useGameStore } from '@/stores/game'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
-const { setMapState } = useMapState()
-const placesStore = usePlaces()
+const router = useRouter()
+const { locale } = useI18n()
 
-// Calculate bounds for all places
-const markers = computed(() => {
-  return placesStore.places
-    .filter(p => p.lat !== null && p.lng !== null)
-    .map(place => ({
-      coordinates: [place.lng!, place.lat!] as [number, number],
-    }))
-})
+const { clearMapState } = useMapState()
+const gameStore = useGameStore()
 
-const bounds = useMapBounds(markers)
-
-// Store places for map rendering
-const places = computed(() => {
-  return placesStore.places.filter(p => p.lat !== null && p.lng !== null)
-})
-
-// Restore all places when HomeView mounts
+// Clear map state when HomeView mounts (show all places, no candidates)
 onMounted(() => {
-  if (places.value.length > 0 && bounds.value) {
-    setMapState(bounds.value, places.value)
-  }
+  clearMapState()
 })
+
+// Description input
+const description = ref('')
+
+// Handle start game
+async function handleStartGame() {
+  if (!description.value.trim()) return
+
+  try {
+    await gameStore.startNewGame(description.value, locale.value)
+
+    // Redirect to game view with session ID
+    if (gameStore.gameSessionId) {
+      await router.push(`/game/${gameStore.gameSessionId}`)
+    }
+  } catch (error) {
+    console.error('Failed to start game:', error)
+  }
+}
 </script>
 
 <template>
-  <!-- Hero Card centered -->
-  <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-    <div class="pointer-events-auto">
-      <HeroCard />
-    </div>
+  <!-- Bottom-positioned Card Container -->
+  <div class="relative flex justify-center items-end h-full pb-4 px-4 pointer-events-none">
+    <Card class="w-full md:max-w-md pointer-events-auto">
+      <CardHeader>
+        <CardTitle class="text-center">Describe a place</CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <Input
+          v-model="description"
+          placeholder="e.g., A famous tower in Paris"
+          @keyup.enter="handleStartGame"
+        />
+        <Button
+          class="w-full"
+          :disabled="!description.trim() || gameStore.loading"
+          @click="handleStartGame"
+        >
+          {{ gameStore.loading ? 'Starting...' : 'Start Game' }}
+        </Button>
+      </CardContent>
+    </Card>
   </div>
 </template>

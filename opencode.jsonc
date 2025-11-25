@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md"],
+
+  // Models: z.ai coding plan (main) + OpenCode Zen (fallback)
+  "model": "zai-coding-plan/glm-4.6",
+  "small_model": "opencode/kimi-k2-thinking",
+
+  "autoupdate": true,
+
+  "keybinds": {
+    "session_child_cycle": "<leader>]",
+    "session_child_cycle_reverse": "<leader>[",
+  },
+
+  // Built-in agents
+  "agent": {
+    "build": { "disable": false },
+    "plan": { "disable": false },
+    "general": { "disable": true },
+  },
+
+  // MCPs - minimal useful set
+  "mcp": {
+    // Web search + code context
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp",
+    },
+
+    // Complex reasoning
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+    },
+  },
+
+  // Global tool defaults - limit MCP exposure, enable per-agent
+  "tools": {
+    "exa_*": false,
+    "sequential-thinking_*": false,
+  },
+}

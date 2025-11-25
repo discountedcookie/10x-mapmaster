@@ -10,9 +10,7 @@ import wiki from 'wikipedia'
  * Uses extratags.wikidata from Nominatim
  * Always fetches English Wikipedia for consistent embeddings
  */
-export async function getWikipediaSummary(
-  wikidata_id: string
-): Promise<string | null> {
+export async function getWikipediaSummary(wikidata_id: string): Promise<string | null> {
   // Extract Q-code (e.g., 'Q243' from 'wikidata:Q243')
   const qcode = wikidata_id.replace(/^wikidata:/, '')
 
@@ -36,9 +34,7 @@ export async function getWikipediaSummary(
  * Get Wikipedia summary from article title
  * Always uses English Wikipedia for consistent embeddings
  */
-export async function getWikipediaSummaryByTitle(
-  title: string
-): Promise<string | null> {
+export async function getWikipediaSummaryByTitle(title: string): Promise<string | null> {
   // Force English Wikipedia for embeddings
   wiki.setLang('en')
 

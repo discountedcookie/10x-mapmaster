@@ -1,10 +1,9 @@
 {
   "files": [],
   "compilerOptions": {
+    "lib": ["ESNext"],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "references": [

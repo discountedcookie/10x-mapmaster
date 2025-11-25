@@ -5,14 +5,17 @@ import { AvatarRoot } from 'reka-ui'
 import { cn } from '@/lib/utils'
 import { avatarVariant } from '.'
 
-const props = withDefaults(defineProps<{
-  class?: HTMLAttributes['class']
-  size?: AvatarVariants['size']
-  shape?: AvatarVariants['shape']
-}>(), {
-  size: 'sm',
-  shape: 'circle',
-})
+const props = withDefaults(
+  defineProps<{
+    class?: HTMLAttributes['class']
+    size?: AvatarVariants['size']
+    shape?: AvatarVariants['shape']
+  }>(),
+  {
+    size: 'sm',
+    shape: 'circle',
+  }
+)
 </script>
 
 <template>

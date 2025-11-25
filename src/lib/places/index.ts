@@ -23,7 +23,7 @@ class APICache {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
-      ttl: ttlMs
+      ttl: ttlMs,
     })
   }
 
@@ -66,9 +66,7 @@ export async function waitForRateLimit(): Promise<void> {
   const timeSinceLastRequest = now - lastRequestTime
 
   if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-    await new Promise(resolve =>
-      setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest)
-    )
+    await new Promise((resolve) => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest))
   }
 
   lastRequestTime = Date.now()
@@ -77,22 +75,22 @@ export async function waitForRateLimit(): Promise<void> {
 // Cache wrapper for API calls
 export async function withCache<T>(
   key: string,
-  fn: () => Promise<T>,
-  ttlMs: number = 300000 // 5 minutes default
+  function_: () => Promise<T>,
+  ttlMs: number = 300_000 // 5 minutes default
 ): Promise<T> {
   const cached = apiCache.get<T>(key)
   if (cached) {
     return cached
   }
 
-  const result = await fn()
+  const result = await function_()
   apiCache.set(key, result, ttlMs)
   return result
 }
 
 // Cleanup cache every 10 minutes
-if (typeof window !== 'undefined') {
-  setInterval(() => apiCache.cleanup(), 600000)
+if (globalThis.window !== undefined) {
+  setInterval(() => apiCache.cleanup(), 600_000)
 }
 
 // Nominatim client
@@ -107,23 +105,13 @@ export {
 } from './nominatim'
 
 // Open-Elevation client
-export {
-  getElevation,
-  enrichWithElevation,
-} from './openElevation'
+export { getElevation, enrichWithElevation } from './openElevation'
 
 // Overpass client
-export {
-  getHeight,
-  enrichWithHeight,
-} from './overpass'
+export { getHeight, enrichWithHeight } from './overpass'
 
 // Wikipedia client
-export {
-  getWikipediaSummary,
-  getWikipediaSummaryByTitle,
-  enrichWithWikipedia,
-} from './wikipedia'
+export { getWikipediaSummary, getWikipediaSummaryByTitle, enrichWithWikipedia } from './wikipedia'
 
 // Embedding text generation (moved from nominatim.ts)
 export function generatePlaceEmbeddingText(place: {
@@ -133,7 +121,7 @@ export function generatePlaceEmbeddingText(place: {
 }): string {
   const parts: string[] = [place.name]
   const desc = place.descriptors
-  const ext = desc.extratags || {}
+  const extension = desc.extratags || {}
 
   // HEIGHT/ELEVATION (critical for discrimination!)
   if (desc.elevation_meters) {
@@ -148,10 +136,10 @@ export function generatePlaceEmbeddingText(place: {
   if (desc.class) parts.push(`Category: ${desc.class}`)
 
   // Extratags
-  if (ext.natural) parts.push(`Natural feature: ${ext.natural}`)
-  if (ext.year_of_construction) parts.push(`Built: ${ext.year_of_construction}`)
-  if (ext.architect) parts.push(`Architect: ${ext.architect}`)
-  if (ext.building) parts.push(`Building type: ${ext.building}`)
+  if (extension.natural) parts.push(`Natural feature: ${extension.natural}`)
+  if (extension.year_of_construction) parts.push(`Built: ${extension.year_of_construction}`)
+  if (extension.architect) parts.push(`Architect: ${extension.architect}`)
+  if (extension.building) parts.push(`Building type: ${extension.building}`)
 
   // Wikipedia summary (NEW - rich context!)
   if (place.wikipedia_summary) {
@@ -162,8 +150,8 @@ export function generatePlaceEmbeddingText(place: {
 
   // Location - prefer English names for embeddings
   // Use name:en from extratags if available, otherwise use country_code
-  const cityName = ext['name:en'] || desc.address?.city
-  const countryName = ext['country:en'] || desc.address?.country
+  const cityName = extension['name:en'] || desc.address?.city
+  const countryName = extension['country:en'] || desc.address?.country
 
   // Only include if name appears to be in Latin alphabet (English-friendly)
   // This filters out Greek, Chinese, Arabic, etc. characters
@@ -184,7 +172,4 @@ export function generatePlaceEmbeddingText(place: {
 }
 
 // Types
-export type {
-  PlaceDescriptors,
-} from './types'
-
+export type { PlaceDescriptors } from './types'

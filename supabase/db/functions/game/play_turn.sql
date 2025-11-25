@@ -1,0 +1,80 @@
+-- Function: play_turn
+-- Category: game
+-- Purpose: Route turn processing to appropriate handler (SRP - Router pattern)
+-- REFACTORED: Extracted handlers for SRP and OCP compliance
+CREATE OR REPLACE FUNCTION "public"."play_turn" ("p_session_id" "uuid", "p_answer" BOOLEAN) returns void language "plpgsql"
+SET
+  "search_path" TO 'public' AS $$
+DECLARE
+  v_session_record RECORD;
+BEGIN
+  -- ============================================================================
+  -- VALIDATION & SESSION RETRIEVAL
+  -- ============================================================================
+  
+  IF p_session_id IS NULL OR p_answer IS NULL THEN
+    RAISE EXCEPTION 'Parameters cannot be null';
+  END IF;
+
+  -- Get session details (only columns needed by handlers)
+  SELECT
+    id,
+    place_id,
+    was_correct,
+    next_turn,
+    description,
+    affirmed_trait_ids,
+    denied_trait_ids,
+    description_embedding_id,
+    affirmed_trait_embedding_id,
+    denied_trait_embedding_id
+  INTO v_session_record
+  FROM game_sessions
+  WHERE id = p_session_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Session % not found', p_session_id;
+  END IF;
+
+  -- Validate session is active
+  IF v_session_record.was_correct = TRUE THEN
+    RAISE EXCEPTION 'Session % is already won', p_session_id;
+  END IF;
+  
+  IF v_session_record.next_turn IS NULL THEN
+    RAISE EXCEPTION 'Session % has no active turn', p_session_id;
+  END IF;
+
+  -- ============================================================================
+  -- ROUTE TO APPROPRIATE HANDLER (SRP)
+  -- ============================================================================
+
+  IF v_session_record.next_turn->>'action' = 'guess' THEN
+    PERFORM handle_guess(p_answer, v_session_record);
+  ELSIF v_session_record.next_turn->>'action' = 'question' THEN
+    PERFORM handle_question(p_answer, v_session_record);
+  ELSE
+    RAISE EXCEPTION 'Unknown action type: %', v_session_record.next_turn->>'action';
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."play_turn" ("p_session_id" "uuid", "p_answer" BOOLEAN) owner TO "postgres";
+
+
+comment ON function "public"."play_turn" ("p_session_id" "uuid", "p_answer" BOOLEAN) IS 'Router function for processing game turns (SRP pattern).
+
+Responsibilities:
+- Validate session state
+- Route to appropriate handler based on action type:
+  * guess → handle_guess()
+  * question → handle_question()
+
+SOLID principles:
+- SRP: Each handler has single responsibility
+- OCP: New action types can be added without modifying existing handlers
+- DIP: Depends on abstractions (handler functions)
+
+Returns: VOID (raises exception on error)
+Frontend fetches full game state from game_session_state view after call.';

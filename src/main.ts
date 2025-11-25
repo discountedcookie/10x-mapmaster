@@ -12,18 +12,18 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 // CSS is imported automatically by the library
 
 async function initializeApp() {
-    const app = createApp(App)
+  const app = createApp(App)
 
-    app.use(createPinia())
-    app.use(router)
-    app.use(i18n)
-    app.use(VueMaplibreGl)
+  app.use(createPinia())
+  app.use(router)
+  app.use(i18n)
+  app.use(VueMaplibreGl)
 
-    // Initialize auth before mounting
-    const authStore = useAuthStore()
-    await authStore.initialize()
+  // Initialize auth before mounting
+  const authStore = useAuthStore()
+  await authStore.initialize()
 
-    app.mount('#app')
+  app.mount('#app')
 }
 
 initializeApp()

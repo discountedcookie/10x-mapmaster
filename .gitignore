@@ -48,14 +48,3 @@ Thumbs.db
 
 # Development
 .worktrees/
-
-# Context Portal
-context_portal/*.db-journal
-context_portal/*.db-wal
-context_portal/**/__pycache__/
-
-# MCP
-.mcp.json
-.playwright-mcp/
-
-backups/

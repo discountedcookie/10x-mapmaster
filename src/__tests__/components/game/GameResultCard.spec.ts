@@ -5,350 +5,356 @@ import GameResultCard from '@/components/game/GameResultCard.vue'
 import type { Tables } from '@/types/database'
 
 interface PlaceWithScore extends Tables<'places'> {
-    semantic_similarity: number
-    spatial_confidence: number
-    composite_confidence: number
+  confidence: number
+  description_similarity: number
+  affirmed_trait_similarity: number | null
+  denied_trait_similarity: number | null
+  geographic_distance: number | null
 }
 
 describe('GameResultCard', () => {
-    const mockPlace: PlaceWithScore = {
-        id: 'place-1',
-        name: 'Paris',
-        lat: 48.8566,
-        lng: 2.3522,
-        descriptors: { type: 'city' },
-        game_count: 10,
-        embedding: Array(384).fill(0.1),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        semantic_similarity: 0.85,
-        spatial_confidence: 0.9,
-        composite_confidence: 0.87,
+  const mockPlace: PlaceWithScore = {
+    id: 'place-1',
+    name: 'Paris',
+    lat: 48.8566,
+    lng: 2.3522,
+    confidence: 0.87,
+    description_similarity: 0.85,
+    affirmed_trait_similarity: 0.9,
+    denied_trait_similarity: null,
+    geographic_distance: 1000000,
+  }
+
+  describe('High Confidence Guess', () => {
+    it('should display place name and coordinates', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.text()).toContain('Paris')
+      expect(wrapper.text()).toContain('48.8566°, 2.3522°')
+    })
+
+    it('should show "Is this your place?" title for high confidence', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, confidence: 0.9 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.is_this_your_place'))
+    })
+
+    it('should display confidence badge', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.overall_match'))
+      const badge = wrapper.findComponent({ name: 'ConfidenceBadge' })
+      expect(badge.exists()).toBe(true)
+      // Confidence is now normalized: 0.15 + (0.87 * 0.80) = 0.846
+      expect(badge.props('confidence')).toBe(0.15 + 0.87 * 0.8)
+    })
+
+    it('should emit correct event when "Yes, that\'s it!" is clicked', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      const correctButton = wrapper
+        .findAll('button')
+        .find((button) => button.text().includes(i18n.global.t('game.result_card.yes_thats_it')))
+      await correctButton?.trigger('click')
+
+      expect(wrapper.emitted('correct')).toBeTruthy()
+    })
+
+    it('should emit incorrect event when "No, that\'s not it" is clicked', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      const incorrectButton = wrapper
+        .findAll('button')
+        .find((button) => button.text().includes(i18n.global.t('game.result_card.no_thats_not_it')))
+      await incorrectButton?.trigger('click')
+
+      expect(wrapper.emitted('incorrect')).toBeTruthy()
+    })
+
+    it('should disable buttons when disabled prop is true', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace, disabled: true },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      const buttons = wrapper.findAll('button')
+      const actionButtons = buttons.filter(
+        (button) =>
+          button.text().includes(i18n.global.t('game.result_card.yes_thats_it')) ||
+          button.text().includes(i18n.global.t('game.result_card.no_thats_not_it'))
+      )
+
+      for (const button of actionButtons) {
+        expect(button.attributes('disabled')).toBeDefined()
+      }
+    })
+  })
+
+  describe('Low Confidence Guess', () => {
+    const lowConfidencePlace: PlaceWithScore = {
+      ...mockPlace,
+      confidence: 0.65, // Between 0.5 and 0.8
     }
 
-    describe('High Confidence Guess', () => {
-        it('should display place name and coordinates', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
+    it('should show narrowing down message for low confidence', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: lowConfidencePlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
 
-            expect(wrapper.text()).toContain('Paris')
-            expect(wrapper.text()).toContain('48.8566°, 2.3522°')
-        })
-
-        it('should show "Is this your place?" title for high confidence', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, composite_confidence: 0.9 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.is_this_your_place'))
-        })
-
-        it('should display confidence badge', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.overall_match'))
-            const badge = wrapper.findComponent({ name: 'ConfidenceBadge' })
-            expect(badge.exists()).toBe(true)
-            // Confidence is now normalized: 0.15 + (0.87 * 0.80) = 0.846
-            expect(badge.props('confidence')).toBe(0.15 + (0.87 * 0.80))
-        })
-
-        it('should emit correct event when "Yes, that\'s it!" is clicked', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const correctButton = wrapper.findAll('button').find((btn) => btn.text().includes(i18n.global.t('game.result_card.yes_thats_it')))
-            await correctButton?.trigger('click')
-
-            expect(wrapper.emitted('correct')).toBeTruthy()
-        })
-
-        it('should emit incorrect event when "No, that\'s not it" is clicked', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const incorrectButton = wrapper.findAll('button').find((btn) =>
-                btn.text().includes(i18n.global.t('game.result_card.no_thats_not_it'))
-            )
-            await incorrectButton?.trigger('click')
-
-            expect(wrapper.emitted('incorrect')).toBeTruthy()
-        })
-
-        it('should disable buttons when disabled prop is true', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace, disabled: true },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const buttons = wrapper.findAll('button')
-            const actionButtons = buttons.filter((btn) =>
-                btn.text().includes(i18n.global.t('game.result_card.yes_thats_it')) || btn.text().includes(i18n.global.t('game.result_card.no_thats_not_it'))
-            )
-
-            actionButtons.forEach((button) => {
-                expect(button.attributes('disabled')).toBeDefined()
-            })
-        })
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.narrowing_down'))
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.low_confidence_description'))
     })
 
-    describe('Low Confidence Guess', () => {
-        const lowConfidencePlace: PlaceWithScore = {
-            ...mockPlace,
-            composite_confidence: 0.65, // Between 0.5 and 0.8
-        }
+    it('should show different button text for low confidence', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: lowConfidencePlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
 
-        it('should show narrowing down message for low confidence', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: lowConfidencePlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.narrowing_down'))
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.low_confidence_description'))
-        })
-
-        it('should show different button text for low confidence', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: lowConfidencePlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.yes_its_this_one'))
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.no_keep_asking'))
-        })
-
-        it('should still emit correct/incorrect events', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: lowConfidencePlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const yesButton = wrapper.findAll('button').find((btn) =>
-                btn.text().includes(i18n.global.t('game.result_card.yes_its_this_one'))
-            )
-            await yesButton?.trigger('click')
-            expect(wrapper.emitted('correct')).toBeTruthy()
-
-            const noButton = wrapper.findAll('button').find((btn) =>
-                btn.text().includes(i18n.global.t('game.result_card.no_keep_asking'))
-            )
-            await noButton?.trigger('click')
-            expect(wrapper.emitted('incorrect')).toBeTruthy()
-        })
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.yes_its_this_one'))
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.no_keep_asking'))
     })
 
-    describe('No Match Found', () => {
-        it('should show "No matches found" when guess is null', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: null },
-                global: {
-                    plugins: [i18n],
-                },
-            })
+    it('should still emit correct/incorrect events', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: lowConfidencePlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
 
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.no_matches'))
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.no_match_found_description'))
-        })
+      const yesButton = wrapper
+        .findAll('button')
+        .find((button) =>
+          button.text().includes(i18n.global.t('game.result_card.yes_its_this_one'))
+        )
+      await yesButton?.trigger('click')
+      expect(wrapper.emitted('correct')).toBeTruthy()
 
-        it('should show "Tell us the place" button when no match', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: null },
-                global: {
-                    plugins: [i18n],
-                },
-            })
+      const noButton = wrapper
+        .findAll('button')
+        .find((button) => button.text().includes(i18n.global.t('game.result_card.no_keep_asking')))
+      await noButton?.trigger('click')
+      expect(wrapper.emitted('incorrect')).toBeTruthy()
+    })
+  })
 
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.tell_us_the_place'))
-            expect(wrapper.text()).toContain(i18n.global.t('game.play_again'))
-        })
+  describe('No Match Found', () => {
+    it('should show "No matches found" when guess is null', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: null },
+        global: {
+          plugins: [i18n],
+        },
+      })
 
-        it('should emit incorrect when "Tell us the place" is clicked', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: null },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const tellUsButton = wrapper.findAll('button').find((btn) =>
-                btn.text().includes(i18n.global.t('game.result_card.tell_us_the_place'))
-            )
-            await tellUsButton?.trigger('click')
-
-            expect(wrapper.emitted('incorrect')).toBeTruthy()
-        })
-
-        it('should emit playAgain when "Play Again" is clicked', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: null },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const playAgainButton = wrapper.findAll('button').find((btn) =>
-                btn.text().includes(i18n.global.t('game.play_again'))
-            )
-            await playAgainButton?.trigger('click')
-
-            expect(wrapper.emitted('playAgain')).toBeTruthy()
-        })
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.no_matches'))
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.no_match_found_description'))
     })
 
-    describe('Match Analysis', () => {
-        it('should show match analysis collapsible', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
+    it('should show "Tell us the place" button when no match', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: null },
+        global: {
+          plugins: [i18n],
+        },
+      })
 
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.match_analysis'))
-        })
-
-        it('should calculate semantic percentage correctly', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, semantic_similarity: 0.85 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            // Open collapsible
-            const collapsibleTrigger = wrapper.find('button[class*="justify-between"]')
-            await collapsibleTrigger.trigger('click')
-            await wrapper.vm.$nextTick()
-
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.description_match'))
-            expect(wrapper.text()).toContain('85%')
-        })
-
-        it('should calculate spatial percentage correctly', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, spatial_confidence: 0.9 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            // Open collapsible
-            const collapsibleTrigger = wrapper.find('button[class*="justify-between"]')
-            await collapsibleTrigger.trigger('click')
-            await wrapper.vm.$nextTick()
-
-            expect(wrapper.text()).toContain(i18n.global.t('game.result_card.location_clustering'))
-            expect(wrapper.text()).toContain('90%')
-        })
-
-        it('should toggle analysis visibility', async () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: mockPlace },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            const trigger = wrapper.find('button[class*="justify-between"]')
-
-            // Initially closed
-            expect(wrapper.vm.showAnalysis).toBe(false)
-
-            // Open
-            await trigger.trigger('click')
-            await wrapper.vm.$nextTick()
-            expect(wrapper.vm.showAnalysis).toBe(true)
-
-            // Close
-            await trigger.trigger('click')
-            await wrapper.vm.$nextTick()
-            expect(wrapper.vm.showAnalysis).toBe(false)
-        })
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.tell_us_the_place'))
+      expect(wrapper.text()).toContain(i18n.global.t('game.play_again'))
     })
 
-    describe('Computed Properties', () => {
-        it('should calculate confidence percent', () => {
-            const wrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, composite_confidence: 0.87 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
+    it('should emit incorrect when "Tell us the place" is clicked', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: null },
+        global: {
+          plugins: [i18n],
+        },
+      })
 
-            // Normalized: 0.15 + (0.87 * 0.80) = 0.846, rounded to 85%
-            expect(wrapper.vm.confidencePercent).toBe(85)
-        })
+      const tellUsButton = wrapper
+        .findAll('button')
+        .find((button) =>
+          button.text().includes(i18n.global.t('game.result_card.tell_us_the_place'))
+        )
+      await tellUsButton?.trigger('click')
 
-        it('should detect low confidence correctly', () => {
-            // Low confidence (0.5 <= x < 0.8)
-            const lowWrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, composite_confidence: 0.65 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-            expect(lowWrapper.vm.isLowConfidence).toBe(true)
-
-            // High confidence
-            const highWrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, composite_confidence: 0.9 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-            expect(highWrapper.vm.isLowConfidence).toBe(false)
-
-            // Very low confidence
-            const veryLowWrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, composite_confidence: 0.4 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-            expect(veryLowWrapper.vm.isLowConfidence).toBe(false)
-        })
-
-        it('should return undefined when confidence is 0 (edge case)', () => {
-            // Note: The component treats 0 as falsy, so confidencePercent returns undefined
-            // This is acceptable since 0% confidence means no match (shouldn't happen in practice)
-            const wrapper = mount(GameResultCard, {
-                props: { guess: { ...mockPlace, composite_confidence: 0 } },
-                global: {
-                    plugins: [i18n],
-                },
-            })
-
-            expect(wrapper.vm.confidencePercent).toBeUndefined()
-        })
+      expect(wrapper.emitted('incorrect')).toBeTruthy()
     })
+
+    it('should emit playAgain when "Play Again" is clicked', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: null },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      const playAgainButton = wrapper
+        .findAll('button')
+        .find((button) => button.text().includes(i18n.global.t('game.play_again')))
+      await playAgainButton?.trigger('click')
+
+      expect(wrapper.emitted('playAgain')).toBeTruthy()
+    })
+  })
+
+  describe('Match Analysis', () => {
+    it('should show match analysis collapsible', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.match_analysis'))
+    })
+
+    it('should calculate semantic percentage correctly', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, semantic_similarity: 0.85 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      // Open collapsible
+      const collapsibleTrigger = wrapper.find('button[class*="justify-between"]')
+      await collapsibleTrigger.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.description_match'))
+      expect(wrapper.text()).toContain('85%')
+    })
+
+    it('should calculate spatial percentage correctly', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, spatial_confidence: 0.9 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      // Open collapsible
+      const collapsibleTrigger = wrapper.find('button[class*="justify-between"]')
+      await collapsibleTrigger.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).toContain(i18n.global.t('game.result_card.affirmed_traits_match'))
+      expect(wrapper.text()).toContain('90%')
+    })
+
+    it('should toggle analysis visibility', async () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: mockPlace },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      const trigger = wrapper.find('button[class*="justify-between"]')
+
+      // Initially closed
+      expect(wrapper.vm.showAnalysis).toBe(false)
+
+      // Open
+      await trigger.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.showAnalysis).toBe(true)
+
+      // Close
+      await trigger.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.showAnalysis).toBe(false)
+    })
+  })
+
+  describe('Computed Properties', () => {
+    it('should calculate confidence percent', () => {
+      const wrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, confidence: 0.87 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      // Normalized: 0.15 + (0.87 * 0.80) = 0.846, rounded to 85%
+      expect(wrapper.vm.confidencePercent).toBe(85)
+    })
+
+    it('should detect low confidence correctly', () => {
+      // Low confidence (0.5 <= x < 0.8)
+      const lowWrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, confidence: 0.65 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+      expect(lowWrapper.vm.isLowConfidence).toBe(true)
+
+      // High confidence
+      const highWrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, confidence: 0.9 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+      expect(highWrapper.vm.isLowConfidence).toBe(false)
+
+      // Very low confidence
+      const veryLowWrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, confidence: 0.4 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+      expect(veryLowWrapper.vm.isLowConfidence).toBe(false)
+    })
+
+    it('should return undefined when confidence is 0 (edge case)', () => {
+      // Note: The component treats 0 as falsy, so confidencePercent returns undefined
+      // This is acceptable since 0% confidence means no match (shouldn't happen in practice)
+      const wrapper = mount(GameResultCard, {
+        props: { guess: { ...mockPlace, confidence: 0 } },
+        global: {
+          plugins: [i18n],
+        },
+      })
+
+      expect(wrapper.vm.confidencePercent).toBeUndefined()
+    })
+  })
 })
-

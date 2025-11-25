@@ -1,69 +1,83 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { Ollama } from 'npm:ollama@0.5.9'
 
-Deno.serve(async (req) => {
-    if (req.method !== 'POST' && req.method !== 'OPTIONS') {
-        return new Response('Method Not Allowed', { status: 405 })
+console.log('✓ Module loading started')
+
+const OLLAMA_HOST = Deno.env.get('OLLAMA_HOST') || 'http://host.docker.internal:11434'
+const OLLAMA_MODEL = 'mxbai-embed-large'
+
+console.log('✓ Constants initialized')
+
+Deno.serve(async (request: Request) => {
+  console.log('✓ Handler invoked')
+  try {
+    console.log(`✓ Request method: ${request.method}`)
+
+    if (request.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    // Handle CORS preflight request
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', {
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Authorization, Content-Type, x-client-info, apikey',
-            },
-        })
-    }
+    console.log('✓ About to parse request body')
+    const { text } = await request.json()
+    console.log('✓ Request body parsed successfully')
 
-    try {
-        const { text } = await req.json()
+    console.log(`✓ Text received: "${text?.slice(0, 30)}..."`)
 
-        if (!text || typeof text !== 'string' || text.trim().length === 0) {
-            return new Response(
-                JSON.stringify({ error: 'Text parameter is required' }),
-                {
-                    status: 400,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*',
-                    },
-                }
-            )
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      console.log('✗ Text validation failed')
+      return new Response(
+        JSON.stringify({ error: 'text field is required and must be non-empty' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
         }
-
-        // Generate embedding using Supabase AI with gte-small model
-        const session = new Supabase.ai.Session('gte-small')
-        const embedding = await session.run(text, {
-            mean_pool: true,
-            normalize: true,
-        })
-
-        if (!Array.isArray(embedding) || embedding.length !== 384) {
-            throw new Error(`Expected 384-dimensional vector, got ${embedding?.length || 0}`)
-        }
-
-        return new Response(
-            JSON.stringify({ embedding }),
-            {
-                status: 200,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                },
-            }
-        )
-    } catch (error) {
-        console.error('Error generating embedding:', error)
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            {
-                status: 500,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                },
-            }
-        )
+      )
     }
+
+    console.log('✓ Text validated')
+    console.log(`Generating embedding for text: "${text.slice(0, 50)}..."`)
+
+    console.log('✓ About to call Ollama API via ollama-js library')
+    const ollama = new Ollama({ host: OLLAMA_HOST })
+
+    const response = await ollama.embeddings({
+      model: OLLAMA_MODEL,
+      prompt: text.trim(),
+    })
+
+    console.log(`✓ Ollama API responded successfully`)
+
+    const embedding = response.embedding
+
+    if (!embedding || !Array.isArray(embedding)) {
+      throw new Error('Invalid response from Ollama API: missing or invalid embedding')
+    }
+
+    if (embedding.length !== 1024) {
+      throw new Error(`Invalid embedding dimensions: expected 1024, got ${embedding.length}`)
+    }
+
+    console.log(`Successfully generated ${embedding.length}-dimensional embedding`)
+
+    return new Response(JSON.stringify({ embedding }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (error) {
+    console.error('✗ Error generating embedding:', error)
+    console.error('✗ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  }
 })
+
+console.log('✓ Deno.serve registered - module loaded successfully')

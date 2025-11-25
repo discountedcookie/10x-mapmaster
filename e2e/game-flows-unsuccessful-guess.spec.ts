@@ -14,12 +14,12 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
     // Answer in a way that might lead to wrong guess
     const description = 'A famous landmark in Europe'
 
-    await page.getByPlaceholder(/e.g.,/).fill(description)
-    await page.getByRole('button', { name: 'Start Game' }).click()
+    await page.getByPlaceholder(/Describe a place/).fill(description)
+    await page.getByRole('button', { name: "Let's Go!" }).click()
 
     // Wait for analysis to complete
-    await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+    await expect(page.getByText('Reading your clues...')).not.toBeVisible({
+      timeout: 10_000,
     })
 
     // Wait for game state
@@ -27,7 +27,7 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
 
     // Check if we got a guess
     const hasGuess = await page
-      .getByText('Is this your place?')
+      .getByText('Is this it?')
       .isVisible()
       .catch(() => false)
 
@@ -50,8 +50,14 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
       await page.waitForTimeout(500)
 
       const moreOptionsAvailable =
-        (await page.getByText(/Question|submit|correct place/i).isVisible().catch(() => false)) ||
-        (await page.getByText(/I'm still learning|help me learn/i).isVisible().catch(() => false))
+        (await page
+          .getByText(/Question|submit|correct place/i)
+          .isVisible()
+          .catch(() => false)) ||
+        (await page
+          .getByText(/I'm still learning|help me learn/i)
+          .isVisible()
+          .catch(() => false))
 
       expect(moreOptionsAvailable).toBe(true)
     }
@@ -60,11 +66,11 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
   test('should allow retry after unsuccessful guess', async ({ page }) => {
     const description = 'A structure with towers and walls'
 
-    await page.getByPlaceholder(/e.g.,/).fill(description)
-    await page.getByRole('button', { name: 'Start Game' }).click()
+    await page.getByPlaceholder(/Describe a place/).fill(description)
+    await page.getByRole('button', { name: "Let's Go!" }).click()
 
-    await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+    await expect(page.getByText('Reading your clues...')).not.toBeVisible({
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -72,7 +78,10 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
     // Look for retry or "New Game" button
     const newGameButton = page.getByRole('button', { name: /New Game|Retry|Try Again/i })
 
-    const gameExists = await page.getByText(/Question|Is this|No matches/).isVisible().catch(() => false)
+    const gameExists = await page
+      .getByText(/Question|Is this it|No matches/)
+      .isVisible()
+      .catch(() => false)
 
     expect(gameExists).toBe(true)
 
@@ -91,11 +100,11 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
       'A purple pyramid shaped building with exactly 7 windows in a fictional desert city'
 
     await page.getByPlaceholder(/e.g.,/).fill(verySpecificDescription)
-    await page.getByRole('button', { name: 'Start Game' }).click()
+    await page.getByRole('button', { name: "Let's Go!" }).click()
 
     // Wait for analysis
-    await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+    await expect(page.getByText('Reading your clues...')).not.toBeVisible({
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -116,7 +125,7 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
       .catch(() => false)
 
     const hasResult = await page
-      .getByText(/Is this your place|I'm narrowing/)
+      .getByText(/Is this it|I'm narrowing/)
       .isVisible()
       .catch(() => false)
 
@@ -126,19 +135,17 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
   test('should handle rejection with option to provide more details', async ({ page }) => {
     const description = 'A large building'
 
-    await page.getByPlaceholder(/e.g.,/).fill(description)
-    await page.getByRole('button', { name: 'Start Game' }).click()
+    await page.getByPlaceholder(/Describe a place/).fill(description)
+    await page.getByRole('button', { name: "Let's Go!" }).click()
 
-    await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+    await expect(page.getByText('Reading your clues...')).not.toBeVisible({
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
 
     // Wait for either questions or guess
-    await expect(
-      page.getByText(/Question|Is this your place|I'm narrowing|No matches/)
-    ).toBeVisible()
+    await expect(page.getByText(/Question|Is this it|I'm narrowing|No matches/)).toBeVisible()
 
     // If there's a "No" or rejection button, click it
     const rejectButton = page.getByRole('button', { name: /No|That's not|incorrect/i })
@@ -161,18 +168,18 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
   test('should track game state properly on unsuccessful guess', async ({ page }) => {
     const description = 'A bridge over water'
 
-    await page.getByPlaceholder(/e.g.,/).fill(description)
-    await page.getByRole('button', { name: 'Start Game' }).click()
+    await page.getByPlaceholder(/Describe a place/).fill(description)
+    await page.getByRole('button', { name: "Let's Go!" }).click()
 
-    await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+    await expect(page.getByText('Reading your clues...')).not.toBeVisible({
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
 
     // Verify game is in active state (showing content)
     const gameActive = await page
-      .getByText(/Question|Is this|I'm narrowing|No matches/)
+      .getByText(/Question|Is this it|I'm narrowing|No matches/)
       .isVisible()
 
     expect(gameActive).toBe(true)
@@ -184,7 +191,7 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
       .catch(() => false)
 
     const resultDisplay = await page
-      .getByText(/Is this your place/)
+      .getByText(/Is this it/)
       .isVisible()
       .catch(() => false)
 
@@ -194,11 +201,11 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
   test('should allow user to provide feedback or correction', async ({ page }) => {
     const description = 'A tall structure'
 
-    await page.getByPlaceholder(/e.g.,/).fill(description)
-    await page.getByRole('button', { name: 'Start Game' }).click()
+    await page.getByPlaceholder(/Describe a place/).fill(description)
+    await page.getByRole('button', { name: "Let's Go!" }).click()
 
-    await expect(page.getByText('Analyzing your description...')).not.toBeVisible({
-      timeout: 10000,
+    await expect(page.getByText('Reading your clues...')).not.toBeVisible({
+      timeout: 10_000,
     })
 
     await page.waitForTimeout(500)
@@ -208,9 +215,7 @@ test.describe('Game Flow: Unsuccessful Guess and Retry', () => {
       name: /tell me|what is|skip|submit|feedback/i,
     })
 
-    const hasGameContent = await page
-      .getByText(/Question|Is this|I'm narrowing/)
-      .isVisible()
+    const hasGameContent = await page.getByText(/Question|Is this|I'm narrowing/).isVisible()
 
     expect(hasGameContent).toBe(true)
 

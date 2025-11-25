@@ -12,7 +12,7 @@ describe('GameQuestionCard', () => {
     confidence: 0.65,
     topCandidates: [
       { name: 'Paris', confidence: 0.65 },
-      { name: 'London', confidence: 0.60 },
+      { name: 'London', confidence: 0.6 },
       { name: 'Berlin', confidence: 0.55 },
     ],
   }
@@ -36,7 +36,9 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.question_number', { current: 5, total: 20 }))
+    expect(wrapper.text()).toContain(
+      i18n.global.t('game.question_card.question_number', { current: 5, total: 20 })
+    )
   })
 
   it('should calculate progress percentage correctly', () => {
@@ -60,7 +62,9 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.candidates_remaining', { count: 1 }))
+    expect(wrapper.text()).toContain(
+      i18n.global.t('game.question_card.candidates_remaining', { count: 1 })
+    )
   })
 
   it('should display candidates count with plural form', () => {
@@ -71,7 +75,9 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.candidates_remaining', { count: 15 }))
+    expect(wrapper.text()).toContain(
+      i18n.global.t('game.question_card.candidates_remaining', { count: 15 })
+    )
   })
 
   it('should display confidence badge when provided', () => {
@@ -89,11 +95,11 @@ describe('GameQuestionCard', () => {
   })
 
   it('should not display confidence when not provided', () => {
-    const propsWithoutConfidence = { ...defaultProps, topCandidates: undefined }
-    delete propsWithoutConfidence.confidence
+    const propertiesWithoutConfidence = { ...defaultProps, topCandidates: undefined }
+    delete propertiesWithoutConfidence.confidence
 
     const wrapper = mount(GameQuestionCard, {
-      props: propsWithoutConfidence,
+      props: propertiesWithoutConfidence,
       global: {
         plugins: [i18n],
       },
@@ -112,7 +118,9 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    const yesButton = wrapper.findAll('button').find((btn) => btn.text() === i18n.global.t('game.yes'))
+    const yesButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === i18n.global.t('game.yes'))
     await yesButton?.trigger('click')
 
     expect(wrapper.emitted('answer')).toBeTruthy()
@@ -127,7 +135,9 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    const noButton = wrapper.findAll('button').find((btn) => btn.text() === i18n.global.t('game.no'))
+    const noButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === i18n.global.t('game.no'))
     await noButton?.trigger('click')
 
     expect(wrapper.emitted('answer')).toBeTruthy()
@@ -143,8 +153,8 @@ describe('GameQuestionCard', () => {
     })
 
     const buttons = wrapper.findAll('button')
-    const yesButton = buttons.find((btn) => btn.text() === i18n.global.t('game.yes'))
-    const noButton = buttons.find((btn) => btn.text() === i18n.global.t('game.no'))
+    const yesButton = buttons.find((button) => button.text() === i18n.global.t('game.yes'))
+    const noButton = buttons.find((button) => button.text() === i18n.global.t('game.no'))
 
     expect(yesButton).toBeDefined()
     expect(noButton).toBeDefined()
@@ -158,7 +168,9 @@ describe('GameQuestionCard', () => {
       },
     })
 
-    expect(wrapper.text()).toContain(i18n.global.t('game.question_card.candidates_remaining', { count: 0 }))
+    expect(wrapper.text()).toContain(
+      i18n.global.t('game.question_card.candidates_remaining', { count: 0 })
+    )
   })
 
   it('should show 100% progress when on last question', () => {
@@ -173,6 +185,3 @@ describe('GameQuestionCard', () => {
     expect(progress.props('modelValue')).toBe(100)
   })
 })
-
-
-

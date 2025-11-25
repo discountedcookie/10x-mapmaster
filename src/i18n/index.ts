@@ -8,7 +8,8 @@ import { messageCompiler } from './compiler'
 const savedLocale = localStorage.getItem('preferred-language')
 const browserLocale = navigator.language.split('-')[0] || 'en'
 const supportedLocales = ['en', 'es', 'pl']
-const defaultLocale = savedLocale || (supportedLocales.includes(browserLocale) ? browserLocale : 'en')
+const defaultLocale =
+  savedLocale || (supportedLocales.includes(browserLocale) ? browserLocale : 'en')
 
 const i18n = createI18n({
   legacy: false, // Enable Composition API mode
@@ -23,4 +24,3 @@ const i18n = createI18n({
 })
 
 export default i18n
-

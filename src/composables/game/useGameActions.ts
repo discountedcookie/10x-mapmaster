@@ -3,24 +3,21 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import { useGameStore } from '@/stores/game'
-import { usePlaces, type NominatimPlace } from '@/composables/usePlaces'
+import type { NominatimPlace } from '@/composables/usePlaces'
 import type { useGameState } from './useGameState'
 
 export function useGameActions(state: ReturnType<typeof useGameState>) {
   const router = useRouter()
   const gameStore = useGameStore()
-  const placesStore = usePlaces()
-  const { extractDescriptors, enrichDescriptors } = placesStore
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   const saving = ref(false)
 
   async function startGame(description: string) {
     try {
-      await gameStore.startNewGame(description.trim())
+      await gameStore.startNewGame(description.trim(), locale.value)
       state.gameStarted.value = true
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Failed to start game:', error)
       toast.error(t('game.toast.start_game_failed_title'), {
         description: t('game.toast.start_game_failed_body'),
@@ -39,8 +36,8 @@ export function useGameActions(state: ReturnType<typeof useGameState>) {
     state.gameStarted.value = false
   }
 
-  async function answerQuestion(answer: boolean) {
-    await gameStore.answerQuestion(answer)
+  async function answerQuestion() {
+    await gameStore.submitAnswer('question_answer')
   }
 
   async function handleCorrectGuess() {
@@ -54,61 +51,32 @@ export function useGameActions(state: ReturnType<typeof useGameState>) {
         description: t('game.toast.game_saved_body'),
       })
       playAgain()
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Failed to save game:', error)
       toast.error(t('game.toast.save_game_failed_title'), {
         description: t('game.toast.save_game_failed_body'),
       })
-    }
-    finally {
+    } finally {
       saving.value = false
     }
   }
 
-  function handleIncorrectGuess() {
-    gameStore.rejectGuessAndContinue()
-
-    if (gameStore.isGameComplete && !gameStore.gameResult) {
-      state.showPlaceSearch.value = true
-    }
+  async function handleIncorrectGuess() {
+    // This function is deprecated - handled by playTurn now
+    console.warn('handleIncorrectGuess is deprecated')
   }
 
-  async function selectPlace(nominatimPlace: NominatimPlace) {
+  async function selectPlace(_nominatimPlace: NominatimPlace) {
     try {
       saving.value = true
-      const lat = Number.parseFloat(nominatimPlace.lat)
-      const lng = Number.parseFloat(nominatimPlace.lon)
-
-      let place = await gameStore.checkPlaceExists(lat, lng)
-      const isNewPlace = !place
-
-      if (!place) {
-        const descriptors = extractDescriptors(nominatimPlace)
-        const enrichedDescriptors = await enrichDescriptors(lat, lng, descriptors)
-
-        place = await gameStore.saveNewPlace(
-          nominatimPlace.display_name,
-          lat,
-          lng,
-          enrichedDescriptors,
-        )
-      }
-
-      await gameStore.finalizeGameSession(place, false, isNewPlace)
-      toast.success(t('game.toast.place_saved_title'), {
-        description: t('game.toast.place_saved_body'),
-      })
-      state.showPlaceSearch.value = false
-      playAgain()
-    }
-    catch (error) {
-      console.error('Failed to save place:', error)
+      // Note: Adding new places should be an admin operation, not frontend
+      // Frontend should only work with existing places from database
       toast.error(t('game.toast.save_place_failed_title'), {
-        description: t('game.toast.save_place_failed_body'),
+        description: 'New places must be added by administrators',
       })
-    }
-    finally {
+    } catch (error) {
+      console.error('Failed to select place:', error)
+    } finally {
       saving.value = false
     }
   }

@@ -25,8 +25,8 @@ export function useTheme() {
 
   // Computed to determine if system is in dark mode
   const isSystemDark = computed(() => {
-    if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    if (globalThis.window !== undefined) {
+      return globalThis.matchMedia('(prefers-color-scheme: dark)').matches
     }
     return false
   })

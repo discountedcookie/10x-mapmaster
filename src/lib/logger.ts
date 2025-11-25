@@ -5,5 +5,5 @@ export const logger = createConsola({
   formatOptions: {
     date: true,
     colors: import.meta.env.DEV,
-  }
+  },
 })

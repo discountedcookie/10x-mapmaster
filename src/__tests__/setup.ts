@@ -5,6 +5,17 @@ import es from '../i18n/locales/es'
 import pl from '../i18n/locales/pl'
 import { messageCompiler } from '../i18n/compiler'
 
+// Mock localStorage
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: vi.fn(() => null),
+    setItem: vi.fn(() => null),
+    removeItem: vi.fn(() => null),
+    clear: vi.fn(() => null),
+  },
+  writable: true,
+})
+
 // Mock vue-maplibre-gl to prevent initialization errors
 vi.mock('@indoorequal/vue-maplibre-gl', () => ({
   default: {},
@@ -37,7 +48,9 @@ vi.mock('@/lib/supabase', () => ({
     })),
     rpc: vi.fn(),
     channel: vi.fn(() => ({
-      on: vi.fn(function(this: any) { return this }),
+      on: vi.fn(function (this: any) {
+        return this
+      }),
       subscribe: vi.fn(() => {}),
     })),
     removeChannel: vi.fn(),
@@ -60,27 +73,26 @@ const originalConsoleWarn = console.warn
 const originalConsoleError = console.error
 
 beforeEach(() => {
-    // Suppress Vue-specific warnings
-    console.warn = (...args: any[]) => {
-        const message = args[0]?.toString() || ''
-        if (message.includes('[Vue warn]')) {
-            return // Suppress Vue warnings
-        }
-        originalConsoleWarn(...args)
+  // Suppress Vue-specific warnings
+  console.warn = (...arguments_: any[]) => {
+    const message = arguments_[0]?.toString() || ''
+    if (message.includes('[Vue warn]')) {
+      return // Suppress Vue warnings
     }
+    originalConsoleWarn(...arguments_)
+  }
 
-    // Keep console.error for real errors, but suppress expected test errors
-    console.error = (...args: any[]) => {
-        const message = args[0]?.toString() || ''
-        // Suppress expected error messages from tests
-        if (
-            message.includes('Error fetching places') ||
-            message.includes('Failed to enrich') ||
-            message.includes('Error loading')
-        ) {
-            return
-        }
-        originalConsoleError(...args)
+  // Keep console.error for real errors, but suppress expected test errors
+  console.error = (...arguments_: any[]) => {
+    const message = arguments_[0]?.toString() || ''
+    // Suppress expected error messages from tests
+    if (
+      message.includes('Error fetching places') ||
+      message.includes('Failed to enrich') ||
+      message.includes('Error loading')
+    ) {
+      return
     }
+    originalConsoleError(...arguments_)
+  }
 })
-

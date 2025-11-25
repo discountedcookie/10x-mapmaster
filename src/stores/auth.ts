@@ -5,12 +5,16 @@ import { logger } from '@/lib/logger'
 import type { User, Session } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
-  const session = ref<Session | null>(null)
+  // State
+  const user = ref<User>()
+  const session = ref<Session>()
   const loading = ref(true)
 
-  const isAuthenticated = computed(() => !!user.value)
+  // Computed
+  const isAuthenticated = computed(() => !!user.value && !user.value.is_anonymous)
+  const isAnonymous = computed(() => user.value?.is_anonymous ?? false)
 
+  // Initialize auth and ensure anonymous session
   async function initialize() {
     try {
       loading.value = true
@@ -20,85 +24,46 @@ export const useAuthStore = defineStore('auth', () => {
       if (error) {
         logger.warn('Session restoration failed', {
           error: error.message,
-          code: 'AUTH_SESSION_RESTORATION_FAILED'
+          code: 'AUTH_SESSION_RESTORATION_FAILED',
         })
-        // Clear invalid session
         await supabase.auth.signOut()
-        session.value = null
-        user.value = null
-      }
-      else {
-        session.value = data.session
-        user.value = data.session?.user ?? null
       }
 
-      // Listen for auth changes
+      // Create anonymous session if none exists
+      if (!data.session) {
+        logger.info('No session found, creating anonymous session')
+        const { error: anonError } = await supabase.auth.signInAnonymously()
+        if (anonError) {
+          logger.error('Anonymous sign in failed', {
+            error: anonError.message,
+            code: 'AUTH_ANONYMOUS_FAILED',
+          })
+        }
+      }
+
+      // Listen for auth state changes
       supabase.auth.onAuthStateChange((_event, newSession) => {
-        session.value = newSession
-        user.value = newSession?.user ?? null
+        session.value = newSession ?? undefined
+        user.value = newSession?.user
       })
-    }
-    finally {
+    } finally {
       loading.value = false
     }
   }
 
-  async function signInWithEmail(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
-      // Provide more specific error messages
-      if (error.message.includes('Email not confirmed')) {
-        throw new Error('Email not confirmed. Please check your email and click the verification link.')
-      }
-      if (error.message.includes('Invalid login credentials')) {
-        throw new Error('Invalid login credentials. Please check your email and password.')
-      }
-      throw new Error(error.message || 'Failed to sign in. Please try again.')
-    }
-    return data
-  }
-
-  async function signUpWithEmail(email: string, password: string) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-    if (error) {
-      // Provide more specific error messages
-      if (error.message.includes('already registered')) {
-        throw new Error('An account with this email already exists. Please sign in instead.')
-      }
-      if (error.message.includes('Password')) {
-        throw new Error(error.message)
-      }
-      throw new Error(error.message || 'Failed to create account. Please try again.')
-    }
-    return data
-  }
-
-  async function signInWithGitHub() {
-    // Use Vite's base URL to handle both dev (/) and production (/10x-mapmaster/)
-    const baseUrl = import.meta.env.BASE_URL
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}${baseUrl}game`,
-      },
-    })
-    if (error)
-      throw error
-    return data
-  }
-
+  // Sign out and create new anonymous session
   async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error)
-      throw error
-    user.value = null
-    session.value = null
+    await supabase.auth.signOut()
+    user.value = undefined
+    session.value = undefined
+
+    // Create new anonymous session after sign out
+    const { error } = await supabase.auth.signInAnonymously()
+    if (error) {
+      logger.error('Failed to create anonymous session after signout', {
+        error: error.message,
+      })
+    }
   }
 
   return {
@@ -106,10 +71,8 @@ export const useAuthStore = defineStore('auth', () => {
     session,
     loading,
     isAuthenticated,
+    isAnonymous,
     initialize,
-    signInWithEmail,
-    signUpWithEmail,
-    signInWithGitHub,
     signOut,
   }
 })

@@ -26,11 +26,13 @@ Use [Conventional Commits](https://www.conventionalcommits.org/) format.
 ## Examples
 
 ### Simple Feature
+
 ```
 feat(game): add confidence score to result card
 ```
 
 ### Bug Fix with Context
+
 ```
 fix(auth): prevent session timeout during active gameplay
 
@@ -41,6 +43,7 @@ Resolves #123
 ```
 
 ### Database Migration
+
 ```
 feat(db): add game statistics table
 
@@ -52,6 +55,7 @@ Migration: 000004_game_statistics.sql
 ```
 
 ### Security Fix
+
 ```
 security(rls): strengthen place insertion policy
 
@@ -62,10 +66,11 @@ BREAKING CHANGE: Requires new rate_limit column in places table
 ```
 
 ### Refactoring
+
 ```
 refactor(composables): extract map logic into useMapView
 
-Decomposed MapView component by moving map initialization and 
+Decomposed MapView component by moving map initialization and
 marker management into dedicated composable for better reusability.
 ```
 
@@ -86,7 +91,7 @@ If your commit introduces breaking changes, add `BREAKING CHANGE:` in the footer
 ```
 feat(api): change embedding endpoint response format
 
-BREAKING CHANGE: Embedding endpoint now returns {embedding: [...]} 
+BREAKING CHANGE: Embedding endpoint now returns {embedding: [...]}
 instead of raw array. Update all clients accordingly.
 ```
 
@@ -96,5 +101,4 @@ instead of raw array. Update all clients accordingly.
 - Use imperative mood ("add" not "added")
 - Don't capitalize first letter
 - No period at the end of description
-- Use body to explain *what* and *why*, not *how*
-
+- Use body to explain _what_ and _why_, not _how_

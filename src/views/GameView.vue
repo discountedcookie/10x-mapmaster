@@ -1,160 +1,181 @@
 <script setup lang="ts">
-import { computed, watchEffect, unref } from 'vue'
-import { useGameFlow } from '@/composables/game'
-import { useGameStore, MAX_QUESTIONS, normalizeConfidenceForDisplay } from '@/stores/game'
-import GameStartScreen from '@/components/game/GameStartScreen.vue'
-import GameResumeDialog from '@/components/game/GameResumeDialog.vue'
-import GameLoadingOverlay from '@/components/game/GameLoadingOverlay.vue'
-import GameQuestionCard from '@/components/game/GameQuestionCard.vue'
-import GameResultCard from '@/components/game/GameResultCard.vue'
-import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
-import { useMapBounds } from '@/composables/map/useMapBounds'
+import { ref, watch, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { useGameStore } from '@/stores/game'
 import { useMapState } from '@/composables/map/useMapState'
-import { usePlaces } from '@/composables/usePlaces'
+import GameQuestion from '@/components/game/GameQuestion.vue'
+import GameGuess from '@/components/game/GameGuess.vue'
+import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
+import type { NominatimPlace } from '@/composables/usePlaces'
 
+const route = useRoute()
+const router = useRouter()
 const gameStore = useGameStore()
-const gameFlow = useGameFlow()
-const placesStore = usePlaces()
-const { setMapState } = useMapState()
+const { setCandidates } = useMapState()
+const loadError = ref<string | null>(null)
 
-// Computed for current state value
-const currentGameState = computed(() => unref(gameFlow.gameState))
+// Watch candidates and update map state
+watch(
+  () => gameStore.candidates,
+  (candidates) => {
+    setCandidates(candidates)
+  },
+  { immediate: true }
+)
 
-// Compute game candidate markers as places
-const gameMarkers = computed(() => {
-  return gameStore.topCandidates
-    .filter(c => c.lat !== null && c.lng !== null)
-    .map(candidate => ({
-      id: `game-${candidate.id}`,
-      name: candidate.name,
-      lat: candidate.lat!,
-      lng: candidate.lng!,
-      game_count: undefined,
-      // Store styling info as extensions
-      backgroundColor: '#ef4444',
-      opacity: 0.4 + (candidate.composite_confidence * 0.6),
-      similarity: candidate.composite_confidence,
-    }))
+// When game is won, fetch correct place and show only that on map
+watch(
+  () => gameStore.isWon,
+  async (isWon) => {
+    if (isWon) {
+      await gameStore.fetchCorrectPlace()
+      // Set map to show only the correct place
+      if (gameStore.correctPlace) {
+        setCandidates([gameStore.correctPlace])
+      }
+    }
+  },
+  { immediate: true }
+)
+
+// Get current question/guess from messages (last system message)
+const currentMessage = computed(() => {
+  const messages = gameStore.gameState?.messages || []
+  // Find the last system message (question or guess)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'system') {
+      return messages[i]
+    }
+  }
+  return null
 })
 
-// Calculate bounds for game markers
-const markerCoordinates = computed(() => {
-  return gameMarkers.value
-    .filter(m => typeof m.lat === 'number' && typeof m.lng === 'number' && !Number.isNaN(m.lat) && !Number.isNaN(m.lng))
-    .map(marker => ({
-      coordinates: [marker.lng, marker.lat] as [number, number],
-    }))
+const isQuestion = computed(() => currentMessage.value?.type === 'question')
+const isGuess = computed(() => currentMessage.value?.type === 'guess')
+
+// Load game state on mount
+onMounted(async () => {
+  const sessionId = route.params.sessionId as string
+
+  // Validate session ID format (UUID)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!sessionId || !uuidRegex.test(sessionId)) {
+    loadError.value = 'Invalid session ID'
+    await router.push('/')
+    return
+  }
+
+  // If game store already has this session loaded, skip
+  if (gameStore.gameSessionId === sessionId && gameStore.gameState) {
+    return
+  }
+
+  try {
+    // Set the session ID and load game state
+    gameStore.gameSessionId = sessionId
+    await gameStore.getGameState()
+  } catch (error) {
+    console.error('Failed to load game:', error)
+    loadError.value = error instanceof Error ? error.message : 'Failed to load game'
+    // Redirect to home after a delay
+    setTimeout(() => {
+      router.push('/')
+    }, 2000)
+  }
 })
 
-const bounds = useMapBounds(markerCoordinates, 0.25)
+async function handleAnswer(answer: boolean) {
+  try {
+    await gameStore.answerQuestion(answer)
+  } catch (error) {
+    console.error('Failed to answer:', error)
+  }
+}
 
-// Compute all places for map when game is not active
-const allPlaces = computed(() => {
-  return placesStore.places.filter(p => p.lat !== null && p.lng !== null)
-})
-
-const allPlacesMarkers = computed(() => {
-  return allPlaces.value.map(place => ({
-    coordinates: [place.lng!, place.lat!] as [number, number],
-  }))
-})
-
-const allPlacesBounds = useMapBounds(allPlacesMarkers)
-
-// Update map state based on game phase
-watchEffect(() => {
-  const gameState = currentGameState.value
-  const isGameActive = gameState === 'question' || gameState === 'result'
-
-  if (isGameActive) {
-    const validMarkers = gameMarkers.value.filter(m =>
-      typeof m.lat === 'number' && typeof m.lng === 'number' && !Number.isNaN(m.lat) && !Number.isNaN(m.lng),
+async function handlePlaceSubmit(place: NominatimPlace) {
+  try {
+    await gameStore.submitActualPlace(
+      place.display_name,
+      parseFloat(place.lat),
+      parseFloat(place.lon),
+      place.place_id.toString()
     )
-    // Show candidate markers when game is actively running
-    if (validMarkers.length > 0 && bounds.value && Array.isArray(bounds.value) && bounds.value.length === 2) {
-      setMapState(bounds.value, validMarkers as any)
-    }
+    // After successful submission, redirect to home
+    router.push('/')
+  } catch (error) {
+    console.error('Failed to submit place:', error)
   }
-  else {
-    // Show all places when game is not active (start, placeSearch, resumeDialog, idle)
-    if (allPlaces.value.length > 0 && allPlacesBounds.value) {
-      setMapState(allPlacesBounds.value, allPlaces.value)
-    }
-  }
-})
+}
 </script>
 
 <template>
-  <!-- Game UI - Centered Cards -->
-  <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
-    <div class="pointer-events-auto max-w-2xl w-full max-h-[calc(100vh-6rem)]">
-      <!-- Resume Game Dialog -->
-      <GameResumeDialog
-        v-if="currentGameState === 'resumeDialog'"
-        :question-count="gameStore.questionCount"
-        :max-questions="MAX_QUESTIONS"
-        :candidates-count="gameStore.topCandidates.length"
-        @resume="gameFlow.resumeGame"
-        @start-fresh="gameFlow.startFreshGame"
-      />
+  <div class="relative flex justify-center items-end h-full pb-4 px-4 pointer-events-none">
+    <!-- Loading state -->
+    <Card
+      v-if="gameStore.loading && !gameStore.gameState"
+      class="w-full md:max-w-md pointer-events-auto"
+    >
+      <CardContent class="py-8">
+        <p class="text-center text-muted-foreground">Loading game...</p>
+      </CardContent>
+    </Card>
 
-      <!-- Start Screen -->
-      <GameStartScreen
-        v-else-if="currentGameState === 'start'"
-        :description="unref(gameFlow.userDescription)"
-        :validation-message="unref(gameFlow.validationMessage)"
-        :description-length="unref(gameFlow.descriptionLength)"
-        :is-valid="unref(gameFlow.isDescriptionValid)"
-        :loading="gameStore.loading"
-        :min-length="gameFlow.MIN_DESCRIPTION_LENGTH"
-        :max-length="gameFlow.MAX_DESCRIPTION_LENGTH"
-        @update:description="(val) => { gameFlow.userDescription.value = val }"
-        @start="gameFlow.startGame(unref(gameFlow.userDescription))"
-        @go-home="gameFlow.goHome"
-      />
+    <!-- Error state -->
+    <Card v-else-if="loadError" class="w-full md:max-w-md pointer-events-auto">
+      <CardContent class="py-8">
+        <p class="text-center text-destructive">{{ loadError }}</p>
+        <p class="text-center text-muted-foreground text-sm mt-2">Redirecting to home...</p>
+      </CardContent>
+    </Card>
 
-      <!-- Question Phase -->
-      <GameQuestionCard
-        v-else-if="currentGameState === 'question' && gameStore.currentQuestion"
-        :question="gameStore.currentQuestion.text"
-        :question-number="gameStore.questionCount + 1"
-        :total-questions="MAX_QUESTIONS"
-        :candidates-count="gameStore.candidates.length"
-        :confidence="gameStore.displayConfidence"
-        :top-candidates="gameStore.topCandidates.map(candidate => ({
-          name: candidate.name,
-          confidence: normalizeConfidenceForDisplay(candidate.composite_confidence)
-        }))"
-        @answer="gameFlow.answerQuestion"
-      />
+    <!-- Game loaded -->
+    <Card v-else-if="gameStore.gameState" class="w-full md:max-w-md pointer-events-auto">
+      <CardHeader>
+        <CardTitle class="text-center">
+          {{ gameStore.gameState.description }}
+        </CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <!-- Game won -->
+        <div v-if="gameStore.isWon" class="text-center space-y-4">
+          <p class="text-2xl">Too easy!</p>
+          <p class="text-muted-foreground">
+            Guessed in {{ gameStore.gameState.questionCount || 1 }} question{{
+              (gameStore.gameState.questionCount || 1) === 1 ? '' : 's'
+            }}
+          </p>
+          <Button class="w-full" @click="router.push('/')">New Game</Button>
+        </div>
 
-      <!-- Result Phase -->
-      <GameResultCard
-        v-else-if="currentGameState === 'result'"
-        :guess="gameStore.gameResult"
-        :disabled="unref(gameFlow.saving)"
-        @correct="gameFlow.handleCorrectGuess"
-        @incorrect="gameFlow.handleIncorrectGuess"
-        @play-again="gameFlow.playAgain"
-      />
+        <!-- Game ended (needs submission) -->
+        <div v-else-if="gameStore.isNeedsSubmission" class="space-y-4">
+          <div class="text-center space-y-2">
+            <p class="text-xl font-semibold">I give up!</p>
+            <p class="text-muted-foreground">Help me learn - what place were you thinking of?</p>
+          </div>
 
-      <!-- Place Search -->
-      <GamePlaceSearch
-        v-else-if="currentGameState === 'placeSearch'"
-        @select="gameFlow.selectPlace"
-        @cancel="() => { gameFlow.showPlaceSearch.value = false }"
-      />
-    </div>
-  </div>
+          <!-- Inline place search -->
+          <GamePlaceSearch @select="handlePlaceSubmit" @cancel="router.push('/')" />
+        </div>
 
-  <!-- Loading Overlay -->
-  <GameLoadingOverlay v-if="gameStore.loading && !unref(gameFlow.gameStarted)" />
+        <!-- Active game: Question -->
+        <GameQuestion
+          v-else-if="isQuestion && currentMessage"
+          :question="currentMessage.text"
+          :loading="gameStore.loading"
+          @answer="handleAnswer"
+        />
 
-  <!-- Error message -->
-  <div
-    v-if="gameStore.error"
-    class="fixed top-20 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground px-4 py-2 rounded-md pointer-events-auto z-50"
-  >
-    {{ gameStore.error }}
+        <!-- Active game: Guess -->
+        <GameGuess
+          v-else-if="isGuess && currentMessage"
+          :guess-text="currentMessage.text"
+          :loading="gameStore.loading"
+          @answer="handleAnswer"
+        />
+      </CardContent>
+    </Card>
   </div>
 </template>

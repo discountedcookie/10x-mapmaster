@@ -2,17 +2,14 @@
 import type { CollapsibleRootEmits, CollapsibleRootProps } from 'reka-ui'
 import { CollapsibleRoot, useForwardPropsEmits } from 'reka-ui'
 
-const props = defineProps<CollapsibleRootProps>()
+const properties = defineProps<CollapsibleRootProps>()
 const emits = defineEmits<CollapsibleRootEmits>()
 
-const forwarded = useForwardPropsEmits(props, emits)
+const forwarded = useForwardPropsEmits(properties, emits)
 </script>
 
 <template>
-  <CollapsibleRoot
-    v-slot="{ open }"
-    v-bind="forwarded"
-  >
+  <CollapsibleRoot v-slot="{ open }" v-bind="forwarded">
     <slot :open="open" />
   </CollapsibleRoot>
 </template>

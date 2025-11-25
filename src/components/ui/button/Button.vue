@@ -6,13 +6,13 @@ import { Primitive } from 'reka-ui'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '.'
 
-interface Props extends PrimitiveProps {
+interface Properties extends PrimitiveProps {
   variant?: ButtonVariants['variant']
   size?: ButtonVariants['size']
   class?: HTMLAttributes['class']
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Properties>(), {
   as: 'button',
 })
 </script>

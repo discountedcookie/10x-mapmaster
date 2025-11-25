@@ -13,8 +13,7 @@ const { t } = useI18n()
 const handleGetStarted = () => {
   if (authStore.isAuthenticated) {
     router.push('/game')
-  }
-  else {
+  } else {
     router.push('/login')
   }
 }
@@ -23,14 +22,15 @@ const handleGetStarted = () => {
 <template>
   <Card
     class="w-full max-w-md animate-slide-up-fade"
-    style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);"
+    style="
+      box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
+    "
   >
     <CardHeader class="bg-gradient-playful text-white rounded-t-xl">
       <CardTitle class="text-4xl font-bold flex items-center gap-3">
-        <Icon
-          icon="radix-icons:globe"
-          class="h-10 w-10"
-        />
+        <Icon icon="radix-icons:globe" class="h-10 w-10" />
         <span>{{ t('home.title') }}</span>
       </CardTitle>
       <CardDescription class="text-base text-white/90 mt-2">
@@ -43,10 +43,7 @@ const handleGetStarted = () => {
         class="w-full transition-playful shadow-playful-sm hover:shadow-playful-lg"
         @click="handleGetStarted"
       >
-        <Icon
-          icon="radix-icons:rocket"
-          class="h-5 w-5 mr-2"
-        />
+        <Icon icon="radix-icons:rocket" class="h-5 w-5 mr-2" />
         {{ t('home.get_started') }}
       </Button>
     </CardContent>

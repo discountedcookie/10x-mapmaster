@@ -2,7 +2,14 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePlaces, type NominatimPlace } from '@/composables/usePlaces'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 const emit = defineEmits<{
@@ -30,8 +37,7 @@ watch(query, (newQuery) => {
   debounceTimeout.value = setTimeout(async () => {
     try {
       results.value = await placesStore.searchPlaces(newQuery)
-    }
-    catch {
+    } catch {
       // Error is already handled in store
     }
   }, 1000) // Debounce for 1 second to respect Nominatim rate limit
@@ -55,25 +61,16 @@ function selectPlace(place: NominatimPlace) {
           type="text"
           :placeholder="t('game.place_search.placeholder')"
           class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        >
-        <p
-          v-if="placesStore.searchLoading"
-          class="text-sm text-muted-foreground"
-        >
+        />
+        <p v-if="placesStore.searchLoading" class="text-sm text-muted-foreground">
           {{ t('game.place_search.searching') }}
         </p>
-        <p
-          v-if="placesStore.searchError"
-          class="text-sm text-destructive"
-        >
+        <p v-if="placesStore.searchError" class="text-sm text-destructive">
           {{ placesStore.searchError }}
         </p>
       </div>
 
-      <div
-        v-if="results.length > 0"
-        class="space-y-2 max-h-64 overflow-y-auto"
-      >
+      <div v-if="results.length > 0" class="space-y-2 max-h-64 overflow-y-auto">
         <button
           v-for="result in results"
           :key="result.place_id"
@@ -83,18 +80,12 @@ function selectPlace(place: NominatimPlace) {
           <p class="font-medium">
             {{ result.display_name }}
           </p>
-          <p class="text-sm text-muted-foreground">
-            {{ result.lat }}, {{ result.lon }}
-          </p>
+          <p class="text-sm text-muted-foreground">{{ result.lat }}, {{ result.lon }}</p>
         </button>
       </div>
     </CardContent>
     <CardFooter>
-      <Button
-        variant="outline"
-        class="w-full"
-        @click="emit('cancel')"
-      >
+      <Button variant="outline" class="w-full" @click="emit('cancel')">
         {{ t('common.cancel') }}
       </Button>
     </CardFooter>

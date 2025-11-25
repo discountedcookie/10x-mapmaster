@@ -17,10 +17,7 @@ const { t } = useI18n()
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button
-        variant="outline"
-        size="icon"
-      >
+      <Button variant="outline" size="icon">
         <Icon
           icon="radix-icons:moon"
           class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
@@ -34,24 +31,15 @@ const { t } = useI18n()
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
       <DropdownMenuItem @click="setLight">
-        <Icon
-          icon="radix-icons:sun"
-          class="mr-2 h-4 w-4"
-        />
+        <Icon icon="radix-icons:sun" class="mr-2 h-4 w-4" />
         {{ t('theme.light') }}
       </DropdownMenuItem>
       <DropdownMenuItem @click="setDark">
-        <Icon
-          icon="radix-icons:moon"
-          class="mr-2 h-4 w-4"
-        />
+        <Icon icon="radix-icons:moon" class="mr-2 h-4 w-4" />
         {{ t('theme.dark') }}
       </DropdownMenuItem>
       <DropdownMenuItem @click="setAuto">
-        <Icon
-          icon="radix-icons:desktop"
-          class="mr-2 h-4 w-4"
-        />
+        <Icon icon="radix-icons:desktop" class="mr-2 h-4 w-4" />
         {{ t('theme.system') }}
       </DropdownMenuItem>
     </DropdownMenuContent>

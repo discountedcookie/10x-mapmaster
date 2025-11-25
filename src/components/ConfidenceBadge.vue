@@ -4,14 +4,14 @@ import { useI18n } from 'vue-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-interface Props {
+interface Properties {
   /** Confidence score (0-1) */
   confidence: number
   /** Show tooltip with explanation */
   showTooltip?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const properties = withDefaults(defineProps<Properties>(), {
   showTooltip: true,
 })
 
@@ -23,16 +23,16 @@ const { t } = useI18n()
  */
 const level = computed(() => {
   // High: 75%+ of normalized range (0.75 normalized = ~75% raw score)
-  if (props.confidence >= 0.75) return 'high'
+  if (properties.confidence >= 0.75) return 'high'
   // Medium: 45-75% of normalized range
-  if (props.confidence >= 0.45) return 'medium'
+  if (properties.confidence >= 0.45) return 'medium'
   // Low: below 45%
   return 'low'
 })
 
 /** Badge label */
 const label = computed(() => {
-  const percent = Math.round(props.confidence * 100)
+  const percent = Math.round(properties.confidence * 100)
   if (level.value === 'high') return t('confidence.high', { percent })
   if (level.value === 'medium') return t('confidence.medium', { percent })
   return t('confidence.low', { percent })
@@ -72,10 +72,7 @@ const badgeClasses = computed(() => {
   <TooltipProvider v-if="showTooltip">
     <Tooltip>
       <TooltipTrigger as-child>
-        <Badge
-          :variant="variant"
-          :class="badgeClasses"
-        >
+        <Badge :variant="variant" :class="badgeClasses">
           {{ label }}
         </Badge>
       </TooltipTrigger>
@@ -86,11 +83,7 @@ const badgeClasses = computed(() => {
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>
-  <Badge
-    v-else
-    :variant="variant"
-    :class="badgeClasses"
-  >
+  <Badge v-else :variant="variant" :class="badgeClasses">
     {{ label }}
   </Badge>
 </template>

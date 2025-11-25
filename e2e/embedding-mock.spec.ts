@@ -18,7 +18,7 @@ test.describe('Embedding Mock', () => {
       await descriptionInput.fill(testDescription)
 
       // Wait for character counter to show the text was entered
-      await expect(page.getByText(`${testDescription.length}/500`)).toBeVisible()
+      await expect(page.getByText(`${testDescription.length}/200`)).toBeVisible()
 
       // Click start game to trigger embedding generation
       await page.getByRole('button', { name: 'Start Game' }).click()
@@ -32,7 +32,9 @@ test.describe('Embedding Mock', () => {
       })
 
       // Verify game continued to next state (questions or results)
-      const hasGameContent = await page.getByText(/Question|Is this your place|I'm narrowing|No matches/).isVisible()
+      const hasGameContent = await page
+        .getByText(/Question|Is this your place|I'm narrowing|No matches/)
+        .isVisible()
 
       expect(hasGameContent).toBeTruthy()
     }
@@ -95,7 +97,9 @@ test.describe('Embedding Mock', () => {
       })
 
       // Verify game loaded successfully
-      const firstGameLoaded = await page.getByText(/Question|Is this your place|I'm narrowing/).isVisible()
+      const firstGameLoaded = await page
+        .getByText(/Question|Is this your place|I'm narrowing/)
+        .isVisible()
 
       expect(firstGameLoaded).toBeTruthy()
 

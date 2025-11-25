@@ -27,10 +27,14 @@ const router = createRouter({
       meta: { requiresGuest: true },
     },
     {
-      path: '/game',
+      path: '/game/:sessionId',
       name: 'game',
       component: GameView,
-      meta: { requiresAuth: true },
+      // Allow anonymous access for now
+    },
+    {
+      path: '/game',
+      redirect: '/',
     },
     {
       path: '/statistics',
@@ -47,7 +51,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Wait for auth to be initialized before checking authentication
   while (authStore.loading) {
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
   }
 
   // Check if route requires authentication
@@ -59,7 +63,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Check if route requires guest (redirect authenticated users away from auth pages)
   if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next('/game')
+    next('/')
     return
   }
 
