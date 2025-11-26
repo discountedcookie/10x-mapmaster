@@ -1,7 +1,7 @@
 ---
 description: Vue 3 + shadcn-vue UI specialist - presentation layer only
 mode: subagent
-model: opencode/qwen3-coder
+model: anthropic/claude-opus-4-5
 temperature: 0.3
 permission:
   edit: allow

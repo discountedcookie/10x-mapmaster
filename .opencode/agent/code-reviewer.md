@@ -1,7 +1,7 @@
 ---
 description: Code quality review - architecture compliance and best practices
 mode: subagent
-model: opencode/grok-code
+model: anthropic/claude-opus-4-5
 temperature: 0.2
 permission:
   edit: deny

@@ -1,7 +1,7 @@
 ---
 description: Supabase/Postgres expert - database schema, functions, RLS, pgvector, PostGIS
 mode: subagent
-model: zai-coding-plan/glm-4.6
+model: anthropic/claude-opus-4-5
 temperature: 0.2
 permission:
   edit: allow

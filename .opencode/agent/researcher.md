@@ -1,7 +1,7 @@
 ---
 description: Deep research with web search and sequential thinking
 mode: subagent
-model: zai-coding-plan/glm-4.6
+model: anthropic/claude-opus-4-5
 temperature: 0.5
 permission:
   edit: deny

@@ -3,8 +3,8 @@
   "instructions": ["AGENTS.md"],
 
   // Models: z.ai coding plan (main) + OpenCode Zen (fallback)
-  "model": "zai-coding-plan/glm-4.6",
-  "small_model": "opencode/kimi-k2-thinking",
+  "model": "anthropic/claude-opus-4-5",
+  "small_model": "zai-coding-plan/glm-4.6",
 
   "keybinds": {
     "session_child_cycle": "<leader>]",
