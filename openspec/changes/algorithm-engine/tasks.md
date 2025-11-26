@@ -24,5 +24,5 @@
 
 ## Phase 5 – Tests & Docs
 
-- [ ] 5.1 pgTAP tests for scoring + confidence metrics (spec/operations.md#testing-strategy)
+- [x] 5.1 pgTAP tests for scoring + confidence metrics (spec/operations.md#testing-strategy)
 - [ ] 5.2 Document tuning knobs in `supabase/db/schema/QUICK_REFERENCE.md`

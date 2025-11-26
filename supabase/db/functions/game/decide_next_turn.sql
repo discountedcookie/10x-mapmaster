@@ -2,35 +2,41 @@
 -- Category: game
 -- Purpose: Decide whether to guess or ask a question based on current candidates
 -- Builds complete next_turn JSONB with action and candidates
--- Updated to accept cached candidates to avoid redundant get_candidates calls
+-- Updated to use new algorithm functions for probability-based decision making
 CREATE OR REPLACE FUNCTION "public"."decide_next_turn" ("p_session_id" "uuid", "p_candidates" JSONB) returns TABLE (session_id UUID) language plpgsql
 SET
   search_path = public AS $$
 DECLARE
   v_candidates JSONB;
   v_candidate_count INT;
-  v_top_confidence FLOAT;
-  v_confidence_gap FLOAT;
+  v_confidence_scores FLOAT[];
+  v_probabilities FLOAT[];
+  v_confidence_metrics RECORD;
+  v_should_guess BOOLEAN;
   v_top_candidate JSONB;
   v_question_record RECORD;
   v_next_turn JSONB;
   v_total_turns INT;
   v_max_turns INT;
-  v_guess_confidence_threshold FLOAT;
-  v_guess_confidence_gap_threshold FLOAT;
-  v_guess_high_confidence_threshold FLOAT;
+  v_softmax_temperature FLOAT;
+  v_top_prob_threshold FLOAT;
+  v_margin_threshold FLOAT;
+  v_entropy_threshold FLOAT;
 BEGIN
   -- Get configuration from app_settings (FAIL if missing)
   v_max_turns := get_max_turns();
   
-  SELECT value::FLOAT INTO STRICT v_guess_confidence_threshold 
-  FROM app_settings WHERE key = 'guess_confidence_threshold';
+  SELECT value::FLOAT INTO STRICT v_softmax_temperature
+  FROM app_settings WHERE key = 'softmax_temperature';
   
-  SELECT value::FLOAT INTO STRICT v_guess_confidence_gap_threshold
-  FROM app_settings WHERE key = 'guess_confidence_gap_threshold';
+  SELECT value::FLOAT INTO STRICT v_top_prob_threshold
+  FROM app_settings WHERE key = 'top_prob_threshold';
   
-  SELECT value::FLOAT INTO STRICT v_guess_high_confidence_threshold
-  FROM app_settings WHERE key = 'guess_high_confidence_threshold';
+  SELECT value::FLOAT INTO STRICT v_margin_threshold
+  FROM app_settings WHERE key = 'margin_threshold';
+  
+  SELECT value::FLOAT INTO STRICT v_entropy_threshold
+  FROM app_settings WHERE key = 'entropy_threshold';
 
   -- Get current turn count
   SELECT COUNT(*) INTO v_total_turns
@@ -64,23 +70,37 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Get top candidate's confidence and gap
-  SELECT 
-    COALESCE((elem->>'confidence')::float, 0.0),
-    COALESCE((elem->>'confidence_gap')::float, 0.0),
-    elem
-  INTO v_top_confidence, v_confidence_gap, v_top_candidate
+  -- Extract confidence scores from candidates and convert to probabilities
+  SELECT ARRAY_AGG((elem->>'confidence')::FLOAT ORDER BY (elem->>'confidence')::FLOAT DESC)
+  INTO v_confidence_scores
+  FROM jsonb_array_elements(v_candidates) elem;
+  
+  -- Convert scores to probability distribution using softmax
+  v_probabilities := softmax_probabilities(v_confidence_scores, v_softmax_temperature);
+  
+  -- Calculate confidence metrics (top_prob, margin, normalized_entropy)
+  SELECT * INTO v_confidence_metrics
+  FROM calculate_confidence_metrics(v_probabilities);
+  
+  -- Make guess decision using algorithm function
+  v_should_guess := should_guess(
+    v_probabilities,
+    v_top_prob_threshold,
+    v_margin_threshold,
+    v_entropy_threshold
+  );
+  
+  -- Get top candidate for guess
+  SELECT elem INTO v_top_candidate
   FROM jsonb_array_elements(v_candidates) elem
-  ORDER BY (elem->>'confidence')::float DESC
+  ORDER BY (elem->>'confidence')::FLOAT DESC
   LIMIT 1;
 
-  -- Apply guess policy
-  -- Guess if: at max_turns, only 1 candidate, super confident (>=1.0), or good confidence+gap
+  -- Apply guess policy using algorithm-based decision
+  -- Guess if: at max_turns, algorithm says to guess, or only 1 candidate
   IF v_total_turns >= v_max_turns
+     OR v_should_guess = TRUE
      OR v_candidate_count = 1
-     OR v_top_confidence >= v_guess_high_confidence_threshold
-     OR (v_top_confidence >= v_guess_confidence_threshold 
-         AND v_confidence_gap >= v_guess_confidence_gap_threshold)
   THEN
     -- Build GUESS next_turn using pure formatter (SRP)
     v_next_turn := build_guess_turn(v_top_candidate, v_candidates);
@@ -119,7 +139,7 @@ $$;
 ALTER FUNCTION "public"."decide_next_turn" ("p_session_id" "uuid", "p_candidates" JSONB) owner TO "postgres";
 
 
-comment ON function "public"."decide_next_turn" ("p_session_id" "uuid", "p_candidates" JSONB) IS 'Orchestrates next turn decision: guess or question.
+comment ON function "public"."decide_next_turn" ("p_session_id" "uuid", "p_candidates" JSONB) IS 'Orchestrates next turn decision: guess or question using algorithm functions.
 
 Parameters:
 - p_session_id: Session ID
@@ -127,10 +147,18 @@ Parameters:
 
 Responsibilities (SRP - Orchestration only):
 1. Get/validate candidates
-2. Apply guess policy (confidence + gap thresholds)
-3. Call get_question() if asking question (delegates to question domain)
-4. Call build_guess_turn() or build_question_turn() for formatting (pure functions)
-5. Update database with next_turn
+2. Extract confidence scores and convert to probabilities using softmax_probabilities()
+3. Calculate confidence metrics using calculate_confidence_metrics()
+4. Make guess decision using should_guess() with proper thresholds
+5. Call get_question() if asking question (delegates to question domain)
+6. Call build_guess_turn() or build_question_turn() for formatting (pure functions)
+7. Update database with next_turn
+
+Algorithm Integration:
+- Uses softmax_probabilities() to convert scores to probability distribution
+- Uses calculate_confidence_metrics() for top_prob, margin, normalized_entropy
+- Uses should_guess() for evidence-based guess decisions
+- Replaces hardcoded confidence thresholds with algorithmic approach
 
 Returns next_turn JSONB structure:
 - {"action": "guess", "place_id": "...", "place_name": "...", "candidates": [...]}
@@ -143,6 +171,6 @@ Called by:
 - handle_guess() after wrong guess (passes candidates)
 
 Configuration (from app_settings):
-- max_turns, guess_confidence_threshold, guess_confidence_gap_threshold
+- max_turns, softmax_temperature, top_prob_threshold, margin_threshold, entropy_threshold
 
 Returns: session_id';

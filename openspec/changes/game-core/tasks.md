@@ -2,15 +2,15 @@
 
 ## Phase 1 – RPC Contracts
 
-- [ ] 1.1 Implement `start_game` RPC (openspec/specs/game-core/spec.md#game-initialization)
-- [ ] 1.2 Implement `play_turn` RPC (spec/game-core.md#turn-processing)
+- [x] 1.1 Implement `start_game` RPC (openspec/specs/game-core/spec.md#game-initialization)
+- [x] 1.2 Implement `play_turn` RPC (spec/game-core.md#turn-processing)
 - [ ] 1.3 Implement `submit_place` RPC (spec/game-core.md#place-submission)
 
 ## Phase 2 – Turn Helpers
 
-- [ ] 2.1 Build `record_game_answer` + state update helpers (spec/game-core.md#turn-processing)
-- [ ] 2.2 Implement `decide_next_turn` using algorithm engine outputs (spec/game-core.md#confidence-based-guessing)
-- [ ] 2.3 Implement `filter_geographic_candidates` and `filter_semantic_candidates` wrappers (spec/game-core.md#question-selection)
+- [x] 2.1 Build `record_game_answer` + state update helpers (spec/game-core.md#turn-processing)
+- [x] 2.2 Implement `decide_next_turn` using algorithm engine outputs (spec/game-core.md#confidence-based-guessing)
+- [x] 2.3 Implement `filter_geographic_candidates` and `filter_semantic_candidates` wrappers (spec/game-core.md#question-selection)
 
 ## Phase 3 – Learning Pipeline
 
