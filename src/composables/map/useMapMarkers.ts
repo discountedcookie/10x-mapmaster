@@ -13,7 +13,7 @@ export interface UseMapMarkersOptions<T> {
 
 export interface UseMapMarkersReturn {
   markers: ComputedRef<Marker[]>
-  bounds: ComputedRef<Bounds>
+  bounds: ComputedRef<Bounds | void>
   markerNodes: ComputedRef<VNode[]>
 }
 

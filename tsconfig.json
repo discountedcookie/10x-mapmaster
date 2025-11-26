@@ -1,7 +1,7 @@
 {
   "files": [],
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "lib": ["ES2022", "ESNext"],
     "paths": {
       "@/*": ["./src/*"]
     }

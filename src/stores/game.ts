@@ -357,13 +357,10 @@ export const useGameStore = defineStore('game', () => {
 
       // Call add_place RPC
       const { data: placeId, error: addError } = await supabase.rpc('add_place', {
-        p_canonical_description: gameState.value?.description || submittedPlaceName,
-        p_semantic_constraint: gameState.value?.semanticConstraint || '',
-        p_language_code: languageCode,
         p_lat: submittedLat,
         p_lng: submittedLng,
         p_name: submittedPlaceName,
-        p_nominatim_place_id: submittedNominatimId,
+        p_osm_id: submittedNominatimId,
       })
 
       if (addError) throw addError

@@ -4,22 +4,22 @@ import es from './locales/es'
 import pl from './locales/pl'
 import { messageCompiler } from './compiler'
 
-// Get preferred language from localStorage or browser, fallback to 'en'
+// Get preferred language from localStorage or browser, fallback to 'en-US'
 const savedLocale = localStorage.getItem('preferred-language')
-const browserLocale = navigator.language.split('-')[0] || 'en'
-const supportedLocales = ['en', 'es', 'pl']
+const browserLocale = navigator.language || 'en-US'
+const supportedLocales = ['en-US', 'es-ES', 'pl-PL']
 const defaultLocale =
-  savedLocale || (supportedLocales.includes(browserLocale) ? browserLocale : 'en')
+  savedLocale || (supportedLocales.includes(browserLocale) ? browserLocale : 'en-US')
 
 const i18n = createI18n({
   legacy: false, // Enable Composition API mode
   locale: defaultLocale,
-  fallbackLocale: 'en',
+  fallbackLocale: 'en-US',
   messageCompiler, // Use ICU MessageFormat for advanced formatting
   messages: {
-    en,
-    es,
-    pl,
+    'en-US': en,
+    'es-ES': es,
+    'pl-PL': pl,
   },
 })
 

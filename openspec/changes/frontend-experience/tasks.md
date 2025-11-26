@@ -32,5 +32,6 @@
 
 ## Phase 6 – Testing
 
-- [ ] 6.1 Vitest coverage for composables/stores (spec/operations.md#testing-strategy)
-- [ ] 6.2 Playwright scenarios (win, give up, login flow) using mocks (spec/operations.md#testing-strategy)
+- [x] 6.1 Fix TypeScript errors in frontend (src/composables/map/useMapMarkers.ts, src/i18n/index.ts, src/stores/game.ts)
+- [ ] 6.2 Vitest coverage for composables/stores (spec/operations.md#testing-strategy)
+- [ ] 6.3 Playwright scenarios (win, give up, login flow) using mocks (spec/operations.md#testing-strategy)
