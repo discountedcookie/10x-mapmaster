@@ -1,48 +1,38 @@
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
+console.log('✓ search-place module loading started')
 
-// Helper functions (previously in _shared)
-function validateRequestMethod(request: Request, allowedMethods: string[]): void {
-  if (!allowedMethods.includes(request.method)) {
-    throw new Response(`Method ${request.method} not allowed`, { status: 405 })
-  }
+const JSON_HEADERS = {
+  'Content-Type': 'application/json',
 }
 
-function jsonResponse(data: any, status = 200): Response {
-  return new Response(JSON.stringify(data), {
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: JSON_HEADERS,
   })
 }
 
-function jsonErrorResponse(message: string, status = 500): Response {
-  return jsonResponse({ error: message }, status)
-}
-
-function requireAuth(request: Request): void {
-  const authHeader = request.headers.get('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Response('Unauthorized', { status: 401 })
-  }
-}
-
-console.log('Search-place function starting...')
-
-// Use the standard Deno.serve approach
-const handler = async (request: Request): Promise<Response> => {
+Deno.serve(async (request: Request) => {
+  console.log('✓ Handler invoked')
   try {
-    validateRequestMethod(request, ['GET'])
-    requireAuth(request)
+    console.log(`✓ Request method: ${request.method}`)
+
+    if (request.method !== 'GET') {
+      return jsonResponse({ error: 'Method not allowed' }, 405)
+    }
 
     const url = new URL(request.url)
     const query = url.searchParams.get('q')
 
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
-      return jsonErrorResponse('q query parameter is required', 400)
+      console.log('✗ Query validation failed')
+      return jsonResponse({ error: 'q query parameter is required and must be non-empty' }, 400)
     }
+
+    console.log(`✓ Searching for: "${query}"`)
 
     // Search Nominatim
     const nominatimResponse = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=10`,
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&limit=10`,
       {
         headers: {
           'User-Agent': 'MapMaster-SearchPlace/1.0',
@@ -55,9 +45,10 @@ const handler = async (request: Request): Promise<Response> => {
     }
 
     const results = await nominatimResponse.json()
+    console.log(`✓ Found ${results.length} results`)
 
     return jsonResponse({
-      query,
+      query: query.trim(),
       results: results.map((r: any) => ({
         name: r.display_name,
         lat: Number.parseFloat(r.lat),
@@ -67,12 +58,15 @@ const handler = async (request: Request): Promise<Response> => {
       })),
     })
   } catch (error) {
-    console.error('Error searching places:', error)
-
-    if (error instanceof Response) return error
-    return jsonErrorResponse(error instanceof Error ? error.message : 'Unknown error', 500)
+    console.error('✗ Error searching places:', error)
+    console.error('✗ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    return jsonResponse(
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      500
+    )
   }
-}
+})
 
-// Export the handler for Supabase
-export { handler }
+console.log('✓ Deno.serve registered - search-place module loaded successfully')

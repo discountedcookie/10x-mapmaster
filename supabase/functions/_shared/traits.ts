@@ -208,34 +208,35 @@ function buildLevelTrait(rawValue: string): TraitCandidate | null {
   }
 }
 
-function buildEraTrait(rawValue: string): TraitCandidate | null {
-  const match = rawValue.match(/(\d{4})/)
-  if (!match) return null
-  const year = Number.parseInt(match[1], 10)
-  if (!Number.isFinite(year)) {
-    return null
-  }
-  let bucket = 'contemporary'
-  let clause = `Contemporary (${year})`
-  if (year < 1500) {
-    bucket = 'ancient'
-    clause = `Ancient (${year})`
-  } else if (year < 1900) {
-    bucket = 'historic'
-    clause = `Historic (${year})`
-  } else if (year < 2000) {
-    bucket = 'modern'
-    clause = `Modern (${year})`
-  }
-  return {
-    id: `era:${bucket}`,
-    category: 'era',
-    clause,
-    sourceKey: 'start_date',
-    value: rawValue,
-    metadata: { year },
-  }
-}
+// Era trait function currently unused but kept for potential future use
+// function buildEraTrait(rawValue: string): TraitCandidate | null {
+//   const match = rawValue.match(/(\d{4})/)
+//   if (!match) return null
+//   const year = Number.parseInt(match[1], 10)
+//   if (!Number.isFinite(year)) {
+//     return null
+//   }
+//   let bucket = 'contemporary'
+//   let clause = `Contemporary (${year})`
+//   if (year < 1500) {
+//     bucket = 'ancient'
+//     clause = `Ancient (${year})`
+//   } else if (year < 1900) {
+//     bucket = 'historic'
+//     clause = `Historic (${year})`
+//   } else if (year < 2000) {
+//     bucket = 'modern'
+//     clause = `Modern (${year})`
+//   }
+//   return {
+//     id: `era:${bucket}`,
+//     category: 'era',
+//     clause,
+//     sourceKey: 'start_date',
+//     value: rawValue,
+//     metadata: { year },
+//   }
+// }
 
 function shouldSkipExtratag(key: string, value: unknown): boolean {
   if (typeof value !== 'string') {
