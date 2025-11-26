@@ -2,10 +2,7 @@
 -- Category: game
 -- Dependencies: See migration files for full dependency chain
 -- This file is auto-generated from migrations
-CREATE OR REPLACE FUNCTION "public"."start_game" (
-  "p_description" "text",
-  "p_language_code" "text" DEFAULT 'en'::"text"
-) returns TABLE (session_id UUID) language "plpgsql"
+CREATE OR REPLACE FUNCTION "public"."start_game" ("p_description" "text", "p_language_code" "text") returns TABLE (session_id UUID) language "plpgsql"
 SET
   search_path TO 'public' AS $$
 DECLARE
@@ -79,3 +76,11 @@ Security: Uses auth.uid() internally - no user_id parameter needed.
 CONSERVATIVE GUESS POLICY:
 - Guess when: (candidate_count = 1) OR (candidate_count <= 2 AND top_confidence >= 0.90 AND confidence_gap >= 0.15)
 - Guard: If candidate_count <= 3 at start, force a guess (no questions needed)';
+
+
+-- Convenience overload for tests calling start_game(text)
+CREATE OR REPLACE FUNCTION "public"."start_game" ("p_description" "text") returns TABLE (session_id UUID) language "sql"
+SET
+  search_path TO 'public' AS $$
+  SELECT * FROM start_game(p_description, 'en');
+$$;

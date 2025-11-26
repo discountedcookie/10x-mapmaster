@@ -245,3 +245,42 @@ The system SHALL return standardized error responses.
 
 - **WHEN** error occurs
 - **THEN** uses enumerated error_code for i18n translation lookup
+
+---
+
+### Requirement: Source-Based Schema Workflow
+
+The system SHALL organize schema files so each table, index, RLS policy, and trigger lives in a dedicated SQL file that is composed by the build script.
+
+#### Scenario: Per-table SQL files
+
+- **WHEN** defining a table (e.g., places, game_sessions)
+- **THEN** create a file `supabase/db/<schema_name>/tables/<table_name>.sql` (for example, `supabase/db/public/tables/places.sql` or `supabase/db/game_logic/tables/game_sessions.sql`)
+- **AND** place that table's indexes, RLS policies, and triggers in the same file
+- **AND** have the numbered stubs (01_extensions.sql, 02_tables.sql, etc.) only include (`\i`) the per-table files
+
+#### Scenario: Single source of truth per table
+
+- **WHEN** defining or modifying a table
+- **THEN** its `CREATE TABLE`, indexes, RLS policies, and triggers exist in exactly one per-table file
+- **AND** no table definition is duplicated across multiple schema files
+- **AND** 01–06 root schema files contain only includes and global objects (extensions, schemas, types), never table DDL
+
+#### Scenario: Schema directories
+
+- **WHEN** organizing schema source files
+- **THEN** use `supabase/db/public/tables/*.sql` for public-schema tables
+- **AND** use `supabase/db/game_logic/tables/*.sql` for game_logic-schema tables
+- **AND** define schemas and global types in `supabase/db/schemas.sql`, which is included before any per-table files
+
+#### Scenario: Rebuild workflow
+
+- **WHEN** running `bun run db:rebuild`
+- **THEN** the script `scripts/build-migration.ts` concatenates schema files in numeric order followed by functions and triggers
+- **AND** dropping/recreating the database uses those files as the single source of truth
+
+#### Scenario: Migrations parity
+
+- **WHEN** generating production migrations (`bun run scripts/build-migration.ts --prod "description"`)
+- **THEN** only function files change, schema remains fully represented in source files
+- **AND** developers NEVER edit `supabase/migrations/*.sql` directly

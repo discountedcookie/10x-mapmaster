@@ -128,6 +128,13 @@ All game parameters stored in database tables, split by visibility:
 - `game_logic.config` - Sensitive settings accessed only by SECURITY DEFINER functions
 - Runtime changes without code deployment
 
+### Database Source Layout
+
+- `supabase/db/schemas.sql` defines `public` and `game_logic` schemas and any global types/enums
+- `supabase/db/public/tables/*.sql` contains table DDL, indexes, RLS, and triggers for public schema
+- `supabase/db/game_logic/tables/*.sql` contains table DDL, indexes, RLS, and triggers for game_logic schema
+- `scripts/build-migration.ts` and `bun run db:rebuild` use these source files to generate migrations and reset the database
+
 ### Game State Storage
 
 - `game_answers` table stores all player responses

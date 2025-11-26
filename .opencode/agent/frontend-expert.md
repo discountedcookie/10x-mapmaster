@@ -20,14 +20,14 @@ tools:
   glob: true
   grep: true
   list: true
+  patch: true
   read: true
   write: true
   # Disabled tools
-  patch: false
   task: false
   todoread: false
   todowrite: false
-  webfetch: true
+  webfetch: false
   # MCPs - none needed for frontend
   exa_*: false
   sequential-thinking_*: false

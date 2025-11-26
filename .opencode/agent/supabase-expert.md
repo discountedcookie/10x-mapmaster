@@ -20,10 +20,10 @@ tools:
   glob: true
   grep: true
   list: true
+  patch: true
   read: true
   write: true
   # Disabled tools
-  patch: false
   task: false
   todoread: false
   todowrite: false

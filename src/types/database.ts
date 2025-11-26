@@ -55,6 +55,27 @@ export type Database = {
         }
         Relationships: []
       }
+      config: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       embeddings: {
         Row: {
           created_at: string
@@ -439,6 +460,33 @@ export type Database = {
           },
         ]
       }
+      rate_limit_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          ip_address: unknown
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       spatial_ref_sys: {
         Row: {
           auth_name: string | null
@@ -530,6 +578,43 @@ export type Database = {
           f_table_schema?: unknown
           srid?: number | null
           type?: string | null
+        }
+        Relationships: []
+      }
+      global_stats: {
+        Row: {
+          active_sessions: number | null
+          avg_questions_per_session: number | null
+          global_win_rate_percent: number | null
+          sessions_last_24h: number | null
+          sessions_last_30d: number | null
+          sessions_last_7d: number | null
+          sessions_lost: number | null
+          sessions_submitted: number | null
+          sessions_won: number | null
+          top_places_guessed: Json | null
+          total_embeddings: number | null
+          total_places: number | null
+          total_players: number | null
+          total_sessions: number | null
+          total_traits: number | null
+          unique_users: number | null
+        }
+        Relationships: []
+      }
+      user_stats: {
+        Row: {
+          active_sessions: number | null
+          avg_questions_per_session: number | null
+          best_win_streak: number | null
+          current_win_streak: number | null
+          last_session_at: string | null
+          last_win_at: string | null
+          sessions_lost: number | null
+          sessions_submitted: number | null
+          sessions_won: number | null
+          total_sessions: number | null
+          win_rate_percent: number | null
         }
         Relationships: []
       }
@@ -673,6 +758,17 @@ export type Database = {
             }
             Returns: string
           }
+      adjust_score: {
+        Args: {
+          p_answer: string
+          p_base_weight?: number
+          p_beta?: number
+          p_current_score: number
+          p_match_strength: number
+          p_match_zone: string
+        }
+        Returns: number
+      }
       apply_answer_to_session_state: {
         Args: {
           p_answer: boolean
@@ -701,6 +797,30 @@ export type Database = {
           p_trait_id: string
         }
         Returns: Json
+      }
+      calculate_confidence_metrics: {
+        Args: { p_probabilities: number[] }
+        Returns: {
+          margin: number
+          normalized_entropy: number
+          top_prob: number
+        }[]
+      }
+      calculate_split_quality: {
+        Args: { p_matching_count: number; p_total_count: number }
+        Returns: number
+      }
+      calculate_trait_match_strength: {
+        Args: {
+          p_partial_threshold?: number
+          p_place_embedding: string
+          p_strong_threshold?: number
+          p_trait_embedding: string
+        }
+        Returns: {
+          match_strength: number
+          match_zone: string
+        }[]
       }
       call_llm_api: {
         Args: { p_format?: string; p_prompt: string }
@@ -753,6 +873,10 @@ export type Database = {
       enablelongtransactions: { Args: never; Returns: string }
       enrich_place: { Args: { p_place_id: string }; Returns: Json }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      filter_candidates_by_geography: {
+        Args: { p_answer: string; p_candidates: Json; p_region_id: string }
+        Returns: Json
+      }
       filter_geographic_candidates: {
         Args: { p_session_id: string }
         Returns: {
@@ -896,6 +1020,20 @@ export type Database = {
           yes_count: number
         }[]
       }
+      get_initial_candidates: {
+        Args: {
+          p_description_embedding_id: string
+          p_initial_threshold?: number
+          p_max_candidates?: number
+        }
+        Returns: {
+          lat: number
+          lng: number
+          place_id: string
+          place_name: string
+          raw_score: number
+        }[]
+      }
       get_llm_question: {
         Args: {
           p_available_questions: Json
@@ -940,6 +1078,10 @@ export type Database = {
       handle_question: {
         Args: { p_answer: boolean; p_session_record: Record<string, unknown> }
         Returns: undefined
+      }
+      is_installed: {
+        Args: { p_description: string; p_extname: string }
+        Returns: boolean
       }
       longtransactionsenabled: { Args: never; Returns: boolean }
       maintenance_cleanup: { Args: never; Returns: undefined }
@@ -1026,6 +1168,38 @@ export type Database = {
           p_trait_id: string
         }
         Returns: undefined
+      }
+      row_security_is_enabled: {
+        Args: { p_description: string; p_schema: string; p_table: string }
+        Returns: boolean
+      }
+      select_best_question: {
+        Args: {
+          p_candidates: Json
+          p_geographic_preference_threshold?: number
+          p_min_split_quality?: number
+          p_session_id: string
+        }
+        Returns: {
+          geographic_region_id: string
+          question_text: string
+          question_type: string
+          split_quality: number
+          trait_id: string
+        }[]
+      }
+      should_guess: {
+        Args: {
+          p_entropy_threshold?: number
+          p_margin_threshold?: number
+          p_probabilities: number[]
+          p_top_prob_threshold?: number
+        }
+        Returns: boolean
+      }
+      softmax_probabilities: {
+        Args: { p_scores: number[]; p_temperature?: number }
+        Returns: number[]
       }
       st_3dclosestpoint: {
         Args: { geom1: unknown; geom2: unknown }
@@ -1608,12 +1782,19 @@ export type Database = {
         Args: { geom: unknown; move: number; wrap: number }
         Returns: unknown
       }
-      start_game: {
-        Args: { p_description: string; p_language_code?: string }
-        Returns: {
-          session_id: string
-        }[]
-      }
+      start_game:
+        | {
+            Args: { p_description: string; p_language_code: string }
+            Returns: {
+              session_id: string
+            }[]
+          }
+        | {
+            Args: { p_description: string }
+            Returns: {
+              session_id: string
+            }[]
+          }
       unlockrows: { Args: { "": string }; Returns: number }
       update_embedding: {
         Args: { p_id: string; p_new_text: string }
@@ -1652,6 +1833,11 @@ export type Database = {
       question_type: "geographic" | "semantic"
     }
     CompositeTypes: {
+      error_response: {
+        error_code: string | null
+        http_status: number | null
+        details: Json | null
+      }
       geometry_dump: {
         path: number[] | null
         geom: unknown

@@ -16,6 +16,7 @@ The system SHALL support local development with full functionality.
 
 - **WHEN** developing locally
 - **THEN** use local Supabase instance
+- **AND** start Supabase with `supabase start -x vector` to disable the built-in `vector` extension (pgvector is used instead)
 - **AND** Ollama for embeddings and LLM
 - **AND** hot reload enabled
 
@@ -58,12 +59,51 @@ The system SHALL use appropriate migration strategy per environment.
 - **WHEN** in development
 - **THEN** single clean migration with database reset
 - **AND** no migration history preserved
+- **AND** migrations generated via `bun run scripts/build-migration.ts --dev` (or `bun run db:rebuild`)
 
 #### Scenario: Production migrations
 
 - **WHEN** in production
 - **THEN** incremental timestamped migrations
 - **AND** rollback capability maintained
+- **AND** schema managed via source files (`supabase/db/schemas.sql` and `supabase/db/*/tables/*.sql`) and `scripts/build-migration.ts --prod`, not edited directly in `supabase/migrations/*.sql`
+
+---
+
+### Requirement: Database Tooling
+
+The system SHALL provide scripts to manage schema and migrations from source files.
+
+#### Scenario: Build migration script
+
+- **WHEN** running `bun run scripts/build-migration.ts --dev`
+- **THEN** all existing migrations in `supabase/migrations/` are cleared
+- **AND** a single `00000000000001_initial_schema.sql` is generated from `supabase/db/schemas.sql`, `supabase/db/*/tables/*.sql`, and `supabase/db/functions/**/*.sql`
+
+#### Scenario: Production migration script
+
+- **WHEN** running `bun run scripts/build-migration.ts --prod "description"`
+- **THEN** a new timestamped migration file is created in `supabase/migrations/`
+- **AND** it contains only function definitions from `supabase/db/functions/**/*.sql`
+- **AND** schema changes remain driven by source files
+
+---
+
+### Requirement: Seed Generation
+
+The system SHALL provide reproducible scripts to generate and load seed data.
+
+#### Scenario: Static seed SQL
+
+- **WHEN** seeding the database
+- **THEN** SQL files under `supabase/seeds/*.sql` insert static data for places, traits, configuration, and geographic regions
+- **AND** these files are idempotent so they can run on a clean database
+
+#### Scenario: Seed generation scripts
+
+- **WHEN** updating or regenerating seed data for development/testing
+- **THEN** TypeScript scripts under `scripts/` (for example, `scripts/generate-geographic-regions.ts`, `scripts/generate-test-seed.ts`) produce JSON/SQL used by `supabase/seeds/*.sql`
+- **AND** they reuse the same enrichment logic as production (no duplicated pipelines)
 
 ---
 

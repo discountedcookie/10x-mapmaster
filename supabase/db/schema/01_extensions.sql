@@ -50,6 +50,27 @@ WITH
   schema "pg_catalog";
 
 
+-- ============================================================================
+-- Scheduled Maintenance Jobs
+-- ============================================================================
+-- Daily cleanup job at 2 AM UTC
+SELECT
+  cron.schedule (
+    'daily-maintenance',
+    '0 2 * * *', -- Every day at 2 AM UTC
+    'SELECT public.maintenance_cleanup();'
+  );
+
+
+-- Rate limit cleanup job every 30 minutes
+SELECT
+  cron.schedule (
+    'rate-limit-cleanup',
+    '*/30 * * * *', -- Every 30 minutes
+    'DELETE FROM rate_limit_log WHERE created_at < NOW() - INTERVAL ''1 hour'';'
+  );
+
+
 -- HTTP requests for LLM API calls
 CREATE EXTENSION if NOT EXISTS "pg_net"
 WITH
@@ -161,3 +182,33 @@ CREATE TYPE geographic_level AS ENUM(
 
 
 comment ON type geographic_level IS 'Geographic hierarchy level for region questions. Comparison order defines specificity: continent < region < country';
+
+
+-- Error response composite type
+-- Standardized error response structure for RPC functions
+DROP TYPE if EXISTS error_response cascade;
+
+
+CREATE TYPE error_response AS (
+  error_code TEXT,
+  http_status INTEGER,
+  details JSONB
+);
+
+
+comment ON type error_response IS 'Standardized error response for RPC functions:
+- error_code: Machine-readable code for i18n translation lookup
+- http_status: HTTP status code (400, 401, 403, 429, 500, etc.)
+- details: Additional error context (optional)';
+
+
+-- ============================================================================
+-- Additional Schemas
+-- ============================================================================
+-- Description: Schema organization for visibility and security boundaries
+-- ============================================================================
+-- Game logic schema for server-only functions and data
+CREATE SCHEMA if NOT EXISTS game_logic;
+
+
+comment ON schema game_logic IS 'Server-only game logic, functions, and private configuration. Not directly accessible to clients.';

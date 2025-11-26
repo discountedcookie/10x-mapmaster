@@ -45,7 +45,7 @@ cd 10x-mapmaster
 bun install
 
 # Start local services
-supabase start
+supabase start -x vector   # exclude built-in vector extension (use pgvector)
 ollama serve
 
 # Pull embedding model

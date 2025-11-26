@@ -1,7 +1,7 @@
 ---
 description: Deep research with web search and sequential thinking
 mode: subagent
-model: opencode/kimi-k2-thinking
+model: zai-coding-plan/glm-4.6
 temperature: 0.5
 permission:
   edit: deny

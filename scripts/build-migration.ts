@@ -30,6 +30,8 @@ import { join, relative } from 'node:path'
 // Configuration
 const FUNCTIONS_DIR = 'supabase/db/functions'
 const SCHEMA_DIR = 'supabase/db/schema'
+const PUBLIC_TABLES_DIR = 'supabase/db/public/tables'
+const GAME_LOGIC_TABLES_DIR = 'supabase/db/game_logic/tables'
 const MIGRATIONS_DIR = 'supabase/migrations'
 const DEFAULT_DESCRIPTION = 'update_functions'
 
@@ -105,13 +107,19 @@ function findSqlFiles(dir: string): string[] {
 
 /**
  * Find schema files in numeric order (01, 02, 03, etc.)
- * Excludes triggers (05_triggers.sql) which must come after functions
+ * Only includes extensions (01) and views (06), excludes tables/RLS/indexes/triggers
+ * Per-table files are loaded separately from public/tables and game_logic/tables
  */
 function findSchemaFiles(): string[] {
   try {
     const entries = readdirSync(SCHEMA_DIR)
     const schemaFiles = entries
-      .filter((entry) => entry.endsWith('.sql') && !entry.includes('triggers'))
+      .filter((entry) => {
+        if (!entry.endsWith('.sql')) return false
+        // Only include extensions and views, skip monolithic table/rls/index files
+        const num = entry.match(/^(\d+)/)?.[1]
+        return num === '01' || num === '06' // extensions and views only
+      })
       .map((entry) => join(SCHEMA_DIR, entry))
       .sort((a, b) => {
         // Extract numeric prefix for proper ordering
@@ -125,6 +133,58 @@ function findSchemaFiles(): string[] {
     // Schema directory might not exist, return empty array
     return []
   }
+}
+
+/**
+ * Find per-table SQL files in public/tables and game_logic/tables directories
+ * Returns files sorted alphabetically for consistent ordering
+ */
+function findTableFiles(): string[] {
+  const tableFiles: string[] = []
+
+  // Public schema tables
+  try {
+    const publicEntries = readdirSync(PUBLIC_TABLES_DIR)
+    for (const entry of publicEntries) {
+      if (entry.endsWith('.sql')) {
+        tableFiles.push(join(PUBLIC_TABLES_DIR, entry))
+      }
+    }
+  } catch {
+    // Directory might not exist
+  }
+
+  // Game logic schema tables
+  try {
+    const gameLogicEntries = readdirSync(GAME_LOGIC_TABLES_DIR)
+    for (const entry of gameLogicEntries) {
+      if (entry.endsWith('.sql')) {
+        tableFiles.push(join(GAME_LOGIC_TABLES_DIR, entry))
+      }
+    }
+  } catch {
+    // Directory might not exist
+  }
+
+  // Sort: embeddings first (needed by places), then alphabetically
+  return tableFiles.sort((a, b) => {
+    // Embeddings must come first (places depends on it)
+    if (a.includes('embeddings')) return -1
+    if (b.includes('embeddings')) return 1
+    // Geographic regions before places (places may reference it)
+    if (a.includes('geographic_regions')) return -1
+    if (b.includes('geographic_regions')) return 1
+    // Place traits before places and links
+    if (a.includes('place_traits.sql') && !a.includes('links')) return -1
+    if (b.includes('place_traits.sql') && !b.includes('links')) return 1
+    // Places before things that depend on it
+    if (a.includes('places.sql')) return -1
+    if (b.includes('places.sql')) return 1
+    // Game sessions before game answers
+    if (a.includes('game_sessions')) return -1
+    if (b.includes('game_sessions')) return 1
+    return a.localeCompare(b)
+  })
 }
 
 /**
@@ -158,10 +218,11 @@ function readFile(filePath: string): string {
 }
 
 /**
- * Generate migration content for dev mode (schema + functions + triggers)
+ * Generate migration content for dev mode (schema + tables + functions + triggers)
  */
 function generateDevelopmentMigrationContent(
   schemaFiles: string[],
+  tableFiles: string[],
   functionFiles: string[],
   triggerFiles: string[]
 ): string {
@@ -170,19 +231,58 @@ function generateDevelopmentMigrationContent(
   content += `-- Generated: ${timestamp}\n`
   content += `-- Mode: DEV (clean rebuild)\n`
   content += `-- Schema files: ${schemaFiles.length}\n`
+  content += `-- Table files: ${tableFiles.length}\n`
   content += `-- Function files: ${functionFiles.length}\n`
   content += `-- Trigger files: ${triggerFiles.length}\n\n`
 
-  // Add schema files first (extensions, tables, RLS, indexes)
+  // Add schema files first (extensions only - 01_extensions.sql)
   if (schemaFiles.length > 0) {
     content += `-- ${'='.repeat(76)}\n`
-    content += `-- SCHEMA DEFINITIONS\n`
+    content += `-- EXTENSIONS AND TYPES\n`
     content += `-- ${'='.repeat(76)}\n\n`
 
     for (const filePath of schemaFiles) {
+      // Only include extensions file here, views come after tables
+      if (!filePath.includes('06_views')) {
+        const relativePath = relative(SCHEMA_DIR, filePath)
+        const fileContent = readFile(filePath)
+
+        content += `-- ${'-'.repeat(74)}\n`
+        content += `-- Schema: ${relativePath}\n`
+        content += `-- ${'-'.repeat(74)}\n\n`
+        content += fileContent.trim()
+        content += '\n\n'
+      }
+    }
+  }
+
+  // Add per-table files (tables + indexes + RLS in each file)
+  if (tableFiles.length > 0) {
+    content += `-- ${'='.repeat(76)}\n`
+    content += `-- TABLE DEFINITIONS (per-table files with indexes and RLS)\n`
+    content += `-- ${'='.repeat(76)}\n\n`
+
+    for (const filePath of tableFiles) {
+      const relativePath = filePath.replace('supabase/db/', '')
+      const fileContent = readFile(filePath)
+
+      content += `-- ${'-'.repeat(74)}\n`
+      content += `-- Table: ${relativePath}\n`
+      content += `-- ${'-'.repeat(74)}\n\n`
+      content += fileContent.trim()
+      content += '\n\n'
+    }
+  }
+
+  // Add views (06_views.sql) after tables
+  for (const filePath of schemaFiles) {
+    if (filePath.includes('06_views')) {
       const relativePath = relative(SCHEMA_DIR, filePath)
       const fileContent = readFile(filePath)
 
+      content += `-- ${'='.repeat(76)}\n`
+      content += `-- VIEWS\n`
+      content += `-- ${'='.repeat(76)}\n\n`
       content += `-- ${'-'.repeat(74)}\n`
       content += `-- Schema: ${relativePath}\n`
       content += `-- ${'-'.repeat(74)}\n\n`
@@ -301,12 +401,23 @@ async function main() {
 
       console.log(`🔍 Scanning for schema and function files...\n`)
 
-      // Find schema files
+      // Find schema files (extensions + views only)
       const schemaFiles = findSchemaFiles()
       if (schemaFiles.length > 0) {
         console.log(`✅ Found ${schemaFiles.length} schema files:`)
         for (const filePath of schemaFiles) {
           const relativePath = relative(SCHEMA_DIR, filePath)
+          console.log(`   - ${relativePath}`)
+        }
+        console.log()
+      }
+
+      // Find per-table files
+      const tableFiles = findTableFiles()
+      if (tableFiles.length > 0) {
+        console.log(`✅ Found ${tableFiles.length} per-table files:`)
+        for (const filePath of tableFiles) {
+          const relativePath = filePath.replace('supabase/db/', '')
           console.log(`   - ${relativePath}`)
         }
         console.log()
@@ -340,6 +451,7 @@ async function main() {
       // Generate migration content
       const migrationContent = generateDevelopmentMigrationContent(
         schemaFiles,
+        tableFiles,
         functionFiles,
         triggerFiles
       )
@@ -352,7 +464,7 @@ async function main() {
 
       console.log(`✅ Created migration: ${migrationFilename}`)
       console.log(
-        `📁 Included ${schemaFiles.length} schema files and ${functionFiles.length} function files`
+        `📁 Included ${schemaFiles.length} schema + ${tableFiles.length} table + ${functionFiles.length} function files`
       )
       console.log(`📍 Location: ${migrationPath}`)
       console.log(`\n✨ Dev mode complete. Ready for: supabase db reset\n`)

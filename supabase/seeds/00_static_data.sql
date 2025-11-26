@@ -113,3 +113,33 @@ INSERT INTO app_settings (key, value, description) VALUES
 ('weight_denied_trait_mismatch', '0.1', 'Boost when place lacks denied trait'),
 ('weight_geographic_fit_max', '0.2', 'Maximum geographic fit bonus'),
 ('geographic_distance_normalization', '20000000.0', 'Distance normalization for geographic fit');
+
+-- Algorithm: Softmax probability distribution (spec/algorithm.md#probability-distribution)
+INSERT INTO app_settings (key, value, description) VALUES
+('softmax_temperature', '1.0', 'Temperature for softmax. Lower = sharper distribution, higher = flatter.');
+
+-- Algorithm: Confidence decision metrics (spec/algorithm.md#confidence-decision-metrics)
+INSERT INTO app_settings (key, value, description) VALUES
+('top_prob_threshold', '0.4', 'Minimum top probability to guess'),
+('margin_threshold', '0.15', 'Minimum margin (gap between top two) to guess'),
+('entropy_threshold', '0.7', 'Maximum normalized entropy to guess (lower = more certain)');
+
+-- Algorithm: Initial candidate selection (spec/algorithm.md#initial-candidate-scoring)
+INSERT INTO app_settings (key, value, description) VALUES
+('initial_candidate_threshold', '0.3', 'Minimum similarity for initial candidates'),
+('max_initial_candidates', '100', 'Maximum number of initial candidates');
+
+-- Algorithm: Trait matching (spec/algorithm.md#trait-match-scoring)
+INSERT INTO app_settings (key, value, description) VALUES
+('strong_match_threshold', '0.7', 'Threshold for STRONG trait match'),
+('partial_match_threshold', '0.5', 'Threshold for PARTIAL trait match');
+
+-- Algorithm: Score adjustment (spec/algorithm.md#score-adjustment)
+INSERT INTO app_settings (key, value, description) VALUES
+('adjustment_base_weight', '0.3', 'Base weight for score adjustments'),
+('adjustment_beta', '1.5', 'Power-law exponent for adjustment magnitude');
+
+-- Algorithm: Question selection (spec/algorithm.md#question-selection-algorithm)
+INSERT INTO app_settings (key, value, description) VALUES
+('min_split_quality', '0.6', 'Minimum acceptable split quality for questions'),
+('geographic_preference_threshold', '0.7', 'Geographic split quality to prefer over semantic');

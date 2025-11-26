@@ -5,6 +5,7 @@
 ### Development
 
 - Local Supabase instance
+- Supabase started with `supabase start -x vector` (disables built-in `vector` extension; pgvector is used instead)
 - Ollama for local embeddings (384d, gte-small compatible)
 - Debug logging enabled
 - Hot reload for rapid iteration
@@ -27,7 +28,7 @@
 
 - Single clean migration with database reset
 - Fast iteration, no migration history
-- Rebuilds entire schema from source files
+- Rebuilds entire schema from source files (`supabase/db/schemas.sql` and `supabase/db/*/tables/*.sql`)
 
 **Production:**
 
@@ -41,6 +42,8 @@
 - Configuration: `public.config` and `game_logic.config` tables
 - Pre-generated embeddings included
 - Natural Earth data for geographic regions
+- Seeds are stored as SQL files under `supabase/seeds/*.sql` and are safe to run on a clean database
+- Seed JSON and SQL can be regenerated via scripts in `scripts/` (for example, `scripts/generate-geographic-regions.ts`, `scripts/generate-test-seed.ts`), which reuse the same enrichment logic as production
 
 ## Admin Workflows
 

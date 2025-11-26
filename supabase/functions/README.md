@@ -61,10 +61,10 @@ curl -X GET 'http://127.0.0.1:54321/functions/v1/search-place?q=Eiffel%20Tower' 
 curl -fsSL https://deno.land/x/install/install.sh | sh
 ```
 
-2. Start Supabase with functions:
+2. Start Supabase with functions (exclude built-in vector extension):
 
 ```bash
-npx supabase start
+npx supabase start -x vector
 npx supabase functions serve
 ```
 

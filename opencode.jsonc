@@ -6,8 +6,6 @@
   "model": "zai-coding-plan/glm-4.6",
   "small_model": "opencode/kimi-k2-thinking",
 
-  "autoupdate": true,
-
   "keybinds": {
     "session_child_cycle": "<leader>]",
     "session_child_cycle_reverse": "<leader>[",
@@ -32,6 +30,21 @@
     "sequential-thinking": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+    },
+  },
+
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "cat": "deny",
+      "find": "deny",
+      "grep": "deny",
+      "head": "deny",
+      "ls": "deny",
+      "tail": "deny",
+      //
+      "bun *": "allow",
+      "npm * ": "deny",
     },
   },
 
