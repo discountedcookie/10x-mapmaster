@@ -328,10 +328,13 @@ Method: POST /functions/v1/call-llm
 
 Input:
   {
+    prompt: string,
     model: string,
-    temperature: number,
-    max_tokens: number,
-    prompt: string
+    format?: string,      - Optional: "json" for structured output
+    options?: {
+      temperature?: number,
+      max_tokens?: number
+    }
   }
 
 Output:
@@ -340,8 +343,8 @@ Output:
   }
 
 Called by:
-  - Database function: extract_traits()
-  - Database function: generate_question()
+  - Database function: generate_question_text()
+  - Edge function: place-enrichment (for trait extraction)
 
 Provider logic:
   - Edge function reads LLM_PROVIDER from environment
@@ -350,32 +353,52 @@ Provider logic:
   - Database passes model/settings, edge function handles connection
 ```
 
-**fetch-place**
+**place-enrichment**
 
 ```
-Method: GET /functions/v1/fetch-place/{osm_id}
+Method: POST /functions/v1/place-enrichment
 
 Input:
-  Path parameter: osm_id (e.g., "way/5013364")
+  {
+    osm_id: string          - Required: OSM ID (e.g., "way/5013364")
+  }
 
 Output:
   {
-    name: string,
-    display_name: string,
-    lat: number,
-    lng: number,
-    boundingbox: [string, string, string, string],
-    extratags: Record<string, unknown>,
-    address: Record<string, unknown>,
-    geojson?: { type: string, coordinates: unknown }
+    place: {
+      lat: number,
+      lng: number,
+      display_name: string,
+      english_name: string,
+      type: string,
+      class: string,
+      boundingbox: [string, string, string, string],
+      address: Record<string, unknown>,
+      extratags: Record<string, unknown>,
+      osm_type: string,
+      osm_id: number,
+      geojson?: { type: string, coordinates: unknown }
+    },
+    traits: Array<{
+      id: string,
+      category: string,
+      clause: string,
+      sourceKey: string,
+      value: string,
+      metadata?: Record<string, unknown>
+    }>
   }
 
 Called by:
-  - Database function: enrich_place()
+  - Database function: submit_place()
 
-Implementation:
-  - Calls Nominatim lookup API
-  - Returns structured place data
+Note:
+  - Only accepts OSM IDs, no text search fallback
+  - For text search, use search-place endpoint
+
+Trait extraction:
+  - Rule-based extraction from Nominatim extratags
+  - LLM-based extraction for additional traits (if LLM_EXTRACTION_ENABLED)
 ```
 
 ### Game State Structure

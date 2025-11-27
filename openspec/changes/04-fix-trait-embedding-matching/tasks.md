@@ -15,10 +15,10 @@
 
 - [x] 3.1 Add pgvector index on `places.embedding` if not exists - exists via embeddings table
 - [x] 3.2 Add pgvector index on `traits.embedding` if not exists - exists via embeddings table
-- [ ] 3.3 Test query performance with 1000+ candidates
+- [ ] 3.3 Test query performance with 1000+ candidates - DEFERRED: seed data is small
 
 ## 4. Testing
 
-- [ ] 4.1 Add pgTAP test for similarity-based trait matching
-- [ ] 4.2 Test match zone classification (strong/partial/weak)
-- [ ] 4.3 Compare question quality before/after change
+- [x] 4.1 Add pgTAP test for similarity-based trait matching (test_settings_control_behavior.sql)
+- [x] 4.2 Test match zone classification (strong/partial/weak) (test_algorithm_functions.sql:176-189)
+- [ ] 4.3 Compare question quality before/after change - DEFERRED: no baseline exists

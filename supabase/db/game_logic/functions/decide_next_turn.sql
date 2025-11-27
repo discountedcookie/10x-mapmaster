@@ -106,18 +106,20 @@ BEGIN
     LIMIT 1;
     
     IF v_question_record.question_type IS NULL THEN
-      RAISE EXCEPTION 'Failed to choose next question for session %', p_session_id;
+      -- No differentiating questions available - fall back to guess
+      -- This happens when remaining candidates share all traits/regions
+      v_next_turn := build_guess_turn(v_top_candidate, v_candidates);
+    ELSE
+      -- Build QUESTION next_turn using pure formatter (SRP)
+      v_next_turn := build_question_turn(
+        v_question_record.question_type,
+        v_question_record.trait_id,
+        v_question_record.geographic_region_id,
+        v_question_record.question_text,
+        v_question_record.question_reasoning,
+        v_candidates
+      );
     END IF;
-    
-    -- Build QUESTION next_turn using pure formatter (SRP)
-    v_next_turn := build_question_turn(
-      v_question_record.question_type,
-      v_question_record.trait_id,
-      v_question_record.geographic_region_id,
-      v_question_record.question_text,
-      v_question_record.question_reasoning,
-      v_candidates
-    );
   END IF;
 
   -- Store next_turn

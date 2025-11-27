@@ -1,291 +1,324 @@
 #!/usr/bin/env tsx
-/* eslint-disable max-lines */
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { enrichPlaceByOsmId } from '../supabase/functions/_shared/enrichment.ts'
-import type { TraitCandidate } from '../supabase/functions/_shared/traits.ts'
-import type { TablesInsert } from '../src/types/database.ts'
+import { createClient } from '@supabase/supabase-js'
 
-type PlaceData = Partial<TablesInsert<'places'>> & {
+const SUPABASE_URL = 'http://localhost:54321'
+const SUPABASE_SERVICE_ROLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+type PlaceInput = {
   id: string
-  name?: string
-  osm_id?: string
-  bbox?: string[]
-  embedding_text?: string
-  embedding_vector?: string
-  traits?: string[]
+  osm_id: string
 }
 
-const placesData: PlaceData[] = JSON.parse(
-  readFileSync(path.join(process.cwd(), 'scripts', 'seed-data', 'places.json'), 'utf8')
-)
-
-// Test descriptions that need pre-generated embeddings for CI
 type TestDescription = {
   description: string
   expected_place: string | null
   test_file: string
 }
 
+const placesData: PlaceInput[] = JSON.parse(
+  readFileSync(path.join(process.cwd(), 'scripts', 'seed-data', 'places.json'), 'utf8')
+)
+
 const testDescriptions: TestDescription[] = JSON.parse(
   readFileSync(path.join(process.cwd(), 'scripts', 'seed-data', 'test-descriptions.json'), 'utf8')
 )
 
-// Store test description embeddings
-const testDescriptionEmbeddings = new Map<string, string>() // description -> embedding_vector
-
-const RATE_LIMIT_MS = 1000
+const RATE_LIMIT_MS = 1100 // Nominatim requires 1 req/sec
 let lastRequestTime = 0
 
 async function waitForRateLimit() {
   const now = Date.now()
   const timeSinceLastRequest = now - lastRequestTime
   if (timeSinceLastRequest < RATE_LIMIT_MS) {
-    await new Promise((resolve) => {
-      setTimeout(resolve, RATE_LIMIT_MS - timeSinceLastRequest)
-    })
+    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS - timeSinceLastRequest))
   }
   lastRequestTime = Date.now()
 }
 
 function escapeSqlString(value: string): string {
-  // eslint-disable-next-line unicorn/prefer-string-replace-all
   return value.replace(/'/g, "''")
 }
 
-function formatJson(value: unknown): string {
-  return JSON.stringify(value ?? {})
-}
-
-function formatJsonb(value: unknown): string {
-  return `'${escapeSqlString(formatJson(value))}'::jsonb`
-}
-
-function formatTextArray(values: string[]): string {
-  if (values.length === 0) {
-    return `'{}'::text[]`
+function formatEmbedding(embedding: number[] | string): string {
+  // Handle case where embedding comes as string from Supabase (e.g., "[0.1,0.2,...]")
+  if (typeof embedding === 'string') {
+    // It's already in vector format, just wrap it
+    return `'${embedding}'::vector(384)`
   }
-  const items = values.map((value) => `'${escapeSqlString(value)}'`).join(', ')
-  return `ARRAY[${items}]::text[]`
+  if (!Array.isArray(embedding)) {
+    throw new Error(`Unexpected embedding type: ${typeof embedding}`)
+  }
+  return `ARRAY[${embedding.map((v) => v.toFixed(6)).join(', ')}]::vector(384)`
 }
 
-async function fetchByOsmId(osmId: string, maxRetries = 3) {
-  let lastError: Error | undefined
+// Create temporary public wrappers for game_logic functions
+async function createWrappers() {
+  const { error } = await supabase.rpc('query', {
+    sql: `
+      CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
+      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
+        SELECT game_logic.fetch_nominatim_place(p_osm_id);
+      $$;
+      
+      CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
+      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
+        SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data);
+      $$;
+      
+      CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
+      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
+        SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated);
+      $$;
+      
+      CREATE OR REPLACE FUNCTION public.get_or_create_embedding(p_text TEXT) RETURNS UUID 
+      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
+        SELECT game_logic.get_or_create_embedding(p_text);
+      $$;
+    `,
+  })
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      await waitForRateLimit()
-      const result = await enrichPlaceByOsmId(osmId)
-      if (result) {
-        return result
-      }
-      console.warn(`No results found for OSM ID: ${osmId}`)
-      return
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-      if (attempt < maxRetries) {
-        const backoffMs = Math.min(1000 * 2 ** attempt, 10_000)
-        console.log(`Retry ${attempt}/${maxRetries} for ${osmId} after ${backoffMs}ms...`)
-        await new Promise((resolve) => {
-          setTimeout(resolve, backoffMs)
-        })
-      } else {
-        console.error(`Failed to fetch ${osmId} after ${maxRetries} attempts:`, lastError)
-      }
+  if (error) {
+    // Try direct SQL execution via fetch
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+      },
+      body: JSON.stringify({
+        sql: `
+        CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.fetch_nominatim_place(p_osm_id); $$;
+        
+        CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data); $$;
+        
+        CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); $$;
+        
+        CREATE OR REPLACE FUNCTION public.get_or_create_embedding(p_text TEXT) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.get_or_create_embedding(p_text); $$;
+      `,
+      }),
+    })
+
+    if (!response.ok) {
+      // Last resort: use psql
+      const { execSync } = await import('node:child_process')
+      execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "
+        CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.fetch_nominatim_place(p_osm_id); \\$\\$;
+        
+        CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data); \\$\\$;
+        
+        CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); \\$\\$;
+        
+        CREATE OR REPLACE FUNCTION public.get_or_create_embedding(p_text TEXT) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_or_create_embedding(p_text); \\$\\$;
+      "`)
     }
   }
+
+  // Notify PostgREST to reload schema cache
+  const { execSync } = await import('node:child_process')
+  execSync(
+    `psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "NOTIFY pgrst, 'reload schema';"`
+  )
+
+  // Give PostgREST time to reload
+  await new Promise((resolve) => setTimeout(resolve, 2000))
 }
 
-async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await fetch('http://localhost:11434/api/embeddings', {
+async function dropWrappers() {
+  const { execSync } = await import('node:child_process')
+  try {
+    execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "
+      DROP FUNCTION IF EXISTS public.fetch_nominatim_place(TEXT);
+      DROP FUNCTION IF EXISTS public.extract_traits_from_nominatim(JSONB);
+      DROP FUNCTION IF EXISTS public.create_place_with_traits(TEXT, JSONB, JSONB, BOOLEAN);
+      DROP FUNCTION IF EXISTS public.get_or_create_embedding(TEXT);
+    "`)
+  } catch {
+    // Ignore errors
+  }
+}
+
+async function callRpc(name: string, params: Record<string, unknown>) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'all-minilm', prompt: text }),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+    },
+    body: JSON.stringify(params),
   })
 
   if (!response.ok) {
-    throw new Error(`Ollama API error: ${response.status} ${response.statusText}`)
+    const error = await response.text()
+    throw new Error(`RPC ${name} failed: ${error}`)
   }
 
-  const data = await response.json()
-  return data.embedding
+  return await response.json()
 }
 
-function formatEmbedding(embedding: number[]): string {
-  return `ARRAY[${embedding.map((value) => value.toFixed(6)).join(', ')}]::vector(384)`
-}
+console.log('Generating seed data using database functions...')
+console.log('')
 
-console.log('Fetching real Nominatim data and generating embeddings for seed data...')
+// Create wrappers
+console.log('Creating temporary public wrappers...')
+await createWrappers()
 
-const traitDefinitions = new Map<string, { clause: string; category: string }>()
-const traitLinks: Array<{
-  placeId: string
-  traitId: string
-  sourceMetadata: Record<string, unknown>
-}> = []
+const createdPlaceIds: string[] = []
 
-for (let index = 0; index < placesData.length; index++) {
-  const place = placesData[index]
+try {
+  for (let index = 0; index < placesData.length; index++) {
+    const place = placesData[index]
 
-  if (!place.osm_id) {
-    console.warn(`[${index + 1}/${placesData.length}] Skipping place without OSM ID`)
-    continue
-  }
-
-  console.log(`[${index + 1}/${placesData.length}] ${place.osm_id}`)
-
-  const enrichment = await fetchByOsmId(place.osm_id)
-  const normalized = enrichment?.place
-  const traitCandidates: TraitCandidate[] = enrichment?.traits ?? []
-
-  if (normalized) {
-    place.name = normalized.english_name
-    place.osm_id = `${normalized.osm_type}/${normalized.osm_id}`
-    place.lat = normalized.lat
-    place.lng = normalized.lng
-
-    // Store bbox for geometry
-    if (normalized.boundingbox && normalized.boundingbox.length === 4) {
-      place.bbox = normalized.boundingbox
+    if (!place.osm_id) {
+      console.warn(`[${index + 1}/${placesData.length}] Skipping place without OSM ID`)
+      continue
     }
 
-    console.log(`  ✓ ${normalized.display_name}`)
-  } else {
-    console.log(`  ⚠ Using fallback data for ${place.name}`)
-  }
+    console.log(`[${index + 1}/${placesData.length}] ${place.osm_id}`)
+    await waitForRateLimit()
 
-  const traitIds = traitCandidates.map((trait) => trait.id)
-  place.traits = traitIds
+    try {
+      // 1. Fetch from Nominatim
+      const nominatimData = await callRpc('fetch_nominatim_place', { p_osm_id: place.osm_id })
+      console.log(`  ✓ ${nominatimData.display_name}`)
 
-  if (traitCandidates.length > 0) {
-    const traitText = traitCandidates.map((trait) => trait.clause).join(' ')
-    const embedding = await generateEmbedding(traitText)
-    place.embedding_text = traitText
-    place.embedding_vector = formatEmbedding(embedding)
-    console.log(`  🏷️  ${traitCandidates.length} traits extracted`)
-
-    for (const trait of traitCandidates) {
-      if (!traitDefinitions.has(trait.id)) {
-        traitDefinitions.set(trait.id, {
-          clause: trait.clause,
-          category: trait.category,
-        })
-      }
-      traitLinks.push({
-        placeId: place.id,
-        traitId: trait.id,
-        sourceMetadata: { sourceKey: trait.sourceKey, value: trait.value },
+      // 2. Extract traits
+      const traits = await callRpc('extract_traits_from_nominatim', {
+        p_nominatim_data: nominatimData,
       })
+      console.log(`  🏷️  ${Array.isArray(traits) ? traits.length : 0} traits`)
+
+      // 3. Create place with traits (this also generates embedding)
+      const placeId = await callRpc('create_place_with_traits', {
+        p_osm_id: place.osm_id,
+        p_nominatim_data: nominatimData,
+        p_traits: traits,
+        p_is_curated: true,
+      })
+      createdPlaceIds.push(placeId)
+      console.log(`  📍 Created place: ${placeId}`)
+    } catch (error) {
+      console.error(`  ✗ Failed: ${error}`)
     }
-  } else {
-    console.log(`  ⚠️  No traits extracted`)
   }
-}
 
-// Generate embeddings for test descriptions (for CI - no edge function calls needed)
-console.log('\nGenerating embeddings for test descriptions...')
-for (const testDesc of testDescriptions) {
-  console.log(`  📝 "${testDesc.description}"`)
-  try {
-    const embedding = await generateEmbedding(testDesc.description)
-    testDescriptionEmbeddings.set(testDesc.description, formatEmbedding(embedding))
-    console.log(`     ✓ Embedding generated`)
-  } catch (error) {
-    console.error(`     ✗ Failed to generate embedding:`, error)
+  // Generate embeddings for test descriptions
+  console.log('\nGenerating embeddings for test descriptions...')
+  for (const testDesc of testDescriptions) {
+    console.log(`  📝 "${testDesc.description}"`)
+    try {
+      await callRpc('get_or_create_embedding', { p_text: testDesc.description })
+      console.log(`     ✓ Embedding created`)
+    } catch (error) {
+      console.error(`     ✗ Failed: ${error}`)
+    }
   }
-}
 
-let sql = `-- Generated embedding seed data
--- This file is auto-generated by scripts/generate-test-seed.ts
--- Do not edit manually - regenerate using the script instead
+  // Dump tables to SQL
+  console.log('\nDumping tables to SQL...')
+
+  const { data: traits } = await supabase.from('traits').select('*')
+  const { data: placeTraits } = await supabase.from('place_traits').select('*')
+  const { data: embeddings } = await supabase.from('embeddings').select('*')
+
+  // Fetch places with geometry as WKT (PostgREST returns geometry as binary)
+  const { execSync } = await import('node:child_process')
+  const placesJson =
+    execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -t -A -c "
+    SELECT json_agg(row_to_json(p)) FROM (
+      SELECT id, name, osm_id, lat, lng, ST_AsText(geom) as geom, embedding_id, pending_review 
+      FROM places
+    ) p;
+  "`)
+      .toString()
+      .trim()
+  const places = placesJson && placesJson !== '' ? JSON.parse(placesJson) : []
+
+  let sql = `-- Generated embedding seed data
+-- Auto-generated by scripts/generate-test-seed.ts
+-- Do not edit manually
 
 SET search_path = public, extensions;
 
 `
 
-if (traitDefinitions.size > 0) {
-  sql += `-- Upsert canonical traits\n`
-  sql += `INSERT INTO traits (id, clause) VALUES\n`
-  sql += [...traitDefinitions.entries()]
-    .map(
-      ([id, definition]) => `  ('${escapeSqlString(id)}', '${escapeSqlString(definition.clause)}')`
-    )
-    .join(',\n')
-  sql += `\nON CONFLICT (id) DO UPDATE SET clause = EXCLUDED.clause;\n\n`
+  if (traits && traits.length > 0) {
+    sql += `-- Traits\n`
+    sql += `INSERT INTO traits (id, clause) VALUES\n`
+    sql += traits
+      .map((t) => `  ('${escapeSqlString(t.id)}', '${escapeSqlString(t.clause)}')`)
+      .join(',\n')
+    sql += `\nON CONFLICT (id) DO UPDATE SET clause = EXCLUDED.clause;\n\n`
+  }
+
+  if (embeddings && embeddings.length > 0) {
+    sql += `-- Embeddings\n`
+    sql += `INSERT INTO embeddings (id, source_text, embedding) VALUES\n`
+    sql += embeddings
+      .map(
+        (e) =>
+          `  ('${e.id}'::uuid, '${escapeSqlString(e.source_text)}', ${formatEmbedding(e.embedding)})`
+      )
+      .join(',\n')
+    sql += `\nON CONFLICT (source_text) DO NOTHING;\n\n`
+  }
+
+  if (places && places.length > 0) {
+    sql += `-- Places\n`
+    sql += `INSERT INTO places (id, name, osm_id, lat, lng, geom, embedding_id, pending_review) VALUES\n`
+    sql += places
+      .map(
+        (p: {
+          id: string
+          name: string
+          osm_id: string
+          lat: number
+          lng: number
+          geom: string | null
+          embedding_id: string | null
+          pending_review: boolean
+        }) => {
+          // geom is now WKT from ST_AsText
+          const geom = p.geom ? `ST_GeomFromText('${p.geom}', 4326)` : 'NULL'
+          const embeddingId = p.embedding_id ? `'${p.embedding_id}'::uuid` : 'NULL'
+          return `  ('${p.id}'::uuid, '${escapeSqlString(p.name)}', '${escapeSqlString(p.osm_id)}', ${p.lat}, ${p.lng}, ${geom}, ${embeddingId}, ${p.pending_review ?? false})`
+        }
+      )
+      .join(',\n')
+    sql += `\nON CONFLICT (id) DO NOTHING;\n\n`
+  }
+
+  if (placeTraits && placeTraits.length > 0) {
+    sql += `-- Place-Trait links\n`
+    sql += `INSERT INTO place_traits (place_id, trait_id) VALUES\n`
+    sql += placeTraits
+      .map((pt) => `  ('${pt.place_id}'::uuid, '${escapeSqlString(pt.trait_id)}')`)
+      .join(',\n')
+    sql += `\nON CONFLICT (place_id, trait_id) DO NOTHING;\n\n`
+  }
+
+  const outputPath = path.join(process.cwd(), 'supabase', 'seeds', '01_embedding_data.sql')
+  writeFileSync(outputPath, sql, 'utf8')
+  console.log(`\nGenerated: ${outputPath}`)
+} finally {
+  // Clean up wrappers
+  console.log('\nRemoving temporary wrappers...')
+  await dropWrappers()
 }
 
-// Deduplicate embeddings - multiple places can share the same embedding
-const uniqueEmbeddings = new Map<string, string>() // text -> embedding_vector
-placesData
-  .filter((place) => place.embedding_text)
-  .forEach((place) => {
-    const text = place.embedding_text!
-    if (!uniqueEmbeddings.has(text)) {
-      uniqueEmbeddings.set(text, place.embedding_vector!)
-    }
-  })
-
-sql += `-- Insert unique embeddings (shared by multiple places)\n`
-sql += `INSERT INTO embeddings (source_text, embedding) VALUES\n`
-
-const embeddingsToInsert = Array.from(uniqueEmbeddings.entries()).map(([text, embedding]) => {
-  const escapedText = escapeSqlString(text)
-  return `  ('${escapedText}', ${embedding})`
-})
-
-sql += embeddingsToInsert.join(',\n')
-sql += `\nON CONFLICT (source_text) DO NOTHING;\n\n`
-
-// Add test description embeddings
-if (testDescriptionEmbeddings.size > 0) {
-  sql += `-- Test description embeddings (for CI tests - pre-generated so no edge function calls needed)\n`
-  sql += `INSERT INTO embeddings (source_text, embedding) VALUES\n`
-  sql += Array.from(testDescriptionEmbeddings.entries())
-    .map(([text, embedding]) => `  ('${escapeSqlString(text)}', ${embedding})`)
-    .join(',\n')
-  sql += `\nON CONFLICT (source_text) DO NOTHING;\n\n`
-}
-
-sql += `-- Insert places with trait-based embeddings\n`
-sql += `INSERT INTO places (
-  id, name, osm_id, lat, lng, geom, embedding_id
-) VALUES\n`
-
-sql += placesData
-  .map((place) => {
-    const embeddingId = place.embedding_text
-      ? `(SELECT id FROM embeddings WHERE source_text = '${escapeSqlString(place.embedding_text)}')`
-      : 'NULL'
-
-    // Create polygon from bbox if available, otherwise NULL
-    let geomValue = 'NULL'
-    const bbox = place.bbox
-    if (bbox && bbox.length === 4) {
-      // bbox format: [min_lat, max_lat, min_lng, max_lng] (strings from Nominatim)
-      const [minLat, maxLat, minLng, maxLng] = bbox
-      geomValue = `ST_MakeEnvelope(${minLng}, ${minLat}, ${maxLng}, ${maxLat}, 4326)`
-    }
-
-    return `  ('${place.id}'::uuid, '${escapeSqlString(place.name ?? 'Unknown')}', '${escapeSqlString(place.osm_id ?? '')}', ${place.lat ?? 0}, ${place.lng ?? 0}, ${geomValue}, ${embeddingId})`
-  })
-  .join(',\n')
-
-sql += `;\n\n`
-
-if (traitLinks.length > 0) {
-  sql += `-- Link places to traits\n`
-  sql += `INSERT INTO place_traits (place_id, trait_id) VALUES\n`
-  sql += traitLinks
-    .map((link) => `  ('${link.placeId}'::uuid, '${escapeSqlString(link.traitId)}')`)
-    .join(',\n')
-  sql += `\nON CONFLICT (place_id, trait_id) DO NOTHING;\n\n`
-}
-
-// Questions are now generated on-the-fly from geographic_regions and place_traits
-// No need to seed them
-
-const outputPath = path.join(process.cwd(), 'supabase', 'seeds', '01_embedding_data.sql')
-writeFileSync(outputPath, sql, 'utf8')
-console.log(`Generated seed file: ${outputPath}`)
-console.log('Seed data generation complete!')
+console.log('Done!')

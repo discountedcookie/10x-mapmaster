@@ -50,27 +50,24 @@ BEGIN
   -- Generate question text
   IF v_use_llm_questions THEN
     -- Use LLM to generate natural question text
-    BEGIN
-      v_generated_text := generate_question_text(
-        v_result.trait_id,
-        v_result.geographic_region_id,
-        v_language_code
-      );
-    EXCEPTION WHEN others THEN
-      -- Fallback to template on any error
-      v_generated_text := NULL;
-      RAISE NOTICE 'LLM question generation failed: %, using template', SQLERRM;
-    END;
-  END IF;
-  
-  -- Fallback to template if LLM disabled or failed
-  IF v_generated_text IS NULL OR v_generated_text = '' THEN
+    -- No fallback: if LLM fails, exception propagates and game crashes
+    v_generated_text := generate_question_text(
+      v_result.trait_id,
+      v_result.geographic_region_id,
+      v_language_code
+    );
+    
+    IF v_generated_text IS NULL OR v_generated_text = '' THEN
+      RAISE EXCEPTION 'LLM returned empty question text for session %', p_session_id;
+    END IF;
+  ELSE
+    -- LLM disabled: use templates (not a fallback, this is configured behavior)
     IF v_result.question_type = 'semantic' THEN
       v_generated_text := 'Does it have ' || COALESCE((SELECT clause FROM traits WHERE id = v_result.trait_id), v_result.trait_id) || '?';
     ELSIF v_result.question_type = 'geographic' THEN
       v_generated_text := 'Is it in ' || (SELECT name FROM geographic_regions WHERE id = v_result.geographic_region_id) || '?';
     ELSE
-      v_generated_text := 'Unknown question type?';
+      RAISE EXCEPTION 'Unknown question type: %', v_result.question_type;
     END IF;
   END IF;
   

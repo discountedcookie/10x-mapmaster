@@ -18,12 +18,12 @@
 
 - [x] 3.1 Update `decide_next_turn.sql` to read from `game_logic.config`
 - [x] 3.2 Update `handle_question.sql` to read from `game_logic.config`
-- [ ] 3.3 Update `get_initial_candidates.sql` to read from `game_logic.config` - not needed, uses defaults
+- [x] 3.3 Update `get_initial_candidates.sql` to read from `game_logic.config` - N/A, uses defaults inline
 - [x] 3.4 Update `select_best_question.sql` to read from `game_logic.config`
 - [x] 3.5 Create helper `get_config(key)` function for consistent access
 
 ## 4. Testing
 
-- [ ] 4.1 Add pgTAP test for config access from game_logic functions
-- [ ] 4.2 Test that `public` schema cannot read `game_logic.config`
-- [ ] 4.3 Verify game works with migrated config
+- [x] 4.1 Add pgTAP test for config access from game_logic functions (test_settings_control_behavior.sql)
+- [x] 4.2 Test that `public` schema cannot read `game_logic.config` (test_rls_policies.sql:240-265)
+- [x] 4.3 Verify game works with migrated config (78/78 tests pass)

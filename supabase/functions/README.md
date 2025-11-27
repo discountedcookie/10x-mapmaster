@@ -4,6 +4,8 @@
 
 This directory contains Supabase Edge Functions for the 10x-Mapmaster application. All functions use Deno runtime and follow consistent patterns for error handling and logging.
 
+**Important**: All edge functions are called ONLY by the database via http extension. Frontend does NOT call edge functions directly.
+
 ## Environment Variables
 
 ### Required for Local Development
@@ -20,11 +22,11 @@ This directory contains Supabase Edge Functions for the 10x-Mapmaster applicatio
 
 Generates text embeddings using Ollama's `mxbai-embed-large` model.
 
-**Purpose**: Convert text into 1024-dimensional vectors for semantic similarity.
+**Purpose**: Convert text into 384-dimensional vectors for semantic similarity.
 
 **Endpoint**: `POST /functions/v1/generate-embedding`
 
-**Authentication**: None (public function)
+**Called by**: Database function `get_or_create_embedding()`
 
 **Request Body**:
 
@@ -38,7 +40,7 @@ Generates text embeddings using Ollama's `mxbai-embed-large` model.
 
 ```json
 {
-  "embedding": [0.1234, -0.5678, ...] // 1024 dimensions
+  "embedding": [0.1234, -0.5678, ...] // 384 dimensions
 }
 ```
 
@@ -48,14 +50,6 @@ Generates text embeddings using Ollama's `mxbai-embed-large` model.
 - `405`: Method not allowed (only POST supported)
 - `500`: Ollama API error or embedding generation failure
 
-**Example**:
-
-```bash
-curl -X POST 'http://127.0.0.1:54321/functions/v1/generate-embedding' \
-  --header 'Content-Type: application/json' \
-  --data '{"text": "Eiffel Tower"}'
-```
-
 ### 2. call-llm
 
 Calls Large Language Model via Ollama for text generation.
@@ -64,7 +58,7 @@ Calls Large Language Model via Ollama for text generation.
 
 **Endpoint**: `POST /functions/v1/call-llm`
 
-**Authentication**: None (public function)
+**Called by**: Database function `generate_question_text()`, edge function `place-enrichment`
 
 **Request Body**:
 
@@ -95,31 +89,21 @@ Calls Large Language Model via Ollama for text generation.
 - `405`: Method not allowed (only POST supported)
 - `500`: Ollama API error or LLM generation failure
 
-**Example**:
-
-```bash
-curl -X POST 'http://127.0.0.1:54321/functions/v1/call-llm' \
-  --header 'Content-Type: application/json' \
-  --data '{"prompt": "What is the capital of France?", "model": "llama3.2"}'
-```
-
 ### 3. place-enrichment
 
 Enriches place data using Nominatim API with trait extraction.
 
-**Purpose**: Get detailed place information and extract game-relevant traits.
+**Purpose**: Get detailed place information by OSM ID and extract game-relevant traits.
 
 **Endpoint**: `POST /functions/v1/place-enrichment`
 
-**Authentication**: None (public function)
+**Called by**: Database function `submit_place()`
 
 **Request Body**:
 
 ```json
 {
-  "query": "Eiffel Tower", // or "name"
-  "language": "en", // optional, default: "en"
-  "limit": 1 // optional, default: 1
+  "osm_id": "way/5013364"
 }
 ```
 
@@ -155,62 +139,11 @@ Enriches place data using Nominatim API with trait extraction.
 
 **Error Responses**:
 
-- `400`: Missing query/name field or invalid JSON
-- `404`: No results found
+- `400`: Missing osm_id field or invalid format
+- `404`: Place not found for OSM ID
 - `405`: Method not allowed (only POST supported)
 - `502`: Nominatim API error
 - `500`: Server error
-
-**Example**:
-
-```bash
-curl -X POST 'http://127.0.0.1:54321/functions/v1/place-enrichment' \
-  --header 'Content-Type: application/json' \
-  --data '{"query": "Eiffel Tower"}'
-```
-
-### 4. search-place
-
-Searches for places using Nominatim API.
-
-**Purpose**: Simple place search for frontend autocomplete and selection.
-
-**Endpoint**: `GET /functions/v1/search-place`
-
-**Authentication**: None (public function)
-
-**Parameters**:
-
-- `q` (query string): Search query for place names
-
-**Response**:
-
-```json
-{
-  "query": "Eiffel Tower",
-  "results": [
-    {
-      "name": "Tour Eiffel, 5, Avenue Anatole France, Quartier du Gros-Caillou, 7e Arrondissement, Paris, Île-de-France, France métropolitaine, 75007, France",
-      "lat": 48.858370099999996,
-      "lng": 2.2944813,
-      "osm_id": 1570375,
-      "type": "tourism"
-    }
-  ]
-}
-```
-
-**Error Responses**:
-
-- `400`: Missing or invalid query parameter
-- `405`: Method not allowed (only GET supported)
-- `500`: Server error or Nominatim API failure
-
-**Example**:
-
-```bash
-curl -X GET 'http://127.0.0.1:54321/functions/v1/search-place?q=Eiffel%20Tower'
-```
 
 ## Setup
 
@@ -273,7 +206,6 @@ supabase functions deploy
 supabase functions deploy generate-embedding
 supabase functions deploy call-llm
 supabase functions deploy place-enrichment
-supabase functions deploy search-place
 ```
 
 ## Development Notes

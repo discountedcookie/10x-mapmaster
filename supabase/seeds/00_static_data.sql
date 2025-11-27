@@ -82,15 +82,15 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- LLM Model Configuration
 ('llm.model', '"gemma3:1b"'::jsonb, 'Ollama model name for LLM operations'),
 ('llm.temperature', '0.1'::jsonb, 'LLM temperature (0.0-1.0). Lower = more deterministic'),
-('llm.num_predict', '300'::jsonb, 'Maximum number of tokens to generate'),
+('llm.num_predict', '500'::jsonb, 'Maximum number of tokens to generate'),
 ('llm.top_p', '0.9'::jsonb, 'LLM top_p sampling control'),
 ('llm.stop', '["\n\n"]'::jsonb, 'JSON array of stop sequences'),
 
--- LLM Trait Extraction
+-- LLM Trait Extraction (uses llm.extraction.* prefix, falls back to llm.*)
 ('llm.extraction.enabled', 'true'::jsonb, 'Enable LLM trait extraction during place enrichment'),
-('llm.extraction.prompt', '"Extract 3-5 distinctive traits for this place that would help someone guess it in a geographic game. Focus on physical characteristics, historical significance, cultural importance, or unique features. Avoid generic traits. Return JSON array: [{\"clause\": \"trait description\", \"category\": \"category\", \"confidence\": 0.8}]"'::jsonb, 'Prompt for LLM trait extraction'),
-('llm.extraction.model', '"gemma3:1b"'::jsonb, 'Model to use for LLM trait extraction'),
-('llm.extraction.temperature', '0.3'::jsonb, 'Temperature for LLM trait extraction'),
+('llm.extraction.model', '"gemma3:1b"'::jsonb, 'Model for trait extraction'),
+('llm.extraction.temperature', '0.3'::jsonb, 'Temperature for trait extraction'),
+('llm.extraction.num_predict', '1000'::jsonb, 'Max tokens for trait extraction'),
 
 -- Confidence decision thresholds
 ('confidence.top_prob_threshold', '0.4'::jsonb, 'Minimum top probability to guess'),

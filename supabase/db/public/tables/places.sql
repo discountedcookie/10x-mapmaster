@@ -1,6 +1,7 @@
 -- Table: places
 -- Schema: public
 -- Description: Stores geographic locations with trait-based descriptions
+-- Geometry accepts Point, Polygon, or MultiPolygon from Nominatim
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."places" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
@@ -8,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "public"."places" (
   "osm_id" "text" NOT NULL,
   "lat" DOUBLE PRECISION,
   "lng" DOUBLE PRECISION,
-  "geom" "extensions"."geometry" (polygon, 4326),
+  "geom" "extensions"."geometry" (geometry, 4326),
   "embedding_id" "uuid",
   "times_encountered" INTEGER DEFAULT 0 NOT NULL,
   "pending_review" BOOLEAN DEFAULT FALSE NOT NULL,

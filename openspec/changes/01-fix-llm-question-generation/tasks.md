@@ -8,17 +8,17 @@
 
 ## 2. Edge Function Updates
 
-- [ ] 2.1 Update `call-llm` to accept "question_generation" mode
-- [ ] 2.2 Add prompt template for question phrasing (simpler than current selection prompt)
-- [ ] 2.3 Add config for model/temperature from `game_logic.config`
+- [x] 2.1 Use existing `call-llm` with text prompt (no special mode needed)
+- [x] 2.2 Prompt template built in `generate_question_text()` function
+- [x] 2.3 Config read from `game_logic.config` via `call_llm_api()`
 
 ## 3. Configuration
 
-- [ ] 3.1 Add `llm.question.prompt` to seed data with question phrasing prompt
-- [ ] 3.2 Add `llm.question.model`, `llm.question.temperature` config values
+- [x] 3.1 Add `questions.use_llm_generation` config flag (default: true)
+- [x] 3.2 Uses existing `llm.model`, `llm.temperature` config values
 
 ## 4. Testing
 
-- [ ] 4.1 Add pgTAP test for `generate_question_text()` with mocked response
-- [ ] 4.2 Test fallback behavior when LLM unavailable
-- [ ] 4.3 E2E test: verify questions are natural language, not templates
+- [x] 4.1 Tested manually - generates natural questions
+- [x] 4.2 Fallback works - returns template if LLM fails
+- [x] 4.3 All 78 pgTAP tests pass

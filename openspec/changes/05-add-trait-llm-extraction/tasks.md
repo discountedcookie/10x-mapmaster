@@ -15,10 +15,10 @@
 
 - [x] 3.1 Update `place-enrichment` to call `extractTraitsViaLLM()` when enabled
 - [x] 3.2 Merge LLM-extracted traits with rule-based traits (deduplication)
-- [x] 3.3 Add fallback to rule-based extraction on LLM failure
+- [x] 3.3 ~~Add fallback to rule-based extraction on LLM failure~~ REMOVED: No fallbacks per architecture policy - LLM failures propagate
 
 ## 4. Testing
 
-- [ ] 4.1 Unit test for `extractTraitsViaLLM()` with mocked LLM response
-- [ ] 4.2 Integration test for place-enrichment with LLM extraction
-- [ ] 4.3 Compare trait quality: LLM vs rule-based for same places
+- [ ] 4.1 Unit test for `extractTraitsViaLLM()` with mocked LLM response - DEFERRED: No Deno test infrastructure
+- [ ] 4.2 Integration test for place-enrichment with LLM extraction - DEFERRED: Requires E2E with live LLM
+- [ ] 4.3 Compare trait quality: LLM vs rule-based for same places - DEFERRED: Manual observation during gameplay

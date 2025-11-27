@@ -6,10 +6,10 @@
 
 ## 2. Update Build
 
-- [ ] 2.1 Run `bun run db:rebuild` to regenerate migration
-- [ ] 2.2 Verify build succeeds without the removed function
+- [x] 2.1 Run `bun run db:rebuild` to regenerate migration
+- [x] 2.2 Verify build succeeds without the removed function
 
 ## 3. Testing
 
-- [ ] 3.1 Run `supabase test db` to ensure no test depends on removed function
+- [x] 3.1 Run `supabase test db` to ensure no test depends on removed function
 - [ ] 3.2 Verify game still works end-to-end

@@ -1,7 +1,7 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-11-27T02:50:55.356Z
+-- Generated: 2025-11-27T04:44:46.004Z
 -- Mode: DEV (clean rebuild)
--- Schema: 1, Tables: 13, Functions: 56, Triggers: 1, Views: 3
+-- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 3
 
 -- ============================================================================
 -- EXTENSIONS AND TYPES
@@ -439,6 +439,7 @@ comment ON TABLE "public"."traits" IS 'Canonical trait vocabulary per spec. Each
 -- Table: places
 -- Schema: public
 -- Description: Stores geographic locations with trait-based descriptions
+-- Geometry accepts Point, Polygon, or MultiPolygon from Nominatim
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."places" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
@@ -446,7 +447,7 @@ CREATE TABLE IF NOT EXISTS "public"."places" (
   "osm_id" "text" NOT NULL,
   "lat" DOUBLE PRECISION,
   "lng" DOUBLE PRECISION,
-  "geom" "extensions"."geometry" (polygon, 4326),
+  "geom" "extensions"."geometry" (geometry, 4326),
   "embedding_id" "uuid",
   "times_encountered" INTEGER DEFAULT 0 NOT NULL,
   "pending_review" BOOLEAN DEFAULT FALSE NOT NULL,
@@ -1385,30 +1386,15 @@ SET
   extensions AS $$
 DECLARE
   v_session RECORD;
-  v_status INT;
-  v_content TEXT;
-  v_edge_function_url TEXT;
-  v_anon_key TEXT;
   v_nominatim_data JSONB;
-  v_place_data JSONB;
   v_traits JSONB;
   v_place_id UUID;
-  v_trait_clauses TEXT[];
-  v_combined_text TEXT;
-  v_embedding_id UUID;
   v_is_registered BOOLEAN;
   v_pending_review BOOLEAN;
-  v_trait_id TEXT;
-  v_lat DOUBLE PRECISION;
-  v_lng DOUBLE PRECISION;
-  v_geojson JSONB;
-  v_name TEXT;
 BEGIN
   -- ============================================================================
-  -- AUTHENTICATION CHECK (SECURITY DEFINER guardrail)
+  -- AUTHENTICATION CHECK
   -- ============================================================================
-  -- SECURITY DEFINER functions MUST validate auth.uid() IS NOT NULL when user
-  -- context is required. This prevents unauthorized access via anonymous users.
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'Authentication required to submit a place';
   END IF;
@@ -1432,12 +1418,7 @@ BEGIN
   -- ============================================================================
   -- SESSION VALIDATION & OWNERSHIP CHECK
   -- ============================================================================
-  SELECT
-    id,
-    user_id,
-    was_correct,
-    next_turn,
-    description
+  SELECT id, user_id, was_correct, next_turn, description
   INTO v_session
   FROM game_sessions
   WHERE id = p_session_id;
@@ -1446,20 +1427,11 @@ BEGIN
     RAISE EXCEPTION 'Session % not found', p_session_id;
   END IF;
 
-  -- Validate session ownership (auth.uid() must match session user_id)
   IF v_session.user_id IS NOT NULL AND v_session.user_id != auth.uid() THEN
     RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
-  
-  -- For anonymous sessions, allow if current user is also anonymous
-  IF v_session.user_id IS NULL AND auth.uid() IS NOT NULL THEN
-    -- Session was created anonymously but user is now authenticated
-    -- This is allowed - we'll update the session user_id
-    NULL;
-  END IF;
 
   -- Verify session is in 'needs_submission' state
-  -- needs_submission: next_turn->>'action' = 'give_up' OR next_turn IS NULL with was_correct IS NULL
   IF NOT (
     (v_session.next_turn->>'action' = 'give_up') OR
     (v_session.next_turn IS NULL AND v_session.was_correct IS NULL)
@@ -1471,7 +1443,6 @@ BEGIN
   -- pgTAP TEST SHORT-CIRCUIT
   -- ============================================================================
   IF current_setting('pgtap.version', true) IS NOT NULL THEN
-    -- In test mode, just mark session as completed with pending_review
     UPDATE game_sessions
     SET 
       was_correct = FALSE,
@@ -1482,9 +1453,8 @@ BEGIN
   END IF;
 
   -- ============================================================================
-  -- DETERMINE USER TYPE (registered vs anonymous)
+  -- DETERMINE USER TYPE
   -- ============================================================================
-  -- Check if user is registered (has email in auth.users)
   SELECT EXISTS (
     SELECT 1 FROM auth.users 
     WHERE id = auth.uid() 
@@ -1492,156 +1462,24 @@ BEGIN
     AND email != ''
   ) INTO v_is_registered;
 
-  -- Anonymous users need review, registered users auto-approve
   v_pending_review := NOT v_is_registered;
 
   -- ============================================================================
-  -- CONFIGURATION RETRIEVAL (from GUC vars or game_logic.config - NO hardcoded secrets)
+  -- FETCH, EXTRACT, CREATE (using helper functions)
   -- ============================================================================
-  v_edge_function_url := COALESCE(
-    NULLIF(current_setting('app.supabase_url', true), ''),
-    game_logic.get_config_text('runtime.supabase_url')
-  );
-  
-  IF v_edge_function_url IS NULL THEN
-    RAISE EXCEPTION 'Missing configuration: app.supabase_url or runtime.supabase_url';
-  END IF;
-  
-  v_edge_function_url := v_edge_function_url || '/functions/v1/place-enrichment';
-
-  v_anon_key := COALESCE(
-    NULLIF(current_setting('app.supabase_anon_key', true), ''),
-    game_logic.get_config_text('runtime.supabase_anon_key')
-  );
-  
-  IF v_anon_key IS NULL OR v_anon_key = '' THEN
-    RAISE EXCEPTION 'Missing configuration: app.supabase_anon_key or runtime.supabase_anon_key';
-  END IF;
-
-  -- ============================================================================
-  -- CALL PLACE-ENRICHMENT EDGE FUNCTION
-  -- ============================================================================
-  -- Increase timeout for edge function call
-  PERFORM set_config('statement_timeout', '30s', true);
-  PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '30000');
-  PERFORM extensions.http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '5000');
-
-  RAISE NOTICE 'Calling place-enrichment at: % with osm_id: %', v_edge_function_url, p_osm_id;
-
-  -- Note: Select specific columns to avoid TupleDesc resource leak
-  SELECT status, content INTO v_status, v_content FROM extensions.http((
-    'POST',
-    v_edge_function_url,
-    ARRAY[
-      extensions.http_header('Content-Type', 'application/json'),
-      extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
-    ],
-    'application/json',
-    jsonb_build_object('query', p_osm_id)::text
-  )::extensions.http_request);
-
-  RAISE NOTICE 'Response status: %', v_status;
-
-  IF v_status != 200 THEN
-    RAISE EXCEPTION 'Place enrichment failed with status %: %', v_status, v_content;
-  END IF;
-
-  -- ============================================================================
-  -- PARSE NOMINATIM RESPONSE
-  -- ============================================================================
-  v_nominatim_data := v_content::jsonb;
-  v_place_data := v_nominatim_data->'place';
-  v_traits := v_nominatim_data->'traits';
-
-  IF v_place_data IS NULL THEN
-    RAISE EXCEPTION 'No place data in response: %', v_content;
-  END IF;
-
-  -- Extract place fields
-  v_name := v_place_data->>'english_name';
-  IF v_name IS NULL OR v_name = '' THEN
-    v_name := v_place_data->>'display_name';
-  END IF;
-  
-  v_lat := (v_place_data->>'lat')::DOUBLE PRECISION;
-  v_lng := (v_place_data->>'lng')::DOUBLE PRECISION;
-  v_geojson := v_place_data->'geojson';
-
-  -- ============================================================================
-  -- EXTRACT TRAIT CLAUSES FOR EMBEDDING
-  -- ============================================================================
-  -- Build array of trait clauses from the traits returned by enrichment
-  IF v_traits IS NOT NULL AND jsonb_array_length(v_traits) > 0 THEN
-    SELECT array_agg(t->>'clause')
-    INTO v_trait_clauses
-    FROM jsonb_array_elements(v_traits) AS t
-    WHERE t->>'clause' IS NOT NULL;
-  END IF;
-
-  -- ============================================================================
-  -- GENERATE EMBEDDING FROM COMBINED TRAIT CLAUSES
-  -- ============================================================================
-  IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
-    v_combined_text := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_or_create_embedding(v_combined_text);
-  END IF;
-
-  -- ============================================================================
-  -- CREATE OR UPDATE PLACE RECORD
-  -- ============================================================================
-  v_place_id := game_logic.add_place(
-    v_name,
-    p_osm_id,
-    v_lat::NUMERIC,
-    v_lng::NUMERIC,
-    v_geojson,
-    FALSE  -- places themselves don't have pending_review anymore
-  );
-
-  -- Update place embedding if we generated one
-  IF v_embedding_id IS NOT NULL THEN
-    UPDATE places
-    SET embedding_id = v_embedding_id
-    WHERE id = v_place_id;
-  END IF;
-
-  -- ============================================================================
-  -- CREATE TRAITS AND LINK TO PLACE
-  -- ============================================================================
-  IF v_traits IS NOT NULL AND jsonb_array_length(v_traits) > 0 THEN
-    FOR v_trait_id IN
-      SELECT t->>'id'
-      FROM jsonb_array_elements(v_traits) AS t
-      WHERE t->>'id' IS NOT NULL
-    LOOP
-      -- Insert trait if not exists
-      INSERT INTO traits (id, clause)
-      SELECT 
-        t->>'id',
-        t->>'clause'
-      FROM jsonb_array_elements(v_traits) AS t
-      WHERE t->>'id' = v_trait_id
-      ON CONFLICT (id) DO NOTHING;
-
-      -- Link trait to place
-      INSERT INTO place_traits (place_id, trait_id)
-      VALUES (v_place_id, v_trait_id)
-      ON CONFLICT (place_id, trait_id) DO NOTHING;
-    END LOOP;
-  END IF;
+  v_nominatim_data := game_logic.fetch_nominatim_place(p_osm_id);
+  v_traits := game_logic.extract_traits_from_nominatim(v_nominatim_data);
+  v_place_id := game_logic.create_place_with_traits(p_osm_id, v_nominatim_data, v_traits, FALSE);
 
   -- ============================================================================
   -- UPDATE SESSION
   -- ============================================================================
-  -- Note: OSM ID, name, lat, lng are stored in the places table (via place_id FK)
-  -- No need to duplicate them in game_sessions
   UPDATE game_sessions
   SET 
     place_id = v_place_id,
     was_correct = FALSE,
     next_turn = NULL,
     pending_review = v_pending_review,
-    -- Update user_id if session was anonymous but user is now authenticated
     user_id = COALESCE(user_id, auth.uid())
   WHERE id = p_session_id;
 
@@ -1649,11 +1487,9 @@ BEGIN
   -- IF REGISTERED USER, TRIGGER TRAIT REGENERATION
   -- ============================================================================
   IF NOT v_pending_review THEN
-    -- Auto-approved - regenerate traits immediately
     PERFORM game_logic.regenerate_place_traits(v_place_id);
   END IF;
 
-  -- Return void on success
   RETURN;
 EXCEPTION
   WHEN others THEN
@@ -1665,7 +1501,7 @@ $$;
 ALTER FUNCTION "public"."submit_place" (UUID, TEXT) owner TO "postgres";
 
 
-comment ON function "public"."submit_place" (UUID, TEXT) IS 'Submit the correct place after game gives up (needs_submission state).
+comment ON function "public"."submit_place" (UUID, TEXT) IS 'Submit the correct place after game gives up.
 
 Parameters:
 - p_session_id: The game session ID
@@ -1674,18 +1510,12 @@ Parameters:
 Process:
 1. Validate auth and session ownership
 2. Verify session is in needs_submission state
-3. Call place-enrichment edge function with osm_id
-4. Parse Nominatim response, extract traits
-5. Generate embedding from trait clauses
-6. Create/update place record
-7. Link session to place (place_id), set was_correct = FALSE
-8. If registered user: pending_review = FALSE (auto-approve)
-9. If anonymous user: pending_review = TRUE
+3. Fetch place data from Nominatim
+4. Extract traits (LLM + rule-based)
+5. Create place with traits and embedding
+6. Link session to place
 
-Security: SECURITY DEFINER to call edge functions and internal functions.
-Uses auth.uid() for ownership validation.
-
-Returns: void on success, raises exception on error.';
+Security: SECURITY DEFINER. Uses auth.uid() for ownership validation.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/adjust_candidates_for_answer.sql
@@ -2804,18 +2634,20 @@ BEGIN
     LIMIT 1;
     
     IF v_question_record.question_type IS NULL THEN
-      RAISE EXCEPTION 'Failed to choose next question for session %', p_session_id;
+      -- No differentiating questions available - fall back to guess
+      -- This happens when remaining candidates share all traits/regions
+      v_next_turn := build_guess_turn(v_top_candidate, v_candidates);
+    ELSE
+      -- Build QUESTION next_turn using pure formatter (SRP)
+      v_next_turn := build_question_turn(
+        v_question_record.question_type,
+        v_question_record.trait_id,
+        v_question_record.geographic_region_id,
+        v_question_record.question_text,
+        v_question_record.question_reasoning,
+        v_candidates
+      );
     END IF;
-    
-    -- Build QUESTION next_turn using pure formatter (SRP)
-    v_next_turn := build_question_turn(
-      v_question_record.question_type,
-      v_question_record.trait_id,
-      v_question_record.geographic_region_id,
-      v_question_record.question_text,
-      v_question_record.question_reasoning,
-      v_candidates
-    );
   END IF;
 
   -- Store next_turn
@@ -3242,27 +3074,24 @@ BEGIN
   -- Generate question text
   IF v_use_llm_questions THEN
     -- Use LLM to generate natural question text
-    BEGIN
-      v_generated_text := generate_question_text(
-        v_result.trait_id,
-        v_result.geographic_region_id,
-        v_language_code
-      );
-    EXCEPTION WHEN others THEN
-      -- Fallback to template on any error
-      v_generated_text := NULL;
-      RAISE NOTICE 'LLM question generation failed: %, using template', SQLERRM;
-    END;
-  END IF;
-  
-  -- Fallback to template if LLM disabled or failed
-  IF v_generated_text IS NULL OR v_generated_text = '' THEN
+    -- No fallback: if LLM fails, exception propagates and game crashes
+    v_generated_text := generate_question_text(
+      v_result.trait_id,
+      v_result.geographic_region_id,
+      v_language_code
+    );
+    
+    IF v_generated_text IS NULL OR v_generated_text = '' THEN
+      RAISE EXCEPTION 'LLM returned empty question text for session %', p_session_id;
+    END IF;
+  ELSE
+    -- LLM disabled: use templates (not a fallback, this is configured behavior)
     IF v_result.question_type = 'semantic' THEN
       v_generated_text := 'Does it have ' || COALESCE((SELECT clause FROM traits WHERE id = v_result.trait_id), v_result.trait_id) || '?';
     ELSIF v_result.question_type = 'geographic' THEN
       v_generated_text := 'Is it in ' || (SELECT name FROM geographic_regions WHERE id = v_result.geographic_region_id) || '?';
     ELSE
-      v_generated_text := 'Unknown question type?';
+      RAISE EXCEPTION 'Unknown question type: %', v_result.question_type;
     END IF;
   END IF;
   
@@ -5005,7 +4834,11 @@ Extracted from decide_next_turn for Single Responsibility Principle.';
 -- Category: utilities
 -- Purpose: Call LLM via edge function with a prompt
 -- Returns: LLM response text
-CREATE OR REPLACE FUNCTION "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text" DEFAULT NULL) returns "text" language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."call_llm_api" (
+  "p_prompt" "text", 
+  "p_format" "text" DEFAULT NULL,
+  "p_config_prefix" "text" DEFAULT 'llm'
+) returns "text" language "plpgsql" security definer
 SET
   search_path = public,
   game_logic,
@@ -5054,15 +4887,33 @@ BEGIN
 
   -- ============================================================================
   -- FETCH LLM SETTINGS FROM game_logic.config
+  -- Uses p_config_prefix to allow different settings per use-case:
+  --   'llm' (default) -> llm.model, llm.temperature, etc.
+  --   'llm.extraction' -> llm.extraction.model, llm.extraction.temperature, etc.
+  --   'llm.questions' -> llm.questions.model, llm.questions.temperature, etc.
+  -- Falls back to base 'llm.*' settings if prefix-specific not found
   -- ============================================================================
-  v_llm_model := get_config_text('llm.model', 'gemma3:1b');
-  v_llm_temperature := get_config_float('llm.temperature', 0.1);
-  v_llm_num_predict := get_config_int('llm.num_predict', 300);
-  v_llm_top_p := get_config_float('llm.top_p', 0.9);
-  v_llm_stop := get_config('llm.stop');
-  IF v_llm_stop IS NULL THEN
-    v_llm_stop := '["\\n\\n"]'::jsonb;
-  END IF;
+  v_llm_model := COALESCE(
+    get_config_text(p_config_prefix || '.model'),
+    get_config_text('llm.model', 'gemma3:1b')
+  );
+  v_llm_temperature := COALESCE(
+    get_config_float(p_config_prefix || '.temperature'),
+    get_config_float('llm.temperature', 0.1)
+  );
+  v_llm_num_predict := COALESCE(
+    get_config_int(p_config_prefix || '.num_predict'),
+    get_config_int('llm.num_predict', 300)
+  );
+  v_llm_top_p := COALESCE(
+    get_config_float(p_config_prefix || '.top_p'),
+    get_config_float('llm.top_p', 0.9)
+  );
+  v_llm_stop := COALESCE(
+    get_config(p_config_prefix || '.stop'),
+    get_config('llm.stop'),
+    '["\\n\\n"]'::jsonb
+  );
 
   -- Build options object
   v_llm_options := jsonb_build_object(
@@ -5083,7 +4934,7 @@ BEGIN
     v_request_body := v_request_body || jsonb_build_object('format', p_format);
   END IF;
 
-  RAISE NOTICE 'Calling call-llm at: %', v_edge_function_url;
+  RAISE NOTICE 'Calling call-llm at: % with model: %', v_edge_function_url, v_llm_model;
 
   -- ============================================================================
   -- HTTP CALL TO EDGE FUNCTION
@@ -5120,25 +4971,27 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text", "p_config_prefix" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text") IS 'Call LLM via call-llm edge function with database-driven configuration.
+comment ON function "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text", "p_config_prefix" "text") IS 'Call LLM via call-llm edge function with database-driven configuration.
 
 Fetches LLM settings from game_logic.config and passes them to the edge function.
 
 Parameters:
 - p_prompt: The prompt to send to the LLM
 - p_format: Optional format hint (e.g., "json" for JSON responses)
+- p_config_prefix: Config key prefix for use-case specific settings (default: "llm")
+  Examples: "llm" (default), "llm.extraction", "llm.questions"
 
 Returns: LLM response text
 
-Configuration (from game_logic.config):
-- llm.model: Ollama model name (default: gemma3:1b)
-- llm.temperature: Temperature 0.0-1.0 (default: 0.1)
-- llm.num_predict: Max tokens to generate (default: 300)
-- llm.top_p: Top-p sampling 0.0-1.0 (default: 0.9)
-- llm.stop: JSON array of stop sequences (default: ["\\n\\n"])
+Configuration (from game_logic.config with prefix, falls back to llm.*):
+- {prefix}.model: Ollama model name (default: gemma3:1b)
+- {prefix}.temperature: Temperature 0.0-1.0 (default: 0.1)
+- {prefix}.num_predict: Max tokens to generate (default: 300)
+- {prefix}.top_p: Top-p sampling 0.0-1.0 (default: 0.9)
+- {prefix}.stop: JSON array of stop sequences (default: ["\\n\\n"])
 
 Error handling:
 - Uses sensible defaults if config not found
@@ -5286,6 +5139,131 @@ Error codes:
 - rate_limit_exceeded: Returns 429 status to frontend';
 
 -- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/create_place_with_traits.sql
+-- --------------------------------------------------------------------------
+
+-- Function: create_place_with_traits
+-- Category: utilities
+-- Purpose: Create a place record with traits and embedding from Nominatim data
+CREATE OR REPLACE FUNCTION "game_logic"."create_place_with_traits" (
+  "p_osm_id" TEXT,
+  "p_nominatim_data" JSONB,
+  "p_traits" JSONB,
+  "p_is_curated" BOOLEAN DEFAULT FALSE
+) 
+returns UUID language plpgsql security definer
+SET
+  search_path = public,
+  game_logic,
+  extensions AS $$
+DECLARE
+  v_place_id UUID;
+  v_name TEXT;
+  v_lat DOUBLE PRECISION;
+  v_lng DOUBLE PRECISION;
+  v_geojson JSONB;
+  v_trait_clauses TEXT[];
+  v_combined_text TEXT;
+  v_embedding_id UUID;
+  v_trait_id TEXT;
+  v_trait_clause TEXT;
+BEGIN
+  -- ============================================================================
+  -- EXTRACT PLACE FIELDS
+  -- ============================================================================
+  v_name := COALESCE(
+    p_nominatim_data->'namedetails'->>'name:en',
+    p_nominatim_data->>'name',
+    p_nominatim_data->>'display_name'
+  );
+  v_lat := (p_nominatim_data->>'lat')::DOUBLE PRECISION;
+  v_lng := (p_nominatim_data->>'lon')::DOUBLE PRECISION;
+  v_geojson := p_nominatim_data->'geojson';
+
+  -- ============================================================================
+  -- EXTRACT TRAIT CLAUSES FOR EMBEDDING
+  -- ============================================================================
+  IF p_traits IS NOT NULL AND jsonb_array_length(p_traits) > 0 THEN
+    SELECT array_agg(DISTINCT t->>'clause')
+    INTO v_trait_clauses
+    FROM jsonb_array_elements(p_traits) AS t
+    WHERE t->>'clause' IS NOT NULL;
+  END IF;
+
+  -- ============================================================================
+  -- GENERATE EMBEDDING FROM COMBINED TRAIT CLAUSES
+  -- ============================================================================
+  IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
+    v_combined_text := array_to_string(v_trait_clauses, '. ');
+    v_embedding_id := get_or_create_embedding(v_combined_text);
+  END IF;
+
+  -- ============================================================================
+  -- CREATE PLACE RECORD
+  -- ============================================================================
+  -- Note: add_place expects p_pending_review, we invert p_is_curated
+  -- Curated places (is_curated=TRUE) don't need review (pending_review=FALSE)
+  v_place_id := game_logic.add_place(
+    v_name,
+    p_osm_id,
+    v_lat::NUMERIC,
+    v_lng::NUMERIC,
+    v_geojson,
+    NOT p_is_curated  -- invert: curated places don't need review
+  );
+
+  IF v_embedding_id IS NOT NULL THEN
+    UPDATE places
+    SET embedding_id = v_embedding_id
+    WHERE id = v_place_id;
+  END IF;
+
+  -- ============================================================================
+  -- CREATE TRAITS AND LINK TO PLACE
+  -- ============================================================================
+  IF p_traits IS NOT NULL AND jsonb_array_length(p_traits) > 0 THEN
+    FOR v_trait_id, v_trait_clause IN
+      SELECT DISTINCT t->>'id', t->>'clause'
+      FROM jsonb_array_elements(p_traits) AS t
+      WHERE t->>'id' IS NOT NULL AND t->>'clause' IS NOT NULL
+    LOOP
+      -- Insert trait if not exists
+      INSERT INTO traits (id, clause)
+      VALUES (v_trait_id, v_trait_clause)
+      ON CONFLICT (id) DO NOTHING;
+
+      -- Link trait to place
+      INSERT INTO place_traits (place_id, trait_id)
+      VALUES (v_place_id, v_trait_id)
+      ON CONFLICT (place_id, trait_id) DO NOTHING;
+    END LOOP;
+  END IF;
+
+  RETURN v_place_id;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."create_place_with_traits" (TEXT, JSONB, JSONB, BOOLEAN) owner TO "postgres";
+
+
+comment ON function "game_logic"."create_place_with_traits" (TEXT, JSONB, JSONB, BOOLEAN) IS 'Create a place record with traits and embedding.
+
+Parameters:
+- p_osm_id: OpenStreetMap ID (e.g., "way/5013364")
+- p_nominatim_data: JSONB from fetch_nominatim_place()
+- p_traits: JSONB array from extract_traits_from_nominatim()
+- p_is_curated: Whether this is a curated place (default FALSE)
+
+Process:
+1. Extract name, lat, lng, geojson from Nominatim data
+2. Generate embedding from combined trait clauses
+3. Create place record via add_place()
+4. Create traits and link to place
+
+Returns: UUID of created place';
+
+-- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/enrich_place_on_approval.sql
 -- --------------------------------------------------------------------------
 
@@ -5336,6 +5314,245 @@ $$;
 
 
 ALTER FUNCTION "game_logic"."enrich_place_on_session_complete" () owner TO "postgres";
+
+-- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/extract_traits_from_nominatim.sql
+-- --------------------------------------------------------------------------
+
+-- Function: extract_traits_from_nominatim
+-- Category: utilities
+-- Purpose: Extract traits from Nominatim data using LLM + rule-based extraction
+CREATE OR REPLACE FUNCTION "game_logic"."extract_traits_from_nominatim" ("p_nominatim_data" JSONB) 
+returns JSONB language plpgsql security definer
+SET
+  search_path = public,
+  game_logic,
+  extensions AS $$
+DECLARE
+  v_llm_enabled BOOLEAN;
+  v_llm_prompt TEXT;
+  v_llm_response TEXT;
+  v_traits JSONB;
+  v_name TEXT;
+  v_display_name TEXT;
+  v_extratags JSONB;
+  v_address JSONB;
+BEGIN
+  -- Extract fields for prompt
+  v_name := COALESCE(
+    p_nominatim_data->'namedetails'->>'name:en',
+    p_nominatim_data->>'name',
+    p_nominatim_data->>'display_name'
+  );
+  v_display_name := p_nominatim_data->>'display_name';
+  v_extratags := COALESCE(p_nominatim_data->'extratags', '{}'::jsonb);
+  v_address := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
+
+  -- Check if LLM trait extraction is enabled
+  v_llm_enabled := COALESCE(
+    (game_logic.get_config('llm.extraction.enabled')#>>'{}')::BOOLEAN,
+    TRUE
+  );
+
+  v_traits := '[]'::jsonb;
+  
+  -- ============================================================================
+  -- LLM TRAIT EXTRACTION (if enabled)
+  -- ============================================================================
+  IF v_llm_enabled THEN
+    v_llm_prompt := format(
+      E'You are extracting traits for a geographic guessing game. Given place data, extract 5-8 distinctive traits that would help players guess this location.
+
+Place: %s
+Full address: %s
+Category: %s/%s
+Country: %s
+Additional info: %s
+
+Extract traits covering:
+1. What it IS (temple, tower, mountain, waterfall, etc.)
+2. Religious/cultural significance (Buddhist, Hindu, Christian, Islamic, ancient, etc.)
+3. Historical period (ancient, medieval, 19th century, modern, etc.)
+4. Physical features (tall, stone, iron, carved, etc.)
+5. Famous for (UNESCO site, wonder of world, pilgrimage, etc.)
+6. Geographic context (coastal, mountain, desert, jungle, etc.)
+
+Return a JSON array with 5-8 traits:
+[{"id": "category:value", "clause": "Human readable description"}]
+
+Example for Angkor Wat:
+[
+  {"id": "type:temple", "clause": "Ancient temple complex"},
+  {"id": "religion:buddhist", "clause": "Buddhist religious site"},
+  {"id": "religion:hindu", "clause": "Originally Hindu temple"},
+  {"id": "era:medieval", "clause": "Built in 12th century"},
+  {"id": "feature:stone", "clause": "Made of sandstone"},
+  {"id": "status:unesco", "clause": "UNESCO World Heritage Site"},
+  {"id": "fame:wonder", "clause": "Largest religious monument in world"}
+]
+
+Return ONLY the JSON array.',
+      v_name,
+      v_display_name,
+      p_nominatim_data->>'class',
+      p_nominatim_data->>'type',
+      v_address->>'country',
+      v_extratags::text
+    );
+
+    RAISE NOTICE 'Calling LLM for trait extraction';
+
+    -- Use llm.extraction config prefix for extraction-specific model settings
+    -- Note: Don't pass 'json' format - gemma returns cleaner JSON arrays without it
+    v_llm_response := game_logic.call_llm_api(v_llm_prompt, NULL, 'llm.extraction');
+    
+    -- Strip markdown code fences if present (```json ... ```)
+    v_llm_response := regexp_replace(v_llm_response, '^```json\s*', '', 'i');
+    v_llm_response := regexp_replace(v_llm_response, '\s*```$', '', 'i');
+    v_llm_response := trim(v_llm_response);
+    
+    v_traits := v_llm_response::jsonb;
+  END IF;
+
+  -- ============================================================================
+  -- RULE-BASED TRAITS (always, supplements LLM)
+  -- ============================================================================
+  -- Add class as trait
+  IF p_nominatim_data->>'class' IS NOT NULL THEN
+    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
+      'id', 'class:' || lower(p_nominatim_data->>'class'),
+      'clause', initcap(p_nominatim_data->>'class')
+    ));
+  END IF;
+  
+  -- Add type as trait
+  IF p_nominatim_data->>'type' IS NOT NULL THEN
+    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
+      'id', 'type:' || lower(p_nominatim_data->>'type'),
+      'clause', initcap(replace(p_nominatim_data->>'type', '_', ' '))
+    ));
+  END IF;
+
+  -- Add country as trait
+  IF v_address->>'country' IS NOT NULL THEN
+    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
+      'id', 'country:' || lower(replace(v_address->>'country', ' ', '_')),
+      'clause', v_address->>'country'
+    ));
+  END IF;
+
+  RETURN v_traits;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."extract_traits_from_nominatim" (JSONB) owner TO "postgres";
+
+
+comment ON function "game_logic"."extract_traits_from_nominatim" (JSONB) IS 'Extract traits from Nominatim data.
+
+Parameters:
+- p_nominatim_data: JSONB from fetch_nominatim_place()
+
+Process:
+1. If features.use_llm_trait_extraction enabled, call LLM for rich trait extraction
+2. Always add rule-based traits (class, type, country)
+
+Returns: JSONB array of traits, each with:
+- id: "category:value" format
+- clause: Human readable description
+
+Raises exception if LLM call fails (no fallback).';
+
+-- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/fetch_nominatim_place.sql
+-- --------------------------------------------------------------------------
+
+-- Function: fetch_nominatim_place
+-- Category: utilities
+-- Purpose: Fetch place data from Nominatim by OSM ID
+CREATE OR REPLACE FUNCTION "game_logic"."fetch_nominatim_place" ("p_osm_id" TEXT) 
+returns JSONB language plpgsql security definer
+SET
+  search_path = public,
+  game_logic,
+  extensions AS $$
+DECLARE
+  v_status INT;
+  v_content TEXT;
+  v_osm_type TEXT;
+  v_osm_id_num BIGINT;
+  v_nominatim_data JSONB;
+BEGIN
+  -- ============================================================================
+  -- PARSE OSM ID (format: "way/123456" or "node/123456" or "relation/123456")
+  -- ============================================================================
+  v_osm_type := split_part(p_osm_id, '/', 1);
+  v_osm_id_num := split_part(p_osm_id, '/', 2)::BIGINT;
+  
+  IF v_osm_type NOT IN ('node', 'way', 'relation') THEN
+    RAISE EXCEPTION 'Invalid OSM ID format. Expected node/way/relation prefix: %', p_osm_id;
+  END IF;
+
+  -- ============================================================================
+  -- CALL NOMINATIM
+  -- ============================================================================
+  PERFORM set_config('statement_timeout', '30s', true);
+  PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '30000');
+  PERFORM extensions.http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '5000');
+
+  RAISE NOTICE 'Calling Nominatim lookup for: %', p_osm_id;
+
+  SELECT status, content INTO v_status, v_content FROM extensions.http((
+    'GET',
+    format(
+      'https://nominatim.openstreetmap.org/lookup?osm_ids=%s%s&format=json&extratags=1&addressdetails=1&namedetails=1',
+      upper(left(v_osm_type, 1)),  -- N, W, or R
+      v_osm_id_num
+    ),
+    ARRAY[
+      extensions.http_header('User-Agent', 'MapMaster/1.0'),
+      extensions.http_header('Accept', 'application/json')
+    ],
+    NULL,
+    NULL
+  )::extensions.http_request);
+
+  IF v_status != 200 THEN
+    RAISE EXCEPTION 'Nominatim lookup failed with status %: %', v_status, v_content;
+  END IF;
+
+  -- Parse response (returns array, take first result)
+  v_nominatim_data := (v_content::jsonb)->0;
+  
+  IF v_nominatim_data IS NULL THEN
+    RAISE EXCEPTION 'Place not found in Nominatim: %', p_osm_id;
+  END IF;
+
+  RETURN v_nominatim_data;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."fetch_nominatim_place" (TEXT) owner TO "postgres";
+
+
+comment ON function "game_logic"."fetch_nominatim_place" (TEXT) IS 'Fetch place data from Nominatim by OSM ID.
+
+Parameters:
+- p_osm_id: OpenStreetMap ID (e.g., "way/5013364", "node/123456", "relation/789")
+
+Returns: JSONB with Nominatim response including:
+- name, display_name, lat, lon
+- namedetails (localized names)
+- address (country, city, etc.)
+- extratags (height, wikipedia, etc.)
+- geojson (geometry)
+
+Raises exception if:
+- Invalid OSM ID format
+- Nominatim request fails
+- Place not found';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/generate_embedding.sql
@@ -5533,8 +5750,7 @@ BEGIN
     WHERE id = p_trait_id;
     
     IF v_trait_clause IS NULL THEN
-      -- Fallback: trait not in traits table, use ID as clause
-      v_trait_clause := p_trait_id;
+      RAISE EXCEPTION 'Trait % not found in traits table', p_trait_id;
     END IF;
     
     -- Build semantic question prompt
@@ -5564,23 +5780,12 @@ BEGIN
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
   END IF;
   
-  -- Call LLM via call_llm_api (uses http extension which works)
-  BEGIN
-    v_llm_response := call_llm_api(v_prompt);
-    v_question_text := trim(v_llm_response);
-  EXCEPTION WHEN others THEN
-    -- LLM call failed, use fallback
-    v_question_text := NULL;
-    RAISE NOTICE 'LLM call failed: %, using fallback', SQLERRM;
-  END;
+  -- Call LLM via call_llm_api - no fallback, fail if LLM fails
+  v_llm_response := call_llm_api(v_prompt);
+  v_question_text := trim(v_llm_response);
   
-  -- Fallback to template if LLM fails or returns empty
   IF v_question_text IS NULL OR v_question_text = '' THEN
-    IF p_trait_id IS NOT NULL THEN
-      v_question_text := 'Does it have ' || v_trait_clause || '?';
-    ELSE
-      v_question_text := 'Is it in ' || v_region_name || '?';
-    END IF;
+    RAISE EXCEPTION 'LLM returned empty response for question generation';
   END IF;
   
   -- Ensure question ends with question mark
@@ -5614,9 +5819,12 @@ Parameters:
 Process:
 1. Get trait clause or region name from database
 2. Build appropriate prompt for LLM
-3. Call call-llm edge function via http_call_edge_function
+3. Call call-llm edge function via call_llm_api
 4. Extract question text from response
-5. Fallback to template if LLM fails
+
+Errors:
+- Raises exception if trait/region not found
+- Raises exception if LLM call fails (no fallback)
 
 Returns: Natural language question text ending with "?"';
 

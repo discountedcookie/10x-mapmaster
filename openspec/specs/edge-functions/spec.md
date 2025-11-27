@@ -1,8 +1,13 @@
 # edge-functions Specification
 
 ## Purpose
-TBD - created by archiving change 24-generate-embedding-fn. Update Purpose after archive.
+
+Edge functions provide external service integrations for the database-first architecture. They handle provider connections (LLM, embeddings, Nominatim) and abstract secrets management, allowing the database to call external services without exposing API keys.
+
+All edge functions are called ONLY by the database via http extension. Frontend does NOT call edge functions.
+
 ## Requirements
+
 ### Requirement: generate-embedding Edge Function
 
 The system SHALL provide an edge function to generate 384d embeddings from text using configurable providers.
@@ -28,7 +33,7 @@ The system SHALL provide an edge function to call LLMs for text generation with 
 
 #### Scenario: Successful LLM call
 
-- **WHEN** called with valid parameters (model, temperature, max_tokens, prompt)
+- **WHEN** called with valid parameters (prompt required; model, format, options optional)
 - **THEN** it returns generated text and hides provider secrets
 
 #### Scenario: Error handling
@@ -43,34 +48,19 @@ The system SHALL provide an edge function to call LLMs for text generation with 
 
 ### Requirement: place-enrichment Edge Function
 
-The system SHALL provide an edge function to fetch place data and extract traits for submissions.
+The system SHALL provide an edge function to fetch place data by OSM ID and extract traits for submissions.
 
 #### Scenario: Successful enrichment
 
-- **WHEN** called with a valid osm_id
+- **WHEN** called with a valid osm_id (e.g., "way/5013364")
 - **THEN** it returns normalized Nominatim data and an extracted trait list in structured form
 
 #### Scenario: Error handling
 
-- **WHEN** Nominatim or extraction fails
+- **WHEN** Nominatim lookup or trait extraction fails
 - **THEN** standardized errors are returned without leaking secrets
 
 #### Scenario: Security
 
 - **WHEN** responding
 - **THEN** only necessary place/trait data is returned; no secrets are exposed
-
-### Requirement: search-place Edge Function
-
-The system SHALL provide an edge function for place search to support frontend autocomplete.
-
-#### Scenario: Successful search
-
-- **WHEN** called with a valid query
-- **THEN** it returns normalized suggestions (name, osm_id, lat/lng) suitable for selection
-
-#### Scenario: Error handling
-
-- **WHEN** provider errors or invalid input occur
-- **THEN** standardized errors are returned without exposing secrets
-

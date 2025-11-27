@@ -22,8 +22,7 @@ BEGIN
     WHERE id = p_trait_id;
     
     IF v_trait_clause IS NULL THEN
-      -- Fallback: trait not in traits table, use ID as clause
-      v_trait_clause := p_trait_id;
+      RAISE EXCEPTION 'Trait % not found in traits table', p_trait_id;
     END IF;
     
     -- Build semantic question prompt
@@ -53,23 +52,12 @@ BEGIN
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
   END IF;
   
-  -- Call LLM via call_llm_api (uses http extension which works)
-  BEGIN
-    v_llm_response := call_llm_api(v_prompt);
-    v_question_text := trim(v_llm_response);
-  EXCEPTION WHEN others THEN
-    -- LLM call failed, use fallback
-    v_question_text := NULL;
-    RAISE NOTICE 'LLM call failed: %, using fallback', SQLERRM;
-  END;
+  -- Call LLM via call_llm_api - no fallback, fail if LLM fails
+  v_llm_response := call_llm_api(v_prompt);
+  v_question_text := trim(v_llm_response);
   
-  -- Fallback to template if LLM fails or returns empty
   IF v_question_text IS NULL OR v_question_text = '' THEN
-    IF p_trait_id IS NOT NULL THEN
-      v_question_text := 'Does it have ' || v_trait_clause || '?';
-    ELSE
-      v_question_text := 'Is it in ' || v_region_name || '?';
-    END IF;
+    RAISE EXCEPTION 'LLM returned empty response for question generation';
   END IF;
   
   -- Ensure question ends with question mark
@@ -103,8 +91,11 @@ Parameters:
 Process:
 1. Get trait clause or region name from database
 2. Build appropriate prompt for LLM
-3. Call call-llm edge function via http_call_edge_function
+3. Call call-llm edge function via call_llm_api
 4. Extract question text from response
-5. Fallback to template if LLM fails
+
+Errors:
+- Raises exception if trait/region not found
+- Raises exception if LLM call fails (no fallback)
 
 Returns: Natural language question text ending with "?"';

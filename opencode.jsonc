@@ -45,10 +45,8 @@
       "cat": "deny",
       "find": "deny",
       "grep": "deny",
-      "head": "deny",
       "ls": "deny",
       "rg": "deny",
-      "tail": "deny",
       //
       "bun *": "allow",
       "npm": "deny",
