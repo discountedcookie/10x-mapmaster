@@ -5,8 +5,14 @@ SET
   client_min_messages = warning;
 
 
+SET
+  search_path = public,
+  game_logic,
+  extensions;
+
+
 SELECT
-  plan (28);
+  plan (27);
 
 
 -- ============================================================================
@@ -30,18 +36,14 @@ SELECT
 
 
 SELECT
-  has_table (
-    'public',
-    'place_traits',
-    'place_traits table exists'
-  );
+  has_table ('public', 'traits', 'traits table exists');
 
 
 SELECT
   has_table (
     'public',
-    'place_trait_links',
-    'place_trait_links table exists'
+    'place_traits',
+    'place_traits join table exists'
   );
 
 
@@ -63,17 +65,17 @@ SELECT
 
 SELECT
   has_table (
-    'public',
+    'game_logic',
     'question_stats',
-    'question_stats table exists'
+    'game_logic.question_stats table exists'
   );
 
 
 SELECT
   has_table (
-    'public',
+    'game_logic',
     'rate_limit_log',
-    'rate_limit_log table exists'
+    'game_logic.rate_limit_log table exists'
   );
 
 
@@ -169,18 +171,28 @@ SELECT
   );
 
 
--- Test 6: Foreign key constraints
+-- Test 6: Foreign key constraints actually exist
 SELECT
-  ok (
-    TRUE,
-    'FK: game_sessions.place_id references public.places.id'
+  fk_ok (
+    'public',
+    'game_sessions',
+    'place_id',
+    'public',
+    'places',
+    'id',
+    'FK: game_sessions.place_id references places.id'
   );
 
 
 SELECT
-  ok (
-    TRUE,
-    'FK: game_answers.session_id references public.game_sessions.id'
+  fk_ok (
+    'public',
+    'game_answers',
+    'session_id',
+    'public',
+    'game_sessions',
+    'id',
+    'FK: game_answers.session_id references game_sessions.id'
   );
 
 
@@ -258,30 +270,17 @@ SELECT
 -- ============================================================================
 -- Configuration Tests
 -- ============================================================================
--- Test 9: Config tables are properly separated
+-- Test 9: Critical config keys exist (functions depend on these)
 SELECT
-  IS (
-    (
-      SELECT
-        count(*)
-      FROM
-        public.config
-    )::INT,
-    0,
-    'public.config starts empty'
-  );
-
-
-SELECT
-  IS (
-    (
-      SELECT
-        count(*)
+  ok (
+    EXISTS (
+      SELECT 1
       FROM
         game_logic.config
-    )::INT,
-    0,
-    'game_logic.config starts empty'
+      WHERE
+        key = 'candidates.semantic_similarity_threshold'
+    ),
+    'Critical config key exists: candidates.semantic_similarity_threshold'
   );
 
 

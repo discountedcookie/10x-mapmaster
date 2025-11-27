@@ -5,9 +5,14 @@ SET
   client_min_messages = warning;
 
 
--- Plan: 20 tests
+-- Plan: 19 tests
 SELECT
-  plan (20);
+  plan (19);
+
+
+-- Clean up any pre-existing test data for isolation
+DELETE FROM game_answers;
+DELETE FROM game_sessions;
 
 
 -- Create test users
@@ -28,23 +33,7 @@ VALUES
   );
 
 
--- Test 1: Anonymous users start with no sessions
-SELECT
-  IS (
-    (
-      SELECT
-        count(*)::INT
-      FROM
-        game_sessions
-      WHERE
-        user_id IS NULL
-    ),
-    0,
-    'Anonymous users start with no sessions'
-  );
-
-
--- Test 2: Authenticated users can query their own sessions
+-- Test 1: Authenticated users can query their own sessions
 SET
   local role authenticated;
 
@@ -132,7 +121,7 @@ SELECT
 
 SELECT
   lives_ok (
-    $sql$ INSERT INTO game_sessions (user_id, description, description_language_code) VALUES ('550e8400-e29b-41d4-a716-446655440001', 'Test description', 'en'); $sql$,
+    $sql$ INSERT INTO game_sessions (user_id, description, language_code) VALUES ('550e8400-e29b-41d4-a716-446655440001', 'Test description', 'en'); $sql$,
     'Users can insert their own sessions'
   );
 
@@ -156,7 +145,7 @@ SELECT
 
 SELECT
   throws_ok (
-    $sql$ INSERT INTO game_sessions (user_id, description, description_language_code) VALUES ('550e8400-e29b-41d4-a716-446655440002', 'Test description', 'en'); $sql$,
+    $sql$ INSERT INTO game_sessions (user_id, description, language_code) VALUES ('550e8400-e29b-41d4-a716-446655440002', 'Test description', 'en'); $sql$,
     '42501',
     'new row violates row-level security policy for table "game_sessions"'
   );
@@ -177,7 +166,7 @@ SELECT
 
 SELECT
   lives_ok (
-    $sql$ INSERT INTO game_sessions (user_id, description, description_language_code) VALUES (NULL, 'Anonymous test', 'en'); $sql$,
+    $sql$ INSERT INTO game_sessions (user_id, description, language_code) VALUES (NULL, 'Anonymous test', 'en'); $sql$,
     'Anonymous users can create anonymous sessions'
   );
 
@@ -261,7 +250,7 @@ SELECT
   throws_ok (
     $sql$ SELECT * FROM game_logic.config; $sql$,
     '42501',
-    'permission denied for schema game_logic'
+    'permission denied for table config'
   );
 
 
@@ -272,7 +261,7 @@ SET
 
 SELECT
   lives_ok (
-    $sql$ INSERT INTO game_logic.config (key, value, description) VALUES ('test.key', 'test.value', 'Test setting'); $sql$,
+    $sql$ INSERT INTO game_logic.config (key, value, description) VALUES ('test.key', '"test_value"'::jsonb, 'Test setting'); $sql$,
     'Service role can manage game_logic config'
   );
 
@@ -374,7 +363,7 @@ SET
 
 SELECT
   lives_ok (
-    $sql$ SELECT COUNT(*) FROM rate_limit_log; $sql$,
+    $sql$ SELECT COUNT(*) FROM game_logic.rate_limit_log; $sql$,
     'Rate limit log is accessible by service role'
   );
 

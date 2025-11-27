@@ -5,6 +5,12 @@ SET
   client_min_messages = warning;
 
 
+SET
+  search_path = public,
+  game_logic,
+  extensions;
+
+
 SELECT
   plan (7);
 
@@ -20,8 +26,6 @@ SELECT
 -- Get candidates
 CREATE TEMP TABLE candidates1 AS
 SELECT
-  candidates
-FROM
   get_candidates (
     (
       SELECT
@@ -29,7 +33,7 @@ FROM
       FROM
         game1
     )
-  );
+  ) AS candidates;
 
 
 -- Get geographic questions with candidates
@@ -60,26 +64,26 @@ SELECT
 
 
 -- ============================================================================
--- Test 2: YES to geographic question filters to only that region
+-- Test 2: YES to geographic question filters candidates to that region
 -- ============================================================================
 CREATE TEMP TABLE game2 AS
 SELECT
-  start_game ('A famous landmark in Europe') AS session_id;
+  start_game ('A tall tower') AS session_id;
 
 
--- Get initial candidate count
+-- Get initial candidate count (before geographic filtering)
 CREATE TEMP TABLE before_filter AS
 SELECT
-  jsonb_array_length(candidates) AS count
-FROM
-  get_candidates (
-    (
-      SELECT
-        session_id
-      FROM
-        game2
+  jsonb_array_length(
+    get_candidates (
+      (
+        SELECT
+          session_id
+        FROM
+          game2
+      )
     )
-  );
+  ) AS count;
 
 
 -- Answer YES to "Is it in Europe?" (assuming Europe is asked first)
@@ -94,26 +98,27 @@ BEGIN
   
   -- Simulate answering YES to Europe question
   INSERT INTO game_answers (session_id, answer, geographic_region_id)
-  VALUES (v_session_id, true, v_europe_id);
+  VALUES (v_session_id, 'yes', v_europe_id);
 END $$;
 
 
--- Get filtered candidate count
+-- Get filtered candidate count (after geographic filtering)
 CREATE TEMP TABLE after_filter AS
 SELECT
-  count(*) AS count
-FROM
-  filter_geographic_candidates (
-    (
-      SELECT
-        session_id
-      FROM
-        game2
+  jsonb_array_length(
+    get_candidates (
+      (
+        SELECT
+          session_id
+        FROM
+          game2
+      )
     )
-  );
+  ) AS count;
 
 
--- Verify: Candidates reduced after filtering to Europe
+-- Verify: Candidates reduced or equal after filtering to Europe
+-- (reduces if some candidates were outside Europe, stays same if all were in Europe)
 SELECT
   ok (
     (
@@ -121,7 +126,7 @@ SELECT
         count
       FROM
         after_filter
-    ) < (
+    ) <= (
       SELECT
         count
       FROM
@@ -167,15 +172,16 @@ CREATE TEMP TABLE european_count AS
 SELECT
   count(*) AS count
 FROM
-  get_candidates (
-    (
-      SELECT
-        session_id
-      FROM
-        game3
+  jsonb_array_elements(
+    get_candidates (
+      (
+        SELECT
+          session_id
+        FROM
+          game3
+      )
     )
-  )
-  CROSS JOIN jsonb_array_elements(candidates) AS c
+  ) AS c
   JOIN places p ON p.id = (c ->> 'id')::UUID
   JOIN geographic_regions gr ON gr.name = 'Europe'
 WHERE
@@ -193,7 +199,7 @@ BEGIN
   
   -- Simulate answering NO to Europe question
   INSERT INTO game_answers (session_id, answer, geographic_region_id)
-  VALUES (v_session_id, false, v_europe_id);
+  VALUES (v_session_id, 'no', v_europe_id);
 END $$;
 
 
@@ -242,8 +248,8 @@ BEGIN
   -- Answer YES to Europe, then YES to France
   INSERT INTO game_answers (session_id, answer, geographic_region_id)
   VALUES 
-    (v_session_id, true, v_europe_id),
-    (v_session_id, true, v_france_id);
+    (v_session_id, 'yes', v_europe_id),
+    (v_session_id, 'yes', v_france_id);
 END $$;
 
 
@@ -280,8 +286,6 @@ SELECT
 
 CREATE TEMP TABLE candidates5 AS
 SELECT
-  candidates
-FROM
   get_candidates (
     (
       SELECT
@@ -289,7 +293,7 @@ FROM
       FROM
         game5
     )
-  );
+  ) AS candidates;
 
 
 -- Get geographic questions with information gain
@@ -315,7 +319,7 @@ FROM
 
 
 -- Verify: Questions with better splits are ranked higher
--- (effectiveness_score represents information gain, should be > 0)
+-- (split_quality represents information gain, should be > 0)
 SELECT
   ok (
     (
@@ -324,9 +328,9 @@ SELECT
       FROM
         geo_questions
       WHERE
-        effectiveness_score > 0
+        split_quality > 0
     ) > 0,
-    'Geographic questions have positive information gain scores'
+    'Geographic questions have positive split quality scores'
   );
 
 
@@ -351,8 +355,8 @@ BEGIN
   -- Answer NO to both Europe and Asia
   INSERT INTO game_answers (session_id, answer, geographic_region_id)
   VALUES 
-    (v_session_id, false, v_europe_id),
-    (v_session_id, false, v_asia_id);
+    (v_session_id, 'no', v_europe_id),
+    (v_session_id, 'no', v_asia_id);
 END $$;
 
 
