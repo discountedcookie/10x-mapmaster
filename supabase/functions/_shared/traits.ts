@@ -53,7 +53,7 @@ const NUMERIC_EXTRATAG_RULES: Record<string, (value: string) => TraitCandidate |
   // We get better structured data from tags like "historic:era:neolithic"
 }
 
-// Categories that help players guess places in the game
+// Categories that help players guess places in game
 const USEFUL_TRAIT_CATEGORIES = new Set([
   'class',
   'type',
@@ -86,6 +86,7 @@ const USEFUL_TRAIT_CATEGORIES = new Set([
   'barrier',
   'man_made', // Construction type
   'importance', // Significance
+  'llm_extracted', // LLM-extracted traits
 ])
 
 const EXTRATAG_SKIP_PATTERNS = [
@@ -111,7 +112,7 @@ const EXTRATAG_SKIP_PATTERNS = [
   /date/i, // Skip all date fields
 ]
 
-// Values that are too generic/useless for the guessing game
+// Values that are too generic/useless for guessing game
 const USELESS_TRAIT_VALUES = new Set([
   'boundary',
   'administrative',
@@ -207,36 +208,6 @@ function buildLevelTrait(rawValue: string): TraitCandidate | null {
     metadata: { levels },
   }
 }
-
-// Era trait function currently unused but kept for potential future use
-// function buildEraTrait(rawValue: string): TraitCandidate | null {
-//   const match = rawValue.match(/(\d{4})/)
-//   if (!match) return null
-//   const year = Number.parseInt(match[1], 10)
-//   if (!Number.isFinite(year)) {
-//     return null
-//   }
-//   let bucket = 'contemporary'
-//   let clause = `Contemporary (${year})`
-//   if (year < 1500) {
-//     bucket = 'ancient'
-//     clause = `Ancient (${year})`
-//   } else if (year < 1900) {
-//     bucket = 'historic'
-//     clause = `Historic (${year})`
-//   } else if (year < 2000) {
-//     bucket = 'modern'
-//     clause = `Modern (${year})`
-//   }
-//   return {
-//     id: `era:${bucket}`,
-//     category: 'era',
-//     clause,
-//     sourceKey: 'start_date',
-//     value: rawValue,
-//     metadata: { year },
-//   }
-// }
 
 function shouldSkipExtratag(key: string, value: unknown): boolean {
   if (typeof value !== 'string') {
@@ -369,4 +340,74 @@ export function extractTraitsFromNominatim(record: NormalizedNominatimPlace): Tr
   }
 
   return candidates
+}
+
+export async function extractTraitsViaLLM(
+  placeName: string,
+  description: string,
+  existingTraits: TraitCandidate[]
+): Promise<TraitCandidate[]> {
+  try {
+    // Build context from existing traits to avoid duplicates
+    const existingTraitIds = new Set(existingTraits.map((t) => t.id))
+    const existingTraitClauses = new Set(existingTraits.map((t) => t.clause.toLowerCase()))
+
+    // Call LLM to extract additional traits
+    const response = await fetch(`${process.env.SUPABASE_URL}/functions/v1/call-llm`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'trait_extraction',
+        place_name: placeName,
+        description: description,
+        existing_traits: existingTraits.map((t) => ({ id: t.id, clause: t.clause })),
+        language: 'en',
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('LLM trait extraction failed:', response.status, response.statusText)
+      return []
+    }
+
+    const result = await response.json()
+    const llmTraits = result.traits || []
+
+    // Convert LLM traits to TraitCandidate format
+    const candidates: TraitCandidate[] = []
+    for (const trait of llmTraits) {
+      if (typeof trait === 'object' && trait.clause) {
+        // Skip if already exists
+        const clauseLower = trait.clause.toLowerCase()
+        if (existingTraitClauses.has(clauseLower)) {
+          continue
+        }
+
+        const candidate: TraitCandidate = {
+          id: `llm:${normalizeId(trait.clause)}`,
+          category: trait.category || 'llm_extracted',
+          clause: trait.clause,
+          sourceKey: 'llm_extraction',
+          value: trait.clause,
+          metadata: {
+            source: 'llm',
+            confidence: trait.confidence,
+            model: result.model,
+          },
+        }
+
+        if (shouldKeepTrait(candidate)) {
+          candidates.push(candidate)
+        }
+      }
+    }
+
+    return candidates
+  } catch (error) {
+    console.error('Error in LLM trait extraction:', error)
+    return []
+  }
 }

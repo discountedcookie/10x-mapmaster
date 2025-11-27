@@ -4,7 +4,7 @@
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "game_logic"."config" (
   "key" "text" NOT NULL,
-  "value" "text" NOT NULL,
+  "value" "jsonb" NOT NULL,
   "description" "text",
   "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
   PRIMARY KEY ("key")
@@ -48,7 +48,7 @@ comment ON TABLE "game_logic"."config" IS 'Server-only configuration settings fo
 comment ON COLUMN "game_logic"."config"."key" IS 'Configuration key (e.g., scoring.temperature)';
 
 
-comment ON COLUMN "game_logic"."config"."value" IS 'Configuration value (e.g., 0.7)';
+comment ON COLUMN "game_logic"."config"."value" IS 'Configuration value as JSON';
 
 
 comment ON COLUMN "game_logic"."config"."description" IS 'Human-readable description of the setting';

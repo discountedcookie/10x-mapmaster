@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "public"."game_answers" (
   "session_id" "uuid" NOT NULL,
   "trait_id" TEXT,
   "geographic_region_id" "uuid",
-  "answer" BOOLEAN NOT NULL,
+  "answer" answer_value NOT NULL,
   "place_id" "uuid",
   "candidates" "jsonb",
   "question_text" "text",
@@ -23,6 +23,13 @@ ALTER TABLE ONLY "public"."game_answers"
 ADD CONSTRAINT "game_answers_pkey" PRIMARY KEY ("id");
 
 
+-- Polymorphic constraint: exactly one of trait_id, geographic_region_id, place_id must be set
+ALTER TABLE ONLY "public"."game_answers"
+ADD CONSTRAINT "game_answers_polymorphic_check" CHECK (
+  num_nonnulls (trait_id, geographic_region_id, place_id) = 1
+);
+
+
 -- Foreign Keys
 ALTER TABLE ONLY "public"."game_answers"
 ADD CONSTRAINT "game_answers_session_id_fkey" FOREIGN key ("session_id") REFERENCES "public"."game_sessions" ("id") ON DELETE CASCADE;
@@ -33,7 +40,7 @@ ADD CONSTRAINT "game_answers_place_id_fkey" FOREIGN key ("place_id") REFERENCES 
 
 
 ALTER TABLE ONLY "public"."game_answers"
-ADD CONSTRAINT "game_answers_trait_id_fkey" FOREIGN key ("trait_id") REFERENCES "public"."place_traits" ("id") ON DELETE CASCADE;
+ADD CONSTRAINT "game_answers_trait_id_fkey" FOREIGN key ("trait_id") REFERENCES "public"."traits" ("id") ON DELETE CASCADE;
 
 
 ALTER TABLE ONLY "public"."game_answers"
@@ -42,6 +49,9 @@ ADD CONSTRAINT "game_answers_geographic_region_id_fkey" FOREIGN key ("geographic
 
 -- Indexes
 CREATE INDEX if NOT EXISTS "idx_game_answers_session_id" ON "public"."game_answers" ("session_id");
+
+
+CREATE INDEX if NOT EXISTS "idx_game_answers_polymorphic" ON "public"."game_answers" (trait_id, geographic_region_id, place_id);
 
 
 -- RLS Policies

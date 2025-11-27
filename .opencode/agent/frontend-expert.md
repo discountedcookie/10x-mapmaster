@@ -1,7 +1,7 @@
 ---
 description: Vue 3 + shadcn-vue UI specialist - presentation layer only
 mode: subagent
-model: anthropic/claude-opus-4-5
+model: openai/gpt-5.1-codex-max
 temperature: 0.3
 permission:
   edit: allow
@@ -31,7 +31,6 @@ tools:
   # MCPs - none needed for frontend
   exa_*: false
   sequential-thinking_*: false
-  openspec_*: false
 ---
 
 # Frontend Expert

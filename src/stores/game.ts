@@ -261,9 +261,8 @@ export const useGameStore = defineStore('game', () => {
 
       if (!data) throw new Error('No data returned from start_game')
 
-      // Extract session_id from response
-      // start_game returns TABLE(session_id uuid), so Supabase returns an array
-      const sessionId = Array.isArray(data) && data.length > 0 ? (data[0] as any).session_id : null
+      // start_game returns UUID directly
+      const sessionId = typeof data === 'string' ? data : String(data)
       if (!sessionId) throw new Error('No session ID in response')
 
       gameSessionId.value = sessionId
@@ -287,11 +286,12 @@ export const useGameStore = defineStore('game', () => {
     try {
       loading.value = true
 
-      // Call RPC with just session_id and answer
+      // Call RPC with just session_id and answer (convert boolean to enum value)
       // Database handles trait extraction from question text for semantic questions
+      const answerValue = answer ? 'yes' : 'no'
       const { data, error: rpcError } = await supabase.rpc('play_turn', {
         p_session_id: gameSessionId.value,
-        p_answer: answer,
+        p_answer: answerValue as 'yes' | 'no' | 'not_sure',
       })
 
       if (rpcError) {
@@ -333,10 +333,11 @@ export const useGameStore = defineStore('game', () => {
   }
 
   // Submit actual place when game fails to guess
+  // Uses submit_place RPC which handles place creation/update and session update
   async function submitActualPlace(
-    submittedPlaceName: string,
-    submittedLat: number,
-    submittedLng: number,
+    _submittedPlaceName: string,
+    _submittedLat: number,
+    _submittedLng: number,
     submittedNominatimId: string
   ): Promise<void> {
     if (!gameSessionId.value) throw new Error('No active game')
@@ -345,46 +346,16 @@ export const useGameStore = defineStore('game', () => {
     try {
       loading.value = true
 
-      // Fetch the game session to get the language code
-      const { data: sessionData, error: fetchError } = await supabase
-        .from('game_sessions')
-        .select('description_language_code')
-        .eq('id', gameSessionId.value)
-        .single()
-
-      if (fetchError) throw fetchError
-      const languageCode = sessionData?.description_language_code || 'en'
-
-      // Call add_place RPC
-      const { data: placeId, error: addError } = await supabase.rpc('add_place', {
-        p_lat: submittedLat,
-        p_lng: submittedLng,
-        p_name: submittedPlaceName,
+      // Call submit_place RPC - handles place creation and session update
+      const { error: submitError } = await supabase.rpc('submit_place', {
+        p_session_id: gameSessionId.value,
         p_osm_id: submittedNominatimId,
       })
 
-      if (addError) throw addError
+      if (submitError) throw submitError
 
-      // Update game session to link to the new place
-      const { error: updateError } = await supabase
-        .from('game_sessions')
-        .update({
-          place_id: placeId,
-          submitted_place_name: submittedPlaceName,
-          submitted_lat: submittedLat,
-          submitted_lng: submittedLng,
-          submitted_nominatim_id: submittedNominatimId,
-          pending_review: false,
-          was_correct: false,
-        })
-        .eq('id', gameSessionId.value)
-
-      if (updateError) throw updateError
-
-      // Update local state
-      if (gameState.value) {
-        gameState.value.status = 'ended'
-      }
+      // Fetch updated state
+      await fetchGameState(gameSessionId.value)
     } catch (error_) {
       error.value = handleError(error_)
       throw error_

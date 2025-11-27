@@ -1,7 +1,7 @@
 ---
 description: Deep research with web search and sequential thinking
 mode: subagent
-model: anthropic/claude-opus-4-5
+model: anthropic/claude-haiku-4-5
 temperature: 0.5
 permission:
   edit: deny
@@ -25,7 +25,6 @@ tools:
   # MCPs - full access for research
   exa_*: true
   sequential-thinking_*: true
-  openspec_*: false
 ---
 
 # Researcher

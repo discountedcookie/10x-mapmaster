@@ -8,10 +8,10 @@ CREATE TABLE IF NOT EXISTS "public"."places" (
   "osm_id" "text" NOT NULL,
   "lat" DOUBLE PRECISION,
   "lng" DOUBLE PRECISION,
-  "geom" "public"."geometry" (polygon, 4326),
-  "traits" TEXT[] DEFAULT '{}'::TEXT[] NOT NULL,
+  "geom" "extensions"."geometry" (polygon, 4326),
   "embedding_id" "uuid",
   "times_encountered" INTEGER DEFAULT 0 NOT NULL,
+  "pending_review" BOOLEAN DEFAULT FALSE NOT NULL,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
   "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL
 );

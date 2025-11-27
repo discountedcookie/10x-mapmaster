@@ -1,7 +1,7 @@
 ---
 description: Code quality review - architecture compliance and best practices
 mode: subagent
-model: anthropic/claude-opus-4-5
+model: anthropic/claude-haiku-4-5
 temperature: 0.2
 permission:
   edit: deny
@@ -25,7 +25,6 @@ tools:
   # MCPs - sequential thinking for complex analysis
   exa_*: false
   sequential-thinking_*: true
-  openspec_*: false
 ---
 
 # Code Reviewer

@@ -4,7 +4,7 @@
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."config" (
   "key" "text" NOT NULL,
-  "value" "text" NOT NULL,
+  "value" "jsonb" NOT NULL,
   "description" "text",
   "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
   PRIMARY KEY ("key")
@@ -41,7 +41,7 @@ comment ON TABLE "public"."config" IS 'Client-visible configuration settings (e.
 comment ON COLUMN "public"."config"."key" IS 'Configuration key (e.g., game.max_turns)';
 
 
-comment ON COLUMN "public"."config"."value" IS 'Configuration value (e.g., 5)';
+comment ON COLUMN "public"."config"."value" IS 'Configuration value as JSON';
 
 
 comment ON COLUMN "public"."config"."description" IS 'Human-readable description of the setting';

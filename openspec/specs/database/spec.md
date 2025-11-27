@@ -1,286 +1,238 @@
-# Database Specification
+# database Specification
 
 ## Purpose
 
-Define the PostgreSQL schema, data model, security policies, and database functions for the geographic guessing game. All business logic lives in the database.
-
----
-
+TBD - created by archiving change 01-auth-basics. Update Purpose after archive.
 ## Requirements
+### Requirement: Auth Model and Security Posture
 
-### Requirement: Database-First Architecture
+The system SHALL define and enforce an auth model covering anonymous, registered, and service roles, and prescribe SECURITY DEFINER and RLS guardrails.
 
-The system SHALL implement all business logic in PostgreSQL, with frontend as presentation only.
+#### Scenario: Auth personas
 
-#### Scenario: Game logic in database
+- **WHEN** the database evaluates access
+- **THEN** it recognizes anonymous users (auth.uid() is NULL), registered users (auth.uid() set), and service_role with elevated privileges
 
-- **WHEN** game operations occur (start, play, submit)
-- **THEN** all logic executes in PostgreSQL functions
-- **AND** frontend only calls RPC and displays results
+#### Scenario: SECURITY DEFINER guardrails
 
-#### Scenario: Frontend restrictions
+- **WHEN** a SECURITY DEFINER function requires user context
+- **THEN** it checks auth.uid() IS NOT NULL and sets an explicit search_path
 
-- **WHEN** frontend code exists
-- **THEN** it contains no game logic, scoring, or calculations
-- **AND** accesses data only via RPC calls
+#### Scenario: RLS posture
 
----
+- **WHEN** applying RLS
+- **THEN** user-owned tables restrict by auth.uid(); public data is read-open; private tables are blocked except to service_role
 
-### Requirement: Core Data Tables
+### Requirement: Schemas and Extensions
 
-The system SHALL maintain tables for places, traits, embeddings, and game data.
+The system SHALL define required schemas and install core extensions and types for the database.
 
-#### Scenario: Places table
+#### Scenario: Schemas and search_path
 
-- **WHEN** a place is stored
-- **THEN** it has id, name, lat, lng, embedding_id, geometry, pending_review flag
+- **WHEN** deploying the database
+- **THEN** schemas extensions, public, and game_logic exist and functions set search_path explicitly
 
-#### Scenario: Traits table
+#### Scenario: Extensions installed
 
-- **WHEN** a trait is stored
-- **THEN** it has id, clause (text), and embedding_id
+- **WHEN** extensions are provisioned
+- **THEN** pgvector (384d), PostGIS, and pg_cron are installed in the extensions schema and available
 
-#### Scenario: Place-traits relationship
+#### Scenario: Types and enums
 
-- **WHEN** places and traits are related
-- **THEN** many-to-many via place_traits join table
-
-#### Scenario: Embeddings table
-
-- **WHEN** an embedding is stored
-- **THEN** it has id, source_text, and 384d vector
-
-#### Scenario: Game sessions table
-
-- **WHEN** a game session is stored
-- **THEN** it has id, user_id, description (max 200 chars), embedding_id, next_turn (jsonb), status enum, pending_review, was_correct, place_id, timestamps
-
-#### Scenario: Game answers table
-
-- **WHEN** an answer is stored
-- **THEN** it has id, session_id, and exactly ONE of: trait_id, geographic_region_id, or place_id
-- **AND** answer value is 'yes', 'no', or 'not_sure'
-
-#### Scenario: Geographic regions table
-
-- **WHEN** a region is stored
-- **THEN** it has id, name, level, and PostGIS geometry
-
----
+- **WHEN** shared types are needed
+- **THEN** enums (e.g., status, answer_value) and any composite types are defined centrally
 
 ### Requirement: Configuration Tables
 
-The system SHALL store runtime configuration in database tables.
+The system SHALL store configuration in separate public and private tables with appropriate access controls.
 
-#### Scenario: Public config
+#### Scenario: Public config access
 
-- **WHEN** client-visible settings are needed
-- **THEN** stored in public.config (key-value)
-- **AND** accessible via SELECT for authenticated users
+- **WHEN** authenticated users query public.config
+- **THEN** they can read key/value pairs intended for clients
 
-#### Scenario: Private config
+#### Scenario: Private config protection
 
-- **WHEN** server-only settings are needed (scoring, thresholds, prompts)
-- **THEN** stored in game_logic.config (key-value)
-- **AND** accessible only by SECURITY DEFINER functions
+- **WHEN** accessing game_logic.config
+- **THEN** only SECURITY DEFINER functions or service_role can read/write; clients cannot access directly
 
----
+#### Scenario: Config integrity
 
-### Requirement: Public RPC Functions
+- **WHEN** inserting config rows
+- **THEN** keys are unique and values are non-null JSON
 
-The system SHALL expose exactly three public RPC functions for game operations.
+### Requirement: Embeddings Storage
 
-#### Scenario: start_game function
+The system SHALL store text embeddings with required constraints and indexes for semantic similarity.
 
-- **WHEN** called with description and language_code
-- **THEN** creates session, generates embedding, finds candidates
-- **AND** returns session_id
+#### Scenario: Embedding persistence
 
-#### Scenario: play_turn function
+- **WHEN** an embedding is stored
+- **THEN** it records id, source_text, 384d vector, and timestamps
 
-- **WHEN** called with session_id and answer enum
-- **THEN** records answer, updates candidates, determines next action
-- **AND** returns session_id
+#### Scenario: Indexing
 
-#### Scenario: submit_place function
+- **WHEN** querying embeddings by similarity
+- **THEN** an HNSW index exists on the embedding column using vector_ip_ops
 
-- **WHEN** called with session_id and osm_id
-- **THEN** enriches place via edge function, extracts traits
-- **AND** returns void on success
+#### Scenario: Access control
 
----
+- **WHEN** accessing embeddings
+- **THEN** only authorized functions/service_role can read/write embeddings per RLS/policies
 
-### Requirement: Row Level Security
+### Requirement: Traits and Place-Trait Association
 
-The system SHALL enforce data access via RLS policies on all tables.
+The system SHALL store canonical traits and link them to places via a join table.
 
-#### Scenario: User session isolation
+#### Scenario: Trait definition
 
-- **WHEN** user queries game_sessions
-- **THEN** sees only their own sessions (user_id = auth.uid())
+- **WHEN** a trait is stored
+- **THEN** it has id, clause, optional embedding_id, and timestamps
 
-#### Scenario: User answer isolation
+#### Scenario: Place-trait relationship
 
-- **WHEN** user queries game_answers
-- **THEN** sees only answers for their sessions
+- **WHEN** linking places to traits
+- **THEN** a join table with PK(place_id, trait_id) and FKs to places/traits is used with appropriate indexes
 
-#### Scenario: Public data access
+#### Scenario: Access
 
-- **WHEN** user queries places, traits, geographic_regions
-- **THEN** sees all approved (non-pending) records
+- **WHEN** reading traits and associations
+- **THEN** they are readable by all; writes are restricted to authorized roles
 
-#### Scenario: Config access
+### Requirement: Places Storage with Geometry
 
-- **WHEN** user queries public.config
-- **THEN** can SELECT all rows
-- **AND** cannot access game_logic.config directly
+The system SHALL store places with geometry, embeddings, and review status for gameplay and visualization.
 
----
+#### Scenario: Place fields
 
-### Requirement: SECURITY DEFINER Functions
+- **WHEN** a place is stored
+- **THEN** it has id, name, osm_id (unique), lat, lng, geom, embedding_id, pending_review, timestamps
 
-The system SHALL validate authentication in all privileged functions.
+#### Scenario: Indexing and constraints
 
-#### Scenario: Auth validation
+- **WHEN** querying places
+- **THEN** GIST index exists on geom; unique constraint on osm_id; indexes on embedding_id/name as appropriate
 
-- **WHEN** SECURITY DEFINER function executes
-- **THEN** validates auth.uid() IS NOT NULL
-- **AND** returns error if not authenticated
+#### Scenario: Access
 
-#### Scenario: Session ownership validation
+- **WHEN** reading places
+- **THEN** data is readable publicly; writes are restricted to authorized roles
 
-- **WHEN** function operates on a session
-- **THEN** validates session belongs to auth.uid()
+### Requirement: Geographic Regions
 
----
+The system SHALL store geographic regions with geometry and level metadata for spatial filtering.
 
-### Requirement: Schema Organization
+#### Scenario: Region fields
 
-The system SHALL organize database objects into schemas by visibility.
+- **WHEN** a region is stored
+- **THEN** it has id, name, level, geometry, and timestamps
 
-#### Scenario: Public schema
+#### Scenario: Constraints and indexes
 
-- **WHEN** data/functions are client-accessible
-- **THEN** placed in public schema
-- **AND** protected by RLS policies
+- **WHEN** validating regions
+- **THEN** level is constrained to allowed values; GIST index exists on geometry
 
-#### Scenario: Game logic schema
+#### Scenario: Access
 
-- **WHEN** functions/data are server-only
-- **THEN** placed in game_logic schema
-- **AND** not directly accessible to clients
+- **WHEN** reading regions
+- **THEN** data is publicly readable; writes restricted to authorized roles
 
----
+### Requirement: Game Sessions Storage
+
+The system SHALL store game sessions with lifecycle, embedding, and pending review metadata.
+
+#### Scenario: Session fields
+
+- **WHEN** a session is stored
+- **THEN** it has id, user_id, description (<=200 chars), language_code, embedding_id, next_turn JSONB, status enum, pending_review, was_correct, place_id, timestamps
+
+#### Scenario: Constraints and indexes
+
+- **WHEN** validating sessions
+- **THEN** description length is enforced; status enum constrained; indexes exist on user_id/status as needed
+
+#### Scenario: Access
+
+- **WHEN** storing references
+- **THEN** FKs to embeddings/places are maintained; user ownership is tracked
+
+### Requirement: Game Answers Table
+
+The system SHALL store answers with exactly one of trait_id, geographic_region_id, or place_id populated.
+
+#### Scenario: One-of enforcement
+
+- **WHEN** an answer is stored
+- **THEN** exactly one of trait_id, geographic_region_id, or place_id is non-null via CHECK
+
+#### Scenario: Relationships and cleanup
+
+- **WHEN** sessions or referenced entities are deleted
+- **THEN** FKs cascade appropriately to keep answers consistent
+
+#### Scenario: Query performance
+
+- **WHEN** querying answers
+- **THEN** indexes exist on session_id and a supporting index for polymorphic lookups
+
+### Requirement: Session and Answer RLS
+
+The system SHALL enforce row-level security for game_sessions and game_answers based on ownership.
+
+#### Scenario: Registered ownership
+
+- **WHEN** a registered user accesses sessions/answers
+- **THEN** they can only see and modify rows where game_sessions.user_id = auth.uid()
+
+#### Scenario: Anonymous ownership
+
+- **WHEN** an anonymous user (auth.uid() IS NULL) accesses
+- **THEN** they can only see/modify rows whose user_id IS NULL
+
+#### Scenario: Service role
+
+- **WHEN** service_role accesses
+- **THEN** it can manage all rows for maintenance and internal operations
+
+### Requirement: Learning Trigger on Approval
+
+The system SHALL trigger trait regeneration when a session is approved (pending_review becomes false).
+
+#### Scenario: Approval firing
+
+- **WHEN** game_sessions.pending_review transitions from TRUE to FALSE and place_id is set
+- **THEN** regenerate_place_traits(place_id) is invoked
+
+#### Scenario: No-op conditions
+
+- **WHEN** place_id is NULL or pending_review does not change
+- **THEN** the trigger does not call regeneration
+
+### Requirement: Trait Regeneration
+
+The system SHALL regenerate a place's traits and embedding using enrichment data and approved session descriptions.
+
+#### Scenario: Full regeneration
+
+- **WHEN** regenerate_place_traits(place_id) runs
+- **THEN** it combines place enrichment data and all approved session descriptions to extract traits, replaces place_traits, and regenerates the place embedding
+
+#### Scenario: Robustness
+
+- **WHEN** required data is missing or extraction fails
+- **THEN** the function handles errors explicitly and avoids partial updates
 
 ### Requirement: Stats Views
 
-The system SHALL provide aggregated statistics via views.
+The system SHALL provide user and global statistics via read-only views with proper access controls.
 
-#### Scenario: User stats view
+#### Scenario: User stats
 
-- **WHEN** user queries public.user_stats
-- **THEN** sees games_played, games_won, win_rate, avg_turns_to_win, places_added, last_played_at
-- **AND** RLS ensures only own row visible
+- **WHEN** a user queries user_stats
+- **THEN** they see only their row with games_played, games_won, win_rate, avg_turns_to_win, places_added, last_played_at
 
-#### Scenario: Global stats view
+#### Scenario: Global stats
 
-- **WHEN** user queries public.global_stats
-- **THEN** sees total_games, games_last_24h, total_users, total_places, total_traits, overall_win_rate, avg_turns_to_win
-- **AND** accessible to all authenticated users
+- **WHEN** a user queries global_stats
+- **THEN** they see aggregated columns (total_games, games_last_24h, total_users, total_places, total_traits, overall_win_rate, avg_turns_to_win) if authenticated
 
----
-
-### Requirement: Learning Triggers
-
-The system SHALL trigger learning via database triggers.
-
-#### Scenario: Approval trigger
-
-- **WHEN** game_sessions.pending_review changes to false
-- **THEN** trigger fires regenerate_place_traits(place_id)
-
-#### Scenario: Trait regeneration
-
-- **WHEN** regenerate_place_traits executes
-- **THEN** queries all approved sessions for the place
-- **AND** combines Nominatim data with session descriptions
-- **AND** LLM extracts complete trait list
-- **AND** replaces place_traits entirely
-- **AND** regenerates place embedding
-
----
-
-### Requirement: Rate Limiting
-
-The system SHALL enforce rate limits via database functions.
-
-#### Scenario: Rate limit check
-
-- **WHEN** RPC function called
-- **THEN** check_rate_limit(user_id, action) validates request count
-- **AND** returns error if exceeded
-
-#### Scenario: Rate limit logging
-
-- **WHEN** request allowed
-- **THEN** logged to rate_limit_log table
-
-#### Scenario: Rate limit cleanup
-
-- **WHEN** pg_cron runs
-- **THEN** deletes entries older than rate limit window
-
----
-
-### Requirement: Error Response Structure
-
-The system SHALL return standardized error responses.
-
-#### Scenario: Error response format
-
-- **WHEN** function returns error
-- **THEN** uses error_response type with error_code, http_status, optional details
-
-#### Scenario: Error codes
-
-- **WHEN** error occurs
-- **THEN** uses enumerated error_code for i18n translation lookup
-
----
-
-### Requirement: Source-Based Schema Workflow
-
-The system SHALL organize schema files so each table, index, RLS policy, and trigger lives in a dedicated SQL file that is composed by the build script.
-
-#### Scenario: Per-table SQL files
-
-- **WHEN** defining a table (e.g., places, game_sessions)
-- **THEN** create a file `supabase/db/<schema_name>/tables/<table_name>.sql` (for example, `supabase/db/public/tables/places.sql` or `supabase/db/game_logic/tables/game_sessions.sql`)
-- **AND** place that table's indexes, RLS policies, and triggers in the same file
-- **AND** have the numbered stubs (01_extensions.sql, 02_tables.sql, etc.) only include (`\i`) the per-table files
-
-#### Scenario: Single source of truth per table
-
-- **WHEN** defining or modifying a table
-- **THEN** its `CREATE TABLE`, indexes, RLS policies, and triggers exist in exactly one per-table file
-- **AND** no table definition is duplicated across multiple schema files
-- **AND** 01–06 root schema files contain only includes and global objects (extensions, schemas, types), never table DDL
-
-#### Scenario: Schema directories
-
-- **WHEN** organizing schema source files
-- **THEN** use `supabase/db/public/tables/*.sql` for public-schema tables
-- **AND** use `supabase/db/game_logic/tables/*.sql` for game_logic-schema tables
-- **AND** define schemas and global types in `supabase/db/schemas.sql`, which is included before any per-table files
-
-#### Scenario: Rebuild workflow
-
-- **WHEN** running `bun run db:rebuild`
-- **THEN** the script `scripts/build-migration.ts` concatenates schema files in numeric order followed by functions and triggers
-- **AND** dropping/recreating the database uses those files as the single source of truth
-
-#### Scenario: Migrations parity
-
-- **WHEN** generating production migrations (`bun run scripts/build-migration.ts --prod "description"`)
-- **THEN** only function files change, schema remains fully represented in source files
-- **AND** developers NEVER edit `supabase/migrations/*.sql` directly

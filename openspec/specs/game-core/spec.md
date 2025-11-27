@@ -1,209 +1,62 @@
-# Game Core Specification
+# game-core Specification
 
 ## Purpose
-
-Define the core game mechanics, flows, and state transitions for the geographic guessing game.
-
----
-
+TBD - created by archiving change 12-start-game-rpc. Update Purpose after archive.
 ## Requirements
+### Requirement: start_game RPC
 
-### Requirement: Game Initialization
+The system SHALL expose start_game to initialize a session, embed the description, seed candidates, and set the first turn.
 
-The system SHALL create a new game session when a player submits a place description.
+#### Scenario: Successful start
 
-#### Scenario: Start game with description
+- **WHEN** called with valid description and language_code
+- **THEN** a session is created with embedding_id, initial candidates seeded, next_turn set, and session_id returned
 
-- **WHEN** player submits a description (max 200 characters)
-- **THEN** system creates a game session with status `active`
-- **AND** generates an embedding from the description
-- **AND** finds initial candidate places via semantic similarity
-- **AND** determines first action (question or guess)
+#### Scenario: Validation and rate limiting
 
-#### Scenario: Start game with language preference
+- **WHEN** input is invalid or rate limit exceeded
+- **THEN** the function returns standardized error_response and does not create a session
 
-- **WHEN** player submits description with language code (e.g., "en", "pl")
-- **THEN** system stores language preference for LLM-generated questions
+#### Scenario: Security and ownership
 
----
+- **WHEN** start_game runs
+- **THEN** it uses hardened search_path, appropriate auth checks, and relies on RLS for session ownership
 
-### Requirement: Turn Processing
+### Requirement: play_turn RPC
 
-The system SHALL process player answers and update game state each turn.
+The system SHALL expose play_turn to record answers, update candidates, and set the next action.
 
-#### Scenario: Answer a question
+#### Scenario: Successful turn
 
-- **WHEN** player answers "yes", "no", or "not sure" to a question
-- **THEN** system records the answer
-- **AND** updates candidate scores based on answer
-- **AND** increments turn count
-- **AND** determines next action
+- **WHEN** called with a valid session_id and answer
+- **THEN** the answer is recorded, candidates updated, next_turn JSON set, and session_id returned
 
-#### Scenario: Confirm a guess
+#### Scenario: Validation and errors
 
-- **WHEN** player answers "yes" or "no" to a guess
-- **THEN** system records the answer
-- **AND** if "yes", marks game as won
-- **AND** if "no", eliminates guessed place and continues
+- **WHEN** input is invalid, session not found/owned, or rate limits exceeded
+- **THEN** the function returns standardized error_response and leaves state unchanged
 
-#### Scenario: Not sure answer
+#### Scenario: Security and ownership
 
-- **WHEN** player answers "not sure"
-- **THEN** system records answer for LLM context
-- **AND** turn count increments (same cost as yes/no)
-- **AND** no score adjustments applied to candidates
+- **WHEN** play_turn runs
+- **THEN** it enforces ownership via RLS/auth guards and uses hardened search_path
 
----
+### Requirement: submit_place RPC
 
-### Requirement: Confidence-Based Guessing
+The system SHALL expose submit_place to handle place submission after give up, enrichment, and review.
 
-The system SHALL guess a place when confidence thresholds are met.
+#### Scenario: Successful submission
 
-#### Scenario: High confidence triggers guess
+- **WHEN** called with a valid session in needs_submission and a valid osm_id
+- **THEN** enrichment runs, place is created/updated, session links to place, pending_review set per user type, and learning triggered if auto-approved
 
-- **WHEN** top probability, margin, AND entropy thresholds all pass
-- **THEN** system asks "Is it [Place Name]?"
+#### Scenario: Validation and errors
 
-#### Scenario: Single candidate remaining
+- **WHEN** session is not in needs_submission, not owned, invalid osm_id, or rate limit exceeded
+- **THEN** the function returns standardized error_response and does not commit changes
 
-- **WHEN** only one candidate remains
-- **THEN** system automatically guesses that candidate
+#### Scenario: Security and ownership
 
-#### Scenario: Thresholds not met
+- **WHEN** submit_place runs
+- **THEN** it enforces ownership/auth, uses hardened search_path, and relies on RLS for session isolation
 
-- **WHEN** any confidence threshold fails
-- **THEN** system asks another question (if turns remain)
-
----
-
-### Requirement: Question Selection
-
-The system SHALL select questions that maximally discriminate between candidates.
-
-#### Scenario: Select best splitting question
-
-- **WHEN** system needs to ask a question
-- **THEN** selects trait/region that splits candidates closest to 50/50
-- **AND** generates natural language question via LLM
-
-#### Scenario: Geographic vs semantic question
-
-- **WHEN** geographic question has high split quality
-- **THEN** system prefers geographic question (binary filter is simpler)
-- **OTHERWISE** asks semantic trait question
-
-#### Scenario: No good questions available
-
-- **WHEN** no trait meets minimum split quality
-- **THEN** system selects best available option anyway
-
----
-
-### Requirement: Game End Conditions
-
-The system SHALL end games appropriately based on outcomes.
-
-#### Scenario: Correct guess (win)
-
-- **WHEN** player confirms guess is correct
-- **THEN** game status changes to `won`
-- **AND** learning is triggered (registered) or pending review (anonymous)
-
-#### Scenario: Max turns reached
-
-- **WHEN** turn count reaches max_turns without correct guess
-- **THEN** game status changes to `needs_submission`
-- **AND** system prompts player to submit correct place
-
-#### Scenario: No candidates remaining
-
-- **WHEN** all candidates eliminated
-- **THEN** game status changes to `needs_submission`
-
----
-
-### Requirement: Place Submission
-
-The system SHALL allow players to submit the correct place after giving up.
-
-#### Scenario: Submit existing place
-
-- **WHEN** player submits place that exists in database
-- **THEN** system links session to place
-- **AND** extracts new traits from player description
-- **AND** game status changes to `ended`
-
-#### Scenario: Submit new place
-
-- **WHEN** player submits place not in database
-- **THEN** system creates place via Nominatim enrichment
-- **AND** extracts traits from OSM data
-- **AND** new place marked pending review
-- **AND** game status changes to `ended`
-
----
-
-### Requirement: Game States
-
-The system SHALL maintain clear game state transitions.
-
-#### Scenario: Active state
-
-- **WHEN** game is in progress
-- **THEN** status is `active`
-- **AND** system processes questions/guesses
-
-#### Scenario: Won state
-
-- **WHEN** player confirms correct guess
-- **THEN** status is `won`
-- **AND** game is complete
-
-#### Scenario: Needs submission state
-
-- **WHEN** max turns reached or no candidates
-- **THEN** status is `needs_submission`
-- **AND** awaits player place submission
-
-#### Scenario: Ended state
-
-- **WHEN** player submits place after giving up
-- **THEN** status is `ended`
-- **AND** game is complete
-
----
-
-### Requirement: Learning System
-
-The system SHALL learn from completed games to improve future performance.
-
-#### Scenario: Registered user learning
-
-- **WHEN** registered user completes game
-- **THEN** learning triggers immediately
-- **AND** traits extracted from description
-- **AND** place embedding regenerated
-
-#### Scenario: Anonymous user learning
-
-- **WHEN** anonymous user completes game
-- **THEN** session marked pending review
-- **AND** learning deferred until admin approval
-
-#### Scenario: Account upgrade
-
-- **WHEN** anonymous user registers account
-- **THEN** all their pending sessions auto-approved
-- **AND** accumulated learning applied via triggers
-
----
-
-### Requirement: Session Cleanup
-
-The system SHALL clean up abandoned sessions.
-
-#### Scenario: Abandoned session deletion
-
-- **WHEN** active session has no activity for 24 hours
-- **THEN** session is hard deleted by cron job
-- **AND** associated answers cascade deleted

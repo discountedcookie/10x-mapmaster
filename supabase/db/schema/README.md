@@ -1,6 +1,6 @@
 # Database Schema Source Files
 
-This directory contains complete database schema definitions organized by function and dependency order.
+This directory contains global schema definitions (extensions, types, triggers, views).
 
 ## Purpose
 
@@ -10,11 +10,39 @@ These files enable a **source-based development workflow** where:
 - **Migrations** are generated automatically from source changes
 - **All business logic** lives in the database (database-first architecture)
 
-## File Organization
+## Overall File Organization
 
-All files are **idempotent** (safe to run multiple times) and ordered by dependencies:
+```
+supabase/db/
+├── schema/                  # Global definitions (this directory)
+│   ├── 01_extensions.sql    # Extensions, types, schemas
+│   ├── 05_triggers.sql      # Trigger definitions
+│   └── 06_views.sql         # View definitions
+├── public/tables/           # Public-schema tables (by schema)
+│   ├── places.sql
+│   ├── embeddings.sql
+│   ├── game_sessions.sql
+│   └── ...
+├── game_logic/tables/       # Game_logic-schema tables (by schema)
+│   └── config.sql
+└── functions/               # Functions (by domain, not schema)
+    ├── game/                # Core game functions
+    ├── algorithm/           # Scoring algorithms
+    ├── utilities/           # Helper functions
+    ├── places/              # Place management
+    ├── questions/           # Question generation
+    └── maintenance/         # Cleanup jobs
+```
 
-### 1. `01_extensions.sql` (194 lines)
+**Key distinction:**
+
+- **Tables**: Organized by **schema** (public/ or game_logic/)
+- **Functions**: Organized by **domain** (game/, algorithm/, etc.) - schema is specified in SQL
+- **Views**: In schema/06_views.sql - schema specified in SQL
+
+## Files in This Directory
+
+### 1. `01_extensions.sql`
 
 **PostgreSQL Extensions & Types** - Required extensions, custom types, and schemas
 
@@ -22,86 +50,37 @@ All files are **idempotent** (safe to run multiple times) and ordered by depende
 
 **Custom Types**:
 
-- `game_session_status` - Game lifecycle states
+- `game_session_status` - Game lifecycle states (active, won, ended, needs_submission)
 - `question_type` - Geographic vs semantic questions
 - `geographic_level` - Continent/region/country hierarchy
+- `answer_value` - Answer enum (yes, no, not_sure)
 - `error_response` - Standardized RPC error format
 
 **Schemas**:
 
-- `public` - Standard public schema
+- `public` - Client-accessible tables and RPC functions
 - `game_logic` - Server-only functions and config
 
-### 2. `02_tables.sql` (369 lines)
-
-**Core Database Tables** - All table definitions with constraints and relationships
-
-**Data Tables**:
-
-- `geographic_regions` - Continents and countries with PostGIS geometries
-- `embeddings` - Text embeddings with deduplication by hash
-- `places` - Geographic locations with traits and embeddings
-- `place_traits` - Canonical trait vocabulary
-- `place_trait_links` - Many-to-many place-trait relationships with provenance
-
-**Game Tables**:
-
-- `game_sessions` - Game state with trait-based filtering
-- `game_answers` - Player answers and question responses
-- `question_stats` - Question effectiveness tracking
-
-**Configuration Tables**:
-
-- `public.config` - Client-visible settings (e.g., game.max_turns)
-- `game_logic.config` - Server-only algorithm parameters
-- `app_settings` - Legacy settings (backward compatibility)
-
-**System Tables**:
-
-- `rate_limit_log` - Rate limiting enforcement and analytics
-
-### 3. `03_rls.sql` (378 lines)
-
-**Row Level Security Policies** - Fine-grained access control for all tables
-
-**Security Model**:
-
-- **Anonymous users**: Can create/play sessions, cannot access persistent data
-- **Authenticated users**: Full access to own data, read-only access to reference data
-- **Service role**: Full administrative access
-
-**Policy Coverage**: All tables have RLS enabled with appropriate policies
-
-### 4. `04_indexes.sql` (121 lines)
-
-**Database Indexes** - Performance optimization for all query patterns
-
-**Index Types**:
-
-- **HNSW**: Vector similarity search (embeddings, places)
-- **GiST**: Geographic queries (PostGIS geometries)
-- **B-tree**: Standard lookups and ordering
-- **GIN**: Array indexing (traits)
-
-### 5. `05_triggers.sql` (58 lines)
+### 2. `05_triggers.sql`
 
 **Database Triggers & Permissions** - Automated workflows and function security
 
 **Triggers**:
 
 - `enrich_place_on_session_complete` - Auto-enrichment on successful games
+- `on_session_approval_regenerate_traits` - Regenerate traits when session approved
 
 **Function Permissions**:
 
 - `generate_embedding` - Internal-only (revoked from public/anonymous)
 
-### 6. `06_views.sql` (200+ lines)
+### 3. `06_views.sql`
 
 **Database Views** - Frontend-friendly data access with built-in security
 
 **Views**:
 
-- `game_session_state` - Complete game state for UI
+- `game_session_state` - Complete game state for UI (derives status from was_correct/next_turn)
 - `user_stats` - Personal statistics and performance metrics
 - `global_stats` - Analytics and leaderboards (service role only)
 
@@ -286,33 +265,155 @@ All geometries use **SRID 4326** (WGS84):
 
 ## Security Model
 
-### Row Level Security
+### Auth Personas
 
-**Anonymous Users**:
+The database recognizes three auth personas:
 
-- Can create sessions and play games
+| Persona           | `auth.uid()` | `auth.role()`   | Typical Use Case                            |
+| ----------------- | ------------ | --------------- | ------------------------------------------- |
+| **Anonymous**     | NULL         | `anon`          | Guest users, first-time visitors            |
+| **Authenticated** | UUID (set)   | `authenticated` | Registered users via OAuth/email            |
+| **Service Role**  | N/A          | `service_role`  | Admin operations, cron jobs, edge functions |
+
+**Anonymous Users** (`auth.uid() IS NULL`):
+
+- Can create sessions and play games (sessions stored with `user_id = NULL`)
 - Cannot access other users' data
-- Rate limited by IP address
+- Rate limited per session
+- Sessions marked `pending_review = true` require admin approval
 
-**Authenticated Users**:
+**Authenticated Users** (`auth.uid()` is set):
 
-- Full access to own game data
+- Full access to own game data (`user_id = auth.uid()`)
 - Read access to reference data (places, traits, regions)
 - Can view own statistics
+- Sessions auto-approved (`pending_review = false`)
 
-**Service Role**:
+**Service Role** (`auth.role() = 'service_role'`):
 
-- Full administrative access
+- Full administrative access (bypasses RLS)
 - Can manage configuration and enrichment
 - Access to global analytics
+- Used by cron jobs and edge functions
+
+### SECURITY DEFINER Guardrails
+
+All `SECURITY DEFINER` functions MUST follow these guardrails:
+
+1. **Auth Check**: Check `auth.uid() IS NOT NULL` at function start when user context required
+2. **Search Path**: Set explicit `search_path = public, game_logic, extensions` to prevent schema injection
+3. **Ownership Validation**: Verify session/resource ownership before modifications
+
+**Template for SECURITY DEFINER functions**:
+
+```sql
+CREATE OR REPLACE FUNCTION public.my_secure_function(p_param text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, game_logic, extensions
+AS $$
+BEGIN
+  -- GUARDRAIL 1: Validate authentication
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  -- GUARDRAIL 2: Validate ownership (for user-scoped resources)
+  IF NOT EXISTS (
+    SELECT 1 FROM game_sessions
+    WHERE id = p_session_id AND user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
+  -- Business logic here...
+END;
+$$;
+```
+
+**Non-SECURITY DEFINER functions** (SECURITY INVOKER, the default):
+
+- Inherit caller's privileges
+- Protected by RLS automatically
+- Should still set explicit `search_path` for consistency
+
+### RLS Posture
+
+Tables are classified by access pattern:
+
+| Classification  | RLS Pattern                 | Examples                                       |
+| --------------- | --------------------------- | ---------------------------------------------- |
+| **User-Owned**  | `auth.uid() = user_id`      | `game_sessions`, `game_answers`                |
+| **Public Read** | SELECT allowed for all      | `places`, `place_traits`, `geographic_regions` |
+| **Private**     | Blocked except service_role | `game_logic.*` tables                          |
+
+**RLS Policy Templates**:
+
+**User-Owned Table Template** (for tables with `user_id` column):
+
+```sql
+-- SELECT: Own data OR anonymous (both NULL) OR service_role
+CREATE POLICY "select_own" ON public.my_table FOR
+SELECT
+  USING (
+    (auth.uid () = user_id)
+    OR (
+      auth.uid () IS NULL
+      AND user_id IS NULL
+    )
+    OR (auth.role () = 'service_role')
+  );
+
+-- INSERT: Own data only (prevents inserting as other users)
+CREATE POLICY "insert_own" ON public.my_table FOR INSERT
+WITH
+  CHECK (
+    (
+      auth.uid () IS NOT NULL
+      AND auth.uid () = user_id
+    )
+    OR (
+      auth.uid () IS NULL
+      AND user_id IS NULL
+    )
+    OR (auth.role () = 'service_role')
+  );
+
+-- UPDATE/DELETE: Same pattern as SELECT
+```
+
+**Public Read-Only Table Template**:
+
+```sql
+CREATE POLICY "select_all" ON public.ref_table FOR
+SELECT
+  USING (true);
+
+-- No INSERT/UPDATE/DELETE policies = write blocked for non-service_role
+```
+
+**Private Table Pattern** (in `game_logic` schema):
+
+- No direct RLS needed - schema not exposed to clients
+- Access only through SECURITY DEFINER functions
+- Grant USAGE on schema to allow function execution
 
 ### Function Security
 
-**SECURITY DEFINER** functions validate `auth.uid()`:
+**Public RPC Functions** (`start_game`, `play_turn`, `submit_place`):
 
-- All game functions use `auth.uid()` internally
+- Exposed via Supabase RPC
+- Use `auth.uid()` internally for ownership
 - No user_id parameters (prevents privilege escalation)
 - Rate limiting enforced at entry points
+- `submit_place` is SECURITY DEFINER with explicit auth check
+
+**Internal Functions** (in `game_logic` schema):
+
+- Not directly callable by clients
+- Called by public RPC functions
+- Trust boundary at public function layer
 
 ## Maintenance Jobs
 

@@ -1,140 +1,76 @@
-# Edge Functions Specification
+# edge-functions Specification
 
 ## Purpose
-
-Define the Supabase Edge Functions that integrate with external services (LLM, embeddings, Nominatim). Edge functions are called only by the database, never directly by frontend.
-
----
-
+TBD - created by archiving change 24-generate-embedding-fn. Update Purpose after archive.
 ## Requirements
+### Requirement: generate-embedding Edge Function
 
-### Requirement: Provider-Agnostic Architecture
+The system SHALL provide an edge function to generate 384d embeddings from text using configurable providers.
 
-The system SHALL abstract provider differences in edge functions.
+#### Scenario: Successful embedding
 
-#### Scenario: Environment-based provider selection
+- **WHEN** called with valid text
+- **THEN** it returns a 384d embedding and does not expose secrets
 
-- **WHEN** edge function executes
-- **THEN** reads LLM_PROVIDER and EMBEDDING_PROVIDER from environment
-- **AND** connects to appropriate provider (Ollama/Supabase/external)
+#### Scenario: Provider configuration
 
-#### Scenario: Consistent output
+- **WHEN** selecting providers
+- **THEN** configuration/env control the provider used without code changes
 
-- **WHEN** embedding generated
-- **THEN** always returns 384d vector regardless of provider
+#### Scenario: Error handling
 
-#### Scenario: Secret management
+- **WHEN** provider or input errors occur
+- **THEN** standardized errors are returned and no sensitive data is leaked
 
-- **WHEN** API keys needed
-- **THEN** read from Supabase Vault
-- **AND** database never sees secrets
+### Requirement: call-llm Edge Function
 
----
+The system SHALL provide an edge function to call LLMs for text generation with configurable providers.
 
-### Requirement: Generate Embedding Function
+#### Scenario: Successful LLM call
 
-The system SHALL provide embedding generation via edge function.
+- **WHEN** called with valid parameters (model, temperature, max_tokens, prompt)
+- **THEN** it returns generated text and hides provider secrets
 
-#### Scenario: Generate embedding
+#### Scenario: Error handling
 
-- **WHEN** POST /functions/v1/generate-embedding called with text
-- **THEN** returns 384d vector representation
+- **WHEN** provider or input errors occur
+- **THEN** standardized errors are returned with no sensitive data leaked
 
-#### Scenario: Provider handling
+#### Scenario: Configuration
 
-- **WHEN** embedding requested
-- **THEN** edge function routes to configured provider
-- **AND** returns consistent format
+- **WHEN** changing providers
+- **THEN** configuration/env selects providers without code changes
 
----
+### Requirement: place-enrichment Edge Function
 
-### Requirement: Call LLM Function
+The system SHALL provide an edge function to fetch place data and extract traits for submissions.
 
-The system SHALL provide LLM calls via edge function.
+#### Scenario: Successful enrichment
 
-#### Scenario: Call LLM
+- **WHEN** called with a valid osm_id
+- **THEN** it returns normalized Nominatim data and an extracted trait list in structured form
 
-- **WHEN** POST /functions/v1/call-llm called with model, temperature, max_tokens, prompt
-- **THEN** returns generated text response
+#### Scenario: Error handling
 
-#### Scenario: Trait extraction
+- **WHEN** Nominatim or extraction fails
+- **THEN** standardized errors are returned without leaking secrets
 
-- **WHEN** database calls for trait extraction
-- **THEN** LLM extracts trait descriptions from provided context
+#### Scenario: Security
 
-#### Scenario: Question generation
+- **WHEN** responding
+- **THEN** only necessary place/trait data is returned; no secrets are exposed
 
-- **WHEN** database calls for question generation
-- **THEN** LLM generates natural language yes/no question in target language
+### Requirement: search-place Edge Function
 
----
+The system SHALL provide an edge function for place search to support frontend autocomplete.
 
-### Requirement: Fetch Place Function
+#### Scenario: Successful search
 
-The system SHALL provide Nominatim lookup via edge function.
+- **WHEN** called with a valid query
+- **THEN** it returns normalized suggestions (name, osm_id, lat/lng) suitable for selection
 
-#### Scenario: Fetch place data
+#### Scenario: Error handling
 
-- **WHEN** GET /functions/v1/fetch-place/{osm_id} called
-- **THEN** returns name, display_name, lat, lng, boundingbox, extratags, address, geojson
+- **WHEN** provider errors or invalid input occur
+- **THEN** standardized errors are returned without exposing secrets
 
-#### Scenario: Geometry included
-
-- **WHEN** place has polygon geometry
-- **THEN** geojson field contains polygon data
-
----
-
-### Requirement: LLM Context Composition
-
-The system SHALL provide rich context to LLM for generation.
-
-#### Scenario: Question generation context
-
-- **WHEN** generating a question
-- **THEN** LLM receives: player description, previous Q&A, current candidates, geographic regions, selected trait/region, language code
-
-#### Scenario: Trait extraction context
-
-- **WHEN** extracting traits
-- **THEN** LLM receives: Nominatim data (extratags, address) and optionally player descriptions
-
----
-
-### Requirement: LLM Boundaries
-
-The system SHALL limit LLM responsibilities to text generation only.
-
-#### Scenario: LLM does not make decisions
-
-- **WHEN** LLM called
-- **THEN** only generates text (questions, trait lists)
-- **AND** does not select traits, calculate scores, or make gameplay decisions
-
-#### Scenario: Database controls logic
-
-- **WHEN** game decision needed
-- **THEN** database logic determines what to do
-- **AND** LLM only translates decision to natural language
-
----
-
-### Requirement: Development vs Production
-
-The system SHALL support different providers per environment.
-
-#### Scenario: Development environment
-
-- **WHEN** running locally
-- **THEN** uses Ollama for embeddings and LLM
-
-#### Scenario: Production environment
-
-- **WHEN** running in production
-- **THEN** uses Supabase gte-small for embeddings
-- **AND** configured LLM provider for text generation
-
-#### Scenario: Consistent behavior
-
-- **WHEN** same model runs in both environments
-- **THEN** behavior is consistent between development and production

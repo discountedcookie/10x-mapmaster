@@ -9,20 +9,14 @@ CREATE TABLE IF NOT EXISTS "public"."game_sessions" (
   "was_correct" BOOLEAN,
   "description" "text" NOT NULL CHECK (
     length(trim("description")) > 0
-    AND length("description") <= 500
+    AND length("description") <= 200
   ),
-  "description_language_code" "text" DEFAULT 'en'::"text" NOT NULL,
-  "affirmed_trait_ids" TEXT[] DEFAULT '{}'::TEXT[] NOT NULL,
-  "denied_trait_ids" TEXT[] DEFAULT '{}'::TEXT[] NOT NULL,
-  "description_embedding_id" UUID,
-  "affirmed_trait_embedding_id" UUID,
-  "denied_trait_embedding_id" UUID,
+  "language_code" "text" DEFAULT 'en'::"text" NOT NULL,
+  "embedding_id" UUID,
+  "status" "game_session_status" DEFAULT 'active'::"game_session_status" NOT NULL,
   "pending_review" BOOLEAN DEFAULT FALSE NOT NULL,
-  "submitted_place_name" "text",
-  "submitted_lat" DOUBLE PRECISION,
-  "submitted_lng" DOUBLE PRECISION,
-  "submitted_nominatim_id" "text",
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
+  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
   "next_turn" "jsonb"
 );
 
@@ -37,19 +31,11 @@ ADD CONSTRAINT "game_sessions_pkey" PRIMARY KEY ("id");
 
 -- Foreign Keys
 ALTER TABLE ONLY "public"."game_sessions"
-ADD CONSTRAINT "game_sessions_place_id_fkey" FOREIGN key ("place_id") REFERENCES "public"."places" ("id") ON DELETE CASCADE;
+ADD CONSTRAINT "game_sessions_place_id_fkey" FOREIGN key ("place_id") REFERENCES "public"."places" ("id") ON DELETE SET NULL;
 
 
 ALTER TABLE ONLY "public"."game_sessions"
-ADD CONSTRAINT "game_sessions_description_embedding_id_fkey" FOREIGN key ("description_embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
-
-
-ALTER TABLE ONLY "public"."game_sessions"
-ADD CONSTRAINT "game_sessions_affirmed_trait_embedding_id_fkey" FOREIGN key ("affirmed_trait_embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
-
-
-ALTER TABLE ONLY "public"."game_sessions"
-ADD CONSTRAINT "game_sessions_denied_trait_embedding_id_fkey" FOREIGN key ("denied_trait_embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "game_sessions_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes
@@ -60,6 +46,9 @@ CREATE INDEX if NOT EXISTS "idx_game_sessions_place_id" ON "public"."game_sessio
 
 
 CREATE INDEX if NOT EXISTS "idx_game_sessions_created_at" ON "public"."game_sessions" ("created_at");
+
+
+CREATE INDEX if NOT EXISTS "idx_game_sessions_status" ON "public"."game_sessions" ("status");
 
 
 -- RLS Policies
@@ -136,3 +125,6 @@ comment ON COLUMN "public"."game_sessions"."next_turn" IS 'Cached next turn for 
 - {"action": "guess", "place_id": "uuid", "place_name": "...", "candidates": [...]}
 - {"action": "give_up", "reason": "no_candidates"}
 - NULL (session won/lost - check was_correct)';
+
+
+-- Note: Triggers defined in schema/triggers.sql (loaded after functions)

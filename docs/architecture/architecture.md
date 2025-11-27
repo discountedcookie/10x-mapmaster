@@ -115,6 +115,11 @@ Public-facing game operations:
 
 All other game logic functions are in private schema.
 
+### Security Posture for Functions
+
+- SECURITY DEFINER functions that depend on user context MUST check `auth.uid() IS NOT NULL` and set `search_path = public, game_logic, extensions` explicitly.
+- RLS remains the primary isolation layer; public RPCs also enforce ownership/auth guards for defense in depth.
+
 ### Configuration-Driven Behavior
 
 All game parameters stored in database tables, split by visibility:
@@ -138,6 +143,7 @@ All game parameters stored in database tables, split by visibility:
 ### Game State Storage
 
 - `game_answers` table stores all player responses
+- Exactly one of `trait_id`, `geographic_region_id`, or `place_id` MUST be set for each answer (CHECK constraint)
 - System uses answers to determine next question or guess
 - Append-only design (answers never modified or deleted)
 
@@ -170,7 +176,7 @@ Supabase Edge Functions (Deno runtime) abstract provider differences. The databa
 | Development | Ollama (gte-small compatible, 384d) | Ollama       |
 | Production  | Supabase gte-small (384d)           | Provider TBD |
 
-**Key constraint:** Same LLM model runs locally (Ollama) and in production (via provider). This ensures consistent behavior between development and production.
+**Key constraint:** Same LLM model runs locally (Ollama) and in production (via provider). This ensures consistent behavior between development and production. Both embedding and LLM functions select providers via `EMBEDDING_PROVIDER` / `LLM_PROVIDER` env, not hardcoded.
 
 Edge functions read `LLM_PROVIDER` and `EMBEDDING_PROVIDER` from environment variables and API keys from Supabase Vault. The database never sees secrets – it only calls the edge function with parameters and receives back embeddings or generated text.
 

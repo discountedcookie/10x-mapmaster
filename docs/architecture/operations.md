@@ -213,6 +213,11 @@ All admin workflows are performed through Supabase Studio or direct SQL access o
 
 ## Security and Monitoring
 
+### Security Posture for Functions
+
+- SECURITY DEFINER functions that rely on user context MUST check `auth.uid() IS NOT NULL` and set `search_path = public, game_logic, extensions` explicitly.
+- Public RPCs rely on RLS for isolation and also enforce explicit ownership/auth checks where appropriate.
+
 ### Automated Security Scans
 
 - **CodeQL** - GitHub's default code scanning

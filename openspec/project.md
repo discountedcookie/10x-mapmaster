@@ -83,7 +83,7 @@
 
 ## Important Constraints
 
-- **RLS on every table** - Validate auth.uid() in SECURITY DEFINER functions
+- **Hybrid security model** - SECURITY DEFINER for privileged ops (edge functions, private config), Invoker + RLS for user data
 - **No business logic in frontend** - If you see game logic there, flag it
 - **200 character description limit** - Enforced by DB constraint
 - **Answer enum** - 'yes' | 'no' | 'not_sure' (not_sure only for questions)

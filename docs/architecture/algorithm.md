@@ -142,7 +142,7 @@ When the player answers a question about a trait, candidate scores are adjusted 
 
 ### Match Strength
 
-Calculate similarity between each candidate and the asked trait:
+Calculate similarity between each candidate and the asked trait using embeddings (no text/boolean fallbacks):
 
 ```
 match_strength(place, trait) = similarity(place.embedding, trait.embedding)
@@ -226,6 +226,8 @@ split_quality = 1 - |0.5 - fraction_matching|
 5. TIEBREAKER: If multiple traits have equal split_quality,
    prefer the trait most similar to the player's description
 ```
+
+Selection is deterministic and algorithmic; the LLM is used only to phrase the chosen trait/region as a natural-language question, not to choose which question to ask.
 
 ### Poor Split Quality
 

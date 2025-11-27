@@ -1,14 +1,17 @@
 <!-- OPENSPEC:START -->
+
 # OpenSpec Instructions
 
 These instructions are for AI assistants working in this project.
 
 Always open `@/openspec/AGENTS.md` when the request:
+
 - Mentions planning or proposals (words like proposal, spec, change, plan)
 - Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
 - Sounds ambiguous and you need the authoritative spec before coding
 
 Use `@/openspec/AGENTS.md` to learn:
+
 - How to create and apply change proposals
 - Spec format and conventions
 - Project structure and guidelines
@@ -69,11 +72,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ```
 supabase/db/
-├── schema/         # Schema definitions (tables, RLS, indexes)
-└── functions/      # Business logic functions by domain
+├── schema/               # Schema definitions (tables, RLS, indexes)
+├── game_logic/functions/ # Game mechanics, scoring, maintenance
+└── public/functions/     # Player-facing RPC entrypoints
 ```
 
-1. Edit source files in `supabase/db/schema/` or `supabase/db/functions/`
+1. Edit source files in `supabase/db/schema/` or `supabase/db/{game_logic,public}/functions/`
 2. Run `bun run db:rebuild` to generate migration + reset DB
 3. Test with `supabase test db`
 4. Commit both source files AND generated migration
@@ -84,20 +88,14 @@ supabase/db/
 
 ## OpenSpec Workflow
 
-Use OpenSpec for spec-driven task management:
-
-- `/openspec-proposal` - Create change proposal from spec
-- `/openspec-apply` - Implement tasks from proposal
-- `/openspec-archive` - Archive completed change
-
-Specs are in `spec/` directory. OpenSpec changes go in `openspec/changes/`.
+Specs are in `openspec/specs/` directory. OpenSpec changes go in `openspec/changes/`.
 
 ---
 
 ## Key Directories
 
 ```
-spec/           # Project specifications (source of truth)
+docs/           # Project specifications (source of truth)
 src/            # Vue 3 frontend (presentation only)
 supabase/db/    # Database source files (business logic)
 supabase/functions/  # Edge functions (LLM, embeddings)

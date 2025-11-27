@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "public"."geographic_regions" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "name" "text" NOT NULL,
   "level" "text" NOT NULL CHECK ("level" IN ('continent', 'country')),
-  "geom" "public"."geometry" (multipolygon, 4326) NOT NULL,
+  "geom" "extensions"."geometry" (multipolygon, 4326) NOT NULL,
   "continent_id" "uuid",
   "iso_code" "text",
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL

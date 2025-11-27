@@ -1,12 +1,12 @@
 -- Table: embeddings
 -- Schema: public
 -- Description: Stores text embeddings separately from entities for efficient querying
+-- Spec: 384d vector per spec/overview.md and openspec/specs/database/spec.md
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."embeddings" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
-  "text" "text" NOT NULL,
-  "text_hash" "text" NOT NULL,
-  "embedding" "public"."vector" (1024) NOT NULL,
+  "source_text" "text" NOT NULL,
+  "embedding" "extensions"."vector" (384) NOT NULL,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
   "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL
 );
@@ -20,17 +20,13 @@ ALTER TABLE ONLY "public"."embeddings"
 ADD CONSTRAINT "embeddings_pkey" PRIMARY KEY ("id");
 
 
--- Unique Constraint
-ALTER TABLE ONLY "public"."embeddings"
-ADD CONSTRAINT "embeddings_text_hash_key" UNIQUE ("text_hash");
-
-
 -- Indexes
-CREATE INDEX if NOT EXISTS "idx_embeddings_text_hash" ON "public"."embeddings" ("text_hash");
-
-
 -- HNSW index for fast approximate nearest neighbor search
-CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" vector_cosine_ops);
+CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" extensions.vector_ip_ops);
+
+
+-- Unique constraint on source_text for deduplication
+CREATE UNIQUE INDEX if NOT EXISTS "idx_embeddings_source_text" ON "public"."embeddings" ("source_text");
 
 
 -- RLS Policies
@@ -54,4 +50,4 @@ WITH
 
 
 -- Comments
-comment ON TABLE "public"."embeddings" IS 'Stores text embeddings separately from entities. Text is hashed for deduplication and fast lookup.';
+comment ON TABLE "public"."embeddings" IS 'Stores 384d text embeddings (gte-small compatible).';

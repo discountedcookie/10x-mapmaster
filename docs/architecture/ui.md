@@ -22,8 +22,8 @@
 
 - @vueuse/core for utility composables (useColorMode, useMediaQuery)
 - @vueuse/motion for declarative animations
-- deck.gl for 3D extruded polygon markers (@deck.gl/core, @deck.gl/layers, @deck.gl/mapbox)
-- Tolgee for translation management (i18n)
+- deck.gl for 3D extruded polygon markers (@deck.gl/core, @deck.gl/layers, @deck.gl/mapbox) rendered atop MapLibre
+- Tolgee (@tolgee/vue) for translation management (i18n)
 - Pinia for state management
 
 ## Responsive Design

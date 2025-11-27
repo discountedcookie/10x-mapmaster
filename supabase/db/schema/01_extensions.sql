@@ -58,7 +58,7 @@ SELECT
   cron.schedule (
     'daily-maintenance',
     '0 2 * * *', -- Every day at 2 AM UTC
-    'SELECT public.maintenance_cleanup();'
+    'SELECT game_logic.maintenance_cleanup();'
   );
 
 
@@ -67,7 +67,7 @@ SELECT
   cron.schedule (
     'rate-limit-cleanup',
     '*/30 * * * *', -- Every 30 minutes
-    'DELETE FROM rate_limit_log WHERE created_at < NOW() - INTERVAL ''1 hour'';'
+    'DELETE FROM game_logic.rate_limit_log WHERE created_at < NOW() - INTERVAL ''1 hour'';'
   );
 
 
@@ -104,7 +104,7 @@ WITH
 -- Geographic data types and functions
 CREATE EXTENSION if NOT EXISTS "postgis"
 WITH
-  schema "public";
+  schema "extensions";
 
 
 -- Secrets management
@@ -122,7 +122,7 @@ WITH
 -- Vector similarity search (pgvector)
 CREATE EXTENSION if NOT EXISTS "vector"
 WITH
-  schema "public";
+  schema "extensions";
 
 
 comment ON schema "public" IS 'standard public schema';
@@ -202,6 +202,16 @@ comment ON type error_response IS 'Standardized error response for RPC functions
 - details: Additional error context (optional)';
 
 
+-- Answer value enum for game answers
+DROP TYPE if EXISTS answer_value cascade;
+
+
+CREATE TYPE answer_value AS ENUM('yes', 'no', 'not_sure');
+
+
+comment ON type answer_value IS 'Valid answer values for game questions: yes, no, or not_sure';
+
+
 -- ============================================================================
 -- Additional Schemas
 -- ============================================================================
@@ -212,3 +222,10 @@ CREATE SCHEMA if NOT EXISTS game_logic;
 
 
 comment ON schema game_logic IS 'Server-only game logic, functions, and private configuration. Not directly accessible to clients.';
+
+
+-- Grant usage on game_logic schema
+GRANT usage ON schema game_logic TO postgres,
+authenticated,
+anon,
+service_role;

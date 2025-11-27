@@ -1,10 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md"],
+  "instructions": ["AGENTS.md", "openspec/AGENTS.md"],
 
   // Models: z.ai coding plan (main) + OpenCode Zen (fallback)
   "model": "anthropic/claude-opus-4-5",
-  "small_model": "zai-coding-plan/glm-4.6",
+  "small_model": "anthropic/claude-haiku-4-5",
 
   "keybinds": {
     "session_child_cycle": "<leader>]",
@@ -20,6 +20,12 @@
 
   // MCPs - minimal useful set
   "mcp": {
+    // Debugging
+    "chrome-devtools": {
+      "type": "local",
+      "command": ["npx", "-y", "chrome-devtools-mcp@latest"],
+    },
+
     // Web search + code context
     "exa": {
       "type": "remote",
@@ -41,15 +47,21 @@
       "grep": "deny",
       "head": "deny",
       "ls": "deny",
+      "rg": "deny",
       "tail": "deny",
       //
       "bun *": "allow",
-      "npm * ": "deny",
+      "npm": "deny",
+      //
+      "openspec *": "allow",
+      "psql": "allow",
+      "supabase *": "allow",
     },
   },
 
   // Global tool defaults - limit MCP exposure, enable per-agent
   "tools": {
+    "chrome-devtools_*": false,
     "exa_*": false,
     "sequential-thinking_*": false,
   },

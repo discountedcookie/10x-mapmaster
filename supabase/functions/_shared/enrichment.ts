@@ -1,6 +1,7 @@
 import { search, lookup, type JSONPlace } from 'nominatim-ts'
 import {
   extractTraitsFromNominatim,
+  extractTraitsViaLLM,
   type NormalizedNominatimPlace,
   type TraitCandidate,
 } from './traits.ts'
@@ -110,9 +111,35 @@ export async function enrichPlace(
     }
 
     const normalized = normalizeResult(results[0])
-    const traits = extractTraitsFromNominatim(normalized)
 
-    return { place: normalized, traits }
+    // Extract rule-based traits first
+    const ruleBasedTraits = extractTraitsFromNominatim(normalized)
+
+    // Check if LLM extraction is enabled
+    let llmTraits: TraitCandidate[] = []
+    try {
+      // Simple config check - in real implementation, this would query the database
+      const llmEnabled = Deno.env.get('LLM_EXTRACTION_ENABLED') !== 'false'
+
+      if (llmEnabled) {
+        // Build description from available data
+        const description = normalized.display_name || normalized.english_name || query
+
+        // Extract additional traits via LLM
+        llmTraits = await extractTraitsViaLLM(
+          normalized.english_name || query,
+          description,
+          ruleBasedTraits
+        )
+      }
+    } catch (error) {
+      console.warn('LLM trait extraction failed, using rule-based only:', error)
+    }
+
+    // Merge traits with deduplication (LLM traits added after rule-based)
+    const allTraits = [...ruleBasedTraits, ...llmTraits]
+
+    return { place: normalized, traits: allTraits }
   } catch (error) {
     console.error('Failed to enrich place', error)
     throw error instanceof Error ? error : new Error(String(error))
@@ -145,9 +172,35 @@ export async function enrichPlaceByOsmId(
     }
 
     const normalized = normalizeResult(results[0])
-    const traits = extractTraitsFromNominatim(normalized)
 
-    return { place: normalized, traits }
+    // Extract rule-based traits first
+    const ruleBasedTraits = extractTraitsFromNominatim(normalized)
+
+    // Check if LLM extraction is enabled
+    let llmTraits: TraitCandidate[] = []
+    try {
+      // Simple config check - in real implementation, this would query the database
+      const llmEnabled = Deno.env.get('LLM_EXTRACTION_ENABLED') !== 'false'
+
+      if (llmEnabled) {
+        // Build description from available data
+        const description = normalized.display_name || normalized.english_name || osmId
+
+        // Extract additional traits via LLM
+        llmTraits = await extractTraitsViaLLM(
+          normalized.english_name || osmId,
+          description,
+          ruleBasedTraits
+        )
+      }
+    } catch (error) {
+      console.warn('LLM trait extraction failed, using rule-based only:', error)
+    }
+
+    // Merge traits with deduplication (LLM traits added after rule-based)
+    const allTraits = [...ruleBasedTraits, ...llmTraits]
+
+    return { place: normalized, traits: allTraits }
   } catch (error) {
     console.error('Failed to enrich place by OSM ID', error)
     throw error instanceof Error ? error : new Error(String(error))

@@ -59,87 +59,67 @@ VALUES
     ''
   );
 
--- LLM System Prompt (single prompt for all LLM operations)
-INSERT INTO app_settings (key, value, description)
-VALUES (
-  'llm_prompt',
-  'You are a strict JSON generator for a place-guessing game.
 
-### RULES
-1. Create a question that splits the candidates into two roughly equal groups.
-2. Never repeat questions from "Previous Answers".
-{rule3}
 
-### OUTPUT FORMAT (EXAMPLES)
-{geo_example}If inventing a Semantic Question:
-{"type": "semantic", "lang": "{language}", "question": "Is it white?", "semantic_trait": "Color white", "reasoning": "<reasoning>"}
+-- ============================================================================
+-- ALL CONFIGURATION IN game_logic.config (server-only, hierarchical keys)
+-- ============================================================================
+-- Note: app_settings table exists for backward compatibility but is no longer used.
+-- All game logic reads from game_logic.config via get_config_*() functions.
 
-### DATA CONTEXT
-{description}{answers}{candidates}{geographic_regions}
+INSERT INTO game_logic.config (key, value, description) VALUES
+-- Runtime environment for LOCAL DEVELOPMENT ONLY
+-- For production: set these via Supabase dashboard SQL editor or migrations
+-- Uses host.docker.internal for Postgres-to-EdgeFunction calls (Docker networking)
+-- These are the standard Supabase local dev keys (publicly documented)
+('runtime.supabase_url', '"http://host.docker.internal:54321"'::jsonb, 'Supabase API URL (Docker internal)'),
+('runtime.supabase_anon_key', '"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"'::jsonb, 'Supabase anon key (local dev)'),
+('runtime.supabase_service_role_key', '"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU"'::jsonb, 'Supabase service role key (local dev)'),
 
-### YOUR RESPONSE
-Produce the single-line JSON based on the DATA above.',
-  'System prompt for LLM question selection using section placeholders'
-);
+-- Game settings
+('game.max_turns', '5'::jsonb, 'Maximum number of turns before forcing a final guess attempt'),
 
 -- LLM Model Configuration
-INSERT INTO app_settings (key, value, description) VALUES
-('llm_model', 'gemma3:1b', 'Ollama model name for LLM operations.'),
-('llm_temperature', '0.1', 'LLM temperature (0.0-1.0). Lower = more deterministic.'),
-('llm_num_predict', '300', 'Maximum number of tokens to generate.'),
-('llm_top_p', '0.9', 'LLM top_p sampling control.'),
-('llm_stop', '["\n\n"]', 'JSON array of stop sequences.');
+('llm.model', '"gemma3:1b"'::jsonb, 'Ollama model name for LLM operations'),
+('llm.temperature', '0.1'::jsonb, 'LLM temperature (0.0-1.0). Lower = more deterministic'),
+('llm.num_predict', '300'::jsonb, 'Maximum number of tokens to generate'),
+('llm.top_p', '0.9'::jsonb, 'LLM top_p sampling control'),
+('llm.stop', '["\n\n"]'::jsonb, 'JSON array of stop sequences'),
 
--- Game configuration: Maximum turns before forced final guess
-INSERT INTO app_settings (key, value, description) VALUES
-('max_turns', '5', 'Maximum number of turns before forcing a final guess attempt');
+-- LLM Trait Extraction
+('llm.extraction.enabled', 'true'::jsonb, 'Enable LLM trait extraction during place enrichment'),
+('llm.extraction.prompt', '"Extract 3-5 distinctive traits for this place that would help someone guess it in a geographic game. Focus on physical characteristics, historical significance, cultural importance, or unique features. Avoid generic traits. Return JSON array: [{\"clause\": \"trait description\", \"category\": \"category\", \"confidence\": 0.8}]"'::jsonb, 'Prompt for LLM trait extraction'),
+('llm.extraction.model', '"gemma3:1b"'::jsonb, 'Model to use for LLM trait extraction'),
+('llm.extraction.temperature', '0.3'::jsonb, 'Temperature for LLM trait extraction'),
 
--- Guess policy thresholds
-INSERT INTO app_settings (key, value, description) VALUES
-('guess_confidence_threshold', '0.90', 'Minimum confidence score to trigger a guess (with gap requirement)'),
-('guess_confidence_gap_threshold', '0.1', 'Minimum gap between top 2 candidates to trigger a guess'),
-('guess_high_confidence_threshold', '1.0', 'High confidence threshold for immediate guess (ignores gap)');
+-- Confidence decision thresholds
+('confidence.top_prob_threshold', '0.4'::jsonb, 'Minimum top probability to guess'),
+('confidence.margin_threshold', '0.15'::jsonb, 'Minimum margin (gap between top two) to guess'),
+('confidence.entropy_threshold', '0.7'::jsonb, 'Maximum normalized entropy to guess (lower = more certain)'),
+
+-- Scoring configuration
+('scoring.temperature', '1.0'::jsonb, 'Temperature for softmax. Lower = sharper distribution, higher = flatter'),
+('scoring.geographic_fit_max_weight', '0.2'::jsonb, 'Maximum geographic fit bonus'),
+('scoring.distance_normalization', '20000000.0'::jsonb, 'Distance normalization for geographic fit (~20000km)'),
 
 -- Semantic filtering thresholds
-INSERT INTO app_settings (key, value, description) VALUES
-('semantic_similarity_threshold', '0.5', 'Minimum base description similarity to include a place as candidate.'),
-('trait_similarity_threshold', '0.6', 'Threshold to determine if a place "has" a trait.');
+('candidates.semantic_similarity_threshold', '0.5'::jsonb, 'Minimum base description similarity to include a place as candidate'),
+('candidates.initial_threshold', '0.3'::jsonb, 'Minimum similarity for initial candidates'),
+('candidates.max_initial', '100'::jsonb, 'Maximum number of initial candidates'),
 
--- Scoring weights
-INSERT INTO app_settings (key, value, description) VALUES
-('weight_affirmed_trait_match', '0.3', 'Boost when place HAS affirmed trait'),
-('weight_affirmed_trait_mismatch', '-0.2', 'Penalty when place lacks affirmed trait'),
-('weight_denied_trait_match', '-0.4', 'Penalty when place HAS denied trait'),
-('weight_denied_trait_mismatch', '0.1', 'Boost when place lacks denied trait'),
-('weight_geographic_fit_max', '0.2', 'Maximum geographic fit bonus'),
-('geographic_distance_normalization', '20000000.0', 'Distance normalization for geographic fit');
+-- Trait matching thresholds
+('traits.similarity_threshold', '0.6'::jsonb, 'Threshold to determine if a place "has" a trait'),
+('traits.strong_match_threshold', '0.7'::jsonb, 'Threshold for STRONG trait match'),
+('traits.partial_match_threshold', '0.5'::jsonb, 'Threshold for PARTIAL trait match'),
 
--- Algorithm: Softmax probability distribution (spec/algorithm.md#probability-distribution)
-INSERT INTO app_settings (key, value, description) VALUES
-('softmax_temperature', '1.0', 'Temperature for softmax. Lower = sharper distribution, higher = flatter.');
+-- Score adjustment weights
+('adjustment.affirmed_trait_match', '0.3'::jsonb, 'Boost when place HAS affirmed trait'),
+('adjustment.affirmed_trait_mismatch', '-0.2'::jsonb, 'Penalty when place lacks affirmed trait'),
+('adjustment.denied_trait_match', '-0.4'::jsonb, 'Penalty when place HAS denied trait'),
+('adjustment.denied_trait_mismatch', '0.1'::jsonb, 'Boost when place lacks denied trait'),
+('adjustment.base_weight', '0.3'::jsonb, 'Base weight for score adjustments'),
+('adjustment.beta', '1.5'::jsonb, 'Power-law exponent for adjustment magnitude'),
 
--- Algorithm: Confidence decision metrics (spec/algorithm.md#confidence-decision-metrics)
-INSERT INTO app_settings (key, value, description) VALUES
-('top_prob_threshold', '0.4', 'Minimum top probability to guess'),
-('margin_threshold', '0.15', 'Minimum margin (gap between top two) to guess'),
-('entropy_threshold', '0.7', 'Maximum normalized entropy to guess (lower = more certain)');
-
--- Algorithm: Initial candidate selection (spec/algorithm.md#initial-candidate-scoring)
-INSERT INTO app_settings (key, value, description) VALUES
-('initial_candidate_threshold', '0.3', 'Minimum similarity for initial candidates'),
-('max_initial_candidates', '100', 'Maximum number of initial candidates');
-
--- Algorithm: Trait matching (spec/algorithm.md#trait-match-scoring)
-INSERT INTO app_settings (key, value, description) VALUES
-('strong_match_threshold', '0.7', 'Threshold for STRONG trait match'),
-('partial_match_threshold', '0.5', 'Threshold for PARTIAL trait match');
-
--- Algorithm: Score adjustment (spec/algorithm.md#score-adjustment)
-INSERT INTO app_settings (key, value, description) VALUES
-('adjustment_base_weight', '0.3', 'Base weight for score adjustments'),
-('adjustment_beta', '1.5', 'Power-law exponent for adjustment magnitude');
-
--- Algorithm: Question selection (spec/algorithm.md#question-selection-algorithm)
-INSERT INTO app_settings (key, value, description) VALUES
-('min_split_quality', '0.6', 'Minimum acceptable split quality for questions'),
-('geographic_preference_threshold', '0.7', 'Geographic split quality to prefer over semantic');
+-- Question selection
+('questions.min_split_quality', '0.6'::jsonb, 'Minimum acceptable split quality for questions'),
+('questions.geographic_preference_threshold', '0.7'::jsonb, 'Geographic split quality to prefer over semantic');

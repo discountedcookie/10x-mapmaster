@@ -25,7 +25,7 @@
     "format:sql": "prettier --write \"supabase/**/*.sql\"",
     "supabase:start": "supabase start -x vector",
     "supabase:types": "supabase gen types --lang=typescript --local > src/types/database.ts",
-    "db:rebuild": "bun run format:sql && bun run scripts/build-migration.ts --dev && supabase db reset && bun run supabase:types",
+    "db:rebuild": "bun run scripts/build-migration.ts --dev && supabase db reset && bun run supabase:types",
     "db:build-migration": "bun run scripts/build-migration.ts --prod"
   },
   "dependencies": {
