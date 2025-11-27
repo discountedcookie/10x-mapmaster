@@ -1,6 +1,6 @@
 -- Function: generate_question_text
 -- Category: utilities
--- Purpose: Generate natural language question text using LLM via edge function
+-- Purpose: Generate natural language question text using LLM via call_llm_api
 CREATE OR REPLACE FUNCTION "game_logic"."generate_question_text" (
   p_trait_id TEXT,
   p_region_id UUID,
@@ -12,7 +12,7 @@ DECLARE
   v_trait_clause TEXT;
   v_region_name TEXT;
   v_prompt TEXT;
-  v_llm_response JSONB;
+  v_llm_response TEXT;
   v_question_text TEXT;
 BEGIN
   -- Get trait or region context
@@ -22,15 +22,16 @@ BEGIN
     WHERE id = p_trait_id;
     
     IF v_trait_clause IS NULL THEN
-      RAISE EXCEPTION 'Trait % not found', p_trait_id;
+      -- Fallback: trait not in traits table, use ID as clause
+      v_trait_clause := p_trait_id;
     END IF;
     
     -- Build semantic question prompt
-    v_prompt := jsonb_build_object(
-      'type', 'semantic_question',
-      'trait', v_trait_clause,
-      'language', p_language_code
-    );
+    v_prompt := 'Generate a natural yes/no question to ask about a place. ' ||
+      'The question should ask whether the place has this characteristic: "' || v_trait_clause || '". ' ||
+      'Make it conversational and natural, not robotic. ' ||
+      'Output ONLY the question, nothing else. ' ||
+      'Language: ' || p_language_code;
     
   ELSIF p_region_id IS NOT NULL THEN
     SELECT name INTO v_region_name
@@ -42,29 +43,28 @@ BEGIN
     END IF;
     
     -- Build geographic question prompt
-    v_prompt := jsonb_build_object(
-      'type', 'geographic_question',
-      'region', v_region_name,
-      'language', p_language_code
-    );
+    v_prompt := 'Generate a natural yes/no question to ask about a place''s location. ' ||
+      'The question should ask whether the place is in: "' || v_region_name || '". ' ||
+      'Make it conversational and natural, not robotic. ' ||
+      'Output ONLY the question, nothing else. ' ||
+      'Language: ' || p_language_code;
     
   ELSE
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
   END IF;
   
-  -- Call LLM edge function
-  v_llm_response := http_call_edge_function(
-    'call-llm',
-    'POST',
-    '{}',
-    v_prompt
-  );
+  -- Call LLM via call_llm_api (uses http extension which works)
+  BEGIN
+    v_llm_response := call_llm_api(v_prompt);
+    v_question_text := trim(v_llm_response);
+  EXCEPTION WHEN others THEN
+    -- LLM call failed, use fallback
+    v_question_text := NULL;
+    RAISE NOTICE 'LLM call failed: %, using fallback', SQLERRM;
+  END;
   
-  -- Extract question text from response
-  v_question_text := v_llm_response->>'question';
-  
+  -- Fallback to template if LLM fails or returns empty
   IF v_question_text IS NULL OR v_question_text = '' THEN
-    -- Fallback to template if LLM fails
     IF p_trait_id IS NOT NULL THEN
       v_question_text := 'Does it have ' || v_trait_clause || '?';
     ELSE

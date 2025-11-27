@@ -121,5 +121,6 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('adjustment.beta', '1.5'::jsonb, 'Power-law exponent for adjustment magnitude'),
 
 -- Question selection
-('questions.min_split_quality', '0.6'::jsonb, 'Minimum acceptable split quality for questions'),
-('questions.geographic_preference_threshold', '0.7'::jsonb, 'Geographic split quality to prefer over semantic');
+('questions.min_split_quality', '0.3'::jsonb, 'Minimum acceptable split quality for questions'),
+('questions.geographic_preference_threshold', '0.7'::jsonb, 'Geographic split quality to prefer over semantic'),
+('questions.use_llm_generation', 'true'::jsonb, 'Use LLM to generate natural question text instead of templates');
