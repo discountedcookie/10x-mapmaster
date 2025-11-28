@@ -11,11 +11,12 @@ SET
 DECLARE
   v_trait_clause TEXT;
   v_region_name TEXT;
+  v_prompt_template TEXT;
   v_prompt TEXT;
   v_llm_response TEXT;
   v_question_text TEXT;
 BEGIN
-  -- Get trait or region context
+  -- Get trait or region context and build prompt from config template
   IF p_trait_id IS NOT NULL THEN
     SELECT clause INTO v_trait_clause
     FROM traits
@@ -25,12 +26,8 @@ BEGIN
       RAISE EXCEPTION 'Trait % not found in traits table', p_trait_id;
     END IF;
     
-    -- Build semantic question prompt
-    v_prompt := 'Generate a natural yes/no question to ask about a place. ' ||
-      'The question should ask whether the place has this characteristic: "' || v_trait_clause || '". ' ||
-      'Make it conversational and natural, not robotic. ' ||
-      'Output ONLY the question, nothing else. ' ||
-      'Language: ' || p_language_code;
+    v_prompt_template := get_config_text('llm.question.trait_prompt');
+    v_prompt := replace(v_prompt_template, '{{trait_clause}}', v_trait_clause);
     
   ELSIF p_region_id IS NOT NULL THEN
     SELECT name INTO v_region_name
@@ -41,19 +38,15 @@ BEGIN
       RAISE EXCEPTION 'Geographic region % not found', p_region_id;
     END IF;
     
-    -- Build geographic question prompt
-    v_prompt := 'Generate a natural yes/no question to ask about a place''s location. ' ||
-      'The question should ask whether the place is in: "' || v_region_name || '". ' ||
-      'Make it conversational and natural, not robotic. ' ||
-      'Output ONLY the question, nothing else. ' ||
-      'Language: ' || p_language_code;
+    v_prompt_template := get_config_text('llm.question.region_prompt');
+    v_prompt := replace(v_prompt_template, '{{region_name}}', v_region_name);
     
   ELSE
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
   END IF;
   
-  -- Call LLM via call_llm_api - no fallback, fail if LLM fails
-  v_llm_response := call_llm_api(v_prompt);
+  -- Call LLM via call_llm_api with question-specific config - no fallback, fail if LLM fails
+  v_llm_response := call_llm_api(v_prompt, NULL, 'llm.question');
   v_question_text := trim(v_llm_response);
   
   IF v_question_text IS NULL OR v_question_text = '' THEN
@@ -91,7 +84,7 @@ Parameters:
 Process:
 1. Get trait clause or region name from database
 2. Build appropriate prompt for LLM
-3. Call call-llm edge function via call_llm_api
+3. Call call-llm edge function via call_llm_api (uses llm.question.* config)
 4. Extract question text from response
 
 Errors:

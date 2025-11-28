@@ -79,18 +79,27 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- Game settings
 ('game.max_turns', '5'::jsonb, 'Maximum number of turns before forcing a final guess attempt'),
 
--- LLM Model Configuration
-('llm.model', '"gemma3:1b"'::jsonb, 'Ollama model name for LLM operations'),
-('llm.temperature', '0.1'::jsonb, 'LLM temperature (0.0-1.0). Lower = more deterministic'),
-('llm.num_predict', '500'::jsonb, 'Maximum number of tokens to generate'),
-('llm.top_p', '0.9'::jsonb, 'LLM top_p sampling control'),
-('llm.stop', '["\n\n"]'::jsonb, 'JSON array of stop sequences'),
+-- LLM
+('llm.enabled', 'true'::jsonb, 'Master toggle for all LLM functionality'),
 
--- LLM Trait Extraction (uses llm.extraction.* prefix, falls back to llm.*)
-('llm.extraction.enabled', 'true'::jsonb, 'Enable LLM trait extraction during place enrichment'),
-('llm.extraction.model', '"gemma3:1b"'::jsonb, 'Model for trait extraction'),
-('llm.extraction.temperature', '0.3'::jsonb, 'Temperature for trait extraction'),
-('llm.extraction.num_predict', '1000'::jsonb, 'Max tokens for trait extraction'),
+-- LLM Trait Extraction
+('llm.trait_extraction.model', '"hf.co/unsloth/Olmo-3-7B-Instruct-GGUF:latest"'::jsonb, 'Ollama model'),
+('llm.trait_extraction.temperature', '0.2'::jsonb, 'Temperature'),
+('llm.trait_extraction.num_predict', '500'::jsonb, 'Max tokens'),
+('llm.trait_extraction.top_p', '0.9'::jsonb, 'Top-p sampling'),
+('llm.trait_extraction.stop', '[]'::jsonb, 'Stop sequences'),
+('llm.trait_extraction.format', 'null'::jsonb, 'Output format'),
+('llm.trait_extraction.prompt', '"Extract 5-8 distinctive traits for a geographic guessing game.\n\nPlace data:\n{{nominatim_json}}\n\nReturn one trait per line in format: category:value | description\n\nExample lines:\ntype:temple | Ancient temple complex\nstatus:unesco | UNESCO World Heritage Site"'::jsonb, 'Prompt template'),
+
+-- LLM Question Generation
+('llm.question.model', '"gemma3:1b"'::jsonb, 'Ollama model'),
+('llm.question.temperature', '0.7'::jsonb, 'Temperature'),
+('llm.question.num_predict', '100'::jsonb, 'Max tokens'),
+('llm.question.top_p', '0.9'::jsonb, 'Top-p sampling'),
+('llm.question.stop', '["\n"]'::jsonb, 'Stop sequences'),
+('llm.question.format', 'null'::jsonb, 'Output format'),
+('llm.question.trait_prompt', '"Generate a natural yes/no question asking if a place has this characteristic: {{trait_clause}}\n\nOutput ONLY the question."'::jsonb, 'Trait question prompt'),
+('llm.question.region_prompt', '"Generate a natural yes/no question asking if a place is located in: {{region_name}}\n\nOutput ONLY the question."'::jsonb, 'Region question prompt'),
 
 -- Confidence decision thresholds
 ('confidence.top_prob_threshold', '0.4'::jsonb, 'Minimum top probability to guess'),
@@ -98,27 +107,14 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('confidence.entropy_threshold', '0.7'::jsonb, 'Maximum normalized entropy to guess (lower = more certain)'),
 
 -- Scoring configuration
-('scoring.temperature', '1.0'::jsonb, 'Temperature for softmax. Lower = sharper distribution, higher = flatter'),
-('scoring.geographic_fit_max_weight', '0.2'::jsonb, 'Maximum geographic fit bonus'),
-('scoring.distance_normalization', '20000000.0'::jsonb, 'Distance normalization for geographic fit (~20000km)'),
+('scoring.temperature', '1.0'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
+('scoring.trait_aggregation_temperature', '0.1'::jsonb, 'Temperature for trait similarity aggregation. Lower = best traits dominate'),
+('scoring.initial_candidate_threshold', '0.5'::jsonb, 'Minimum aggregated trait score to become a candidate'),
+('scoring.max_initial_candidates', '100'::jsonb, 'Maximum number of initial candidates'),
 
--- Semantic filtering thresholds
-('candidates.semantic_similarity_threshold', '0.5'::jsonb, 'Minimum base description similarity to include a place as candidate'),
-('candidates.initial_threshold', '0.3'::jsonb, 'Minimum similarity for initial candidates'),
-('candidates.max_initial', '100'::jsonb, 'Maximum number of initial candidates'),
-
--- Trait matching thresholds
-('traits.similarity_threshold', '0.6'::jsonb, 'Threshold to determine if a place "has" a trait'),
-('traits.strong_match_threshold', '0.7'::jsonb, 'Threshold for STRONG trait match'),
-('traits.partial_match_threshold', '0.5'::jsonb, 'Threshold for PARTIAL trait match'),
-
--- Score adjustment weights
-('adjustment.affirmed_trait_match', '0.3'::jsonb, 'Boost when place HAS affirmed trait'),
-('adjustment.affirmed_trait_mismatch', '-0.2'::jsonb, 'Penalty when place lacks affirmed trait'),
-('adjustment.denied_trait_match', '-0.4'::jsonb, 'Penalty when place HAS denied trait'),
-('adjustment.denied_trait_mismatch', '0.1'::jsonb, 'Boost when place lacks denied trait'),
-('adjustment.base_weight', '0.3'::jsonb, 'Base weight for score adjustments'),
-('adjustment.beta', '1.5'::jsonb, 'Power-law exponent for adjustment magnitude'),
+-- Trait matching (binary via place_traits, multiplicative adjustments)
+('traits.boost_factor', '1.5'::jsonb, 'Score multiplier when trait ownership matches answer'),
+('traits.penalty_factor', '0.6'::jsonb, 'Score multiplier when trait ownership contradicts answer'),
 
 -- Question selection
 ('questions.min_split_quality', '0.3'::jsonb, 'Minimum acceptable split quality for questions'),

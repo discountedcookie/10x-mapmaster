@@ -9,27 +9,22 @@ SET
   extensions AS $$
 DECLARE
   v_llm_enabled BOOLEAN;
+  v_prompt_template TEXT;
   v_llm_prompt TEXT;
   v_llm_response TEXT;
   v_traits JSONB;
-  v_name TEXT;
-  v_display_name TEXT;
-  v_extratags JSONB;
+  v_nominatim_summary JSONB;
   v_address JSONB;
+  v_line TEXT;
+  v_parts TEXT[];
+  v_id TEXT;
+  v_clause TEXT;
 BEGIN
-  -- Extract fields for prompt
-  v_name := COALESCE(
-    p_nominatim_data->'namedetails'->>'name:en',
-    p_nominatim_data->>'name',
-    p_nominatim_data->>'display_name'
-  );
-  v_display_name := p_nominatim_data->>'display_name';
-  v_extratags := COALESCE(p_nominatim_data->'extratags', '{}'::jsonb);
   v_address := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
 
-  -- Check if LLM trait extraction is enabled
+  -- Check if LLM is enabled
   v_llm_enabled := COALESCE(
-    (game_logic.get_config('llm.extraction.enabled')#>>'{}')::BOOLEAN,
+    (game_logic.get_config('llm.enabled')#>>'{}')::BOOLEAN,
     TRUE
   );
 
@@ -39,58 +34,38 @@ BEGIN
   -- LLM TRAIT EXTRACTION (if enabled)
   -- ============================================================================
   IF v_llm_enabled THEN
-    v_llm_prompt := format(
-      E'You are extracting traits for a geographic guessing game. Given place data, extract 5-8 distinctive traits that would help players guess this location.
-
-Place: %s
-Full address: %s
-Category: %s/%s
-Country: %s
-Additional info: %s
-
-Extract traits covering:
-1. What it IS (temple, tower, mountain, waterfall, etc.)
-2. Religious/cultural significance (Buddhist, Hindu, Christian, Islamic, ancient, etc.)
-3. Historical period (ancient, medieval, 19th century, modern, etc.)
-4. Physical features (tall, stone, iron, carved, etc.)
-5. Famous for (UNESCO site, wonder of world, pilgrimage, etc.)
-6. Geographic context (coastal, mountain, desert, jungle, etc.)
-
-Return a JSON array with 5-8 traits:
-[{"id": "category:value", "clause": "Human readable description"}]
-
-Example for Angkor Wat:
-[
-  {"id": "type:temple", "clause": "Ancient temple complex"},
-  {"id": "religion:buddhist", "clause": "Buddhist religious site"},
-  {"id": "religion:hindu", "clause": "Originally Hindu temple"},
-  {"id": "era:medieval", "clause": "Built in 12th century"},
-  {"id": "feature:stone", "clause": "Made of sandstone"},
-  {"id": "status:unesco", "clause": "UNESCO World Heritage Site"},
-  {"id": "fame:wonder", "clause": "Largest religious monument in world"}
-]
-
-Return ONLY the JSON array.',
-      v_name,
-      v_display_name,
-      p_nominatim_data->>'class',
-      p_nominatim_data->>'type',
-      v_address->>'country',
-      v_extratags::text
+    -- Build summary of nominatim data for the LLM
+    v_nominatim_summary := jsonb_build_object(
+      'name', COALESCE(p_nominatim_data->'namedetails'->>'name:en', p_nominatim_data->>'name'),
+      'display_name', p_nominatim_data->>'display_name',
+      'class', p_nominatim_data->>'class',
+      'type', p_nominatim_data->>'type',
+      'country', v_address->>'country',
+      'extratags', p_nominatim_data->'extratags',
+      'address', v_address
     );
 
-    RAISE NOTICE 'Calling LLM for trait extraction';
+    -- Get prompt template from config and substitute
+    v_prompt_template := game_logic.get_config_text('llm.trait_extraction.prompt');
+    v_llm_prompt := replace(v_prompt_template, '{{nominatim_json}}', v_nominatim_summary::text);
 
-    -- Use llm.extraction config prefix for extraction-specific model settings
-    -- Note: Don't pass 'json' format - gemma returns cleaner JSON arrays without it
-    v_llm_response := game_logic.call_llm_api(v_llm_prompt, NULL, 'llm.extraction');
+    RAISE NOTICE 'Calling LLM for trait extraction: %', v_nominatim_summary->>'name';
+
+    v_llm_response := game_logic.call_llm_api(v_llm_prompt, NULL, 'llm.trait_extraction');
     
-    -- Strip markdown code fences if present (```json ... ```)
-    v_llm_response := regexp_replace(v_llm_response, '^```json\s*', '', 'i');
-    v_llm_response := regexp_replace(v_llm_response, '\s*```$', '', 'i');
-    v_llm_response := trim(v_llm_response);
-    
-    v_traits := v_llm_response::jsonb;
+    -- Parse line-based format: "id | clause" per line
+    FOR v_line IN SELECT unnest(string_to_array(v_llm_response, E'\n'))
+    LOOP
+      v_line := trim(v_line);
+      IF v_line <> '' AND v_line LIKE '%|%' THEN
+        v_parts := string_to_array(v_line, '|');
+        v_id := trim(v_parts[1]);
+        v_clause := trim(v_parts[2]);
+        IF v_id <> '' AND v_clause <> '' THEN
+          v_traits := v_traits || jsonb_build_array(jsonb_build_object('id', v_id, 'clause', v_clause));
+        END IF;
+      END IF;
+    END LOOP;
   END IF;
 
   -- ============================================================================

@@ -24,6 +24,7 @@ DECLARE
   v_llm_num_predict INT;
   v_llm_top_p FLOAT;
   v_llm_stop JSONB;
+  v_format TEXT;
 BEGIN
   -- Increase statement timeout for slower LLM responses (default 5s is too short)
   PERFORM set_config('statement_timeout', '15s', true);
@@ -55,33 +56,13 @@ BEGIN
 
   -- ============================================================================
   -- FETCH LLM SETTINGS FROM game_logic.config
-  -- Uses p_config_prefix to allow different settings per use-case:
-  --   'llm' (default) -> llm.model, llm.temperature, etc.
-  --   'llm.extraction' -> llm.extraction.model, llm.extraction.temperature, etc.
-  --   'llm.questions' -> llm.questions.model, llm.questions.temperature, etc.
-  -- Falls back to base 'llm.*' settings if prefix-specific not found
   -- ============================================================================
-  v_llm_model := COALESCE(
-    get_config_text(p_config_prefix || '.model'),
-    get_config_text('llm.model', 'gemma3:1b')
-  );
-  v_llm_temperature := COALESCE(
-    get_config_float(p_config_prefix || '.temperature'),
-    get_config_float('llm.temperature', 0.1)
-  );
-  v_llm_num_predict := COALESCE(
-    get_config_int(p_config_prefix || '.num_predict'),
-    get_config_int('llm.num_predict', 300)
-  );
-  v_llm_top_p := COALESCE(
-    get_config_float(p_config_prefix || '.top_p'),
-    get_config_float('llm.top_p', 0.9)
-  );
-  v_llm_stop := COALESCE(
-    get_config(p_config_prefix || '.stop'),
-    get_config('llm.stop'),
-    '["\\n\\n"]'::jsonb
-  );
+  v_llm_model := get_config_text(p_config_prefix || '.model');
+  v_llm_temperature := get_config_float(p_config_prefix || '.temperature');
+  v_llm_num_predict := get_config_int(p_config_prefix || '.num_predict');
+  v_llm_top_p := get_config_float(p_config_prefix || '.top_p');
+  v_llm_stop := get_config(p_config_prefix || '.stop');
+  v_format := COALESCE(p_format, get_config_text(p_config_prefix || '.format'));
 
   -- Build options object
   v_llm_options := jsonb_build_object(
@@ -98,8 +79,8 @@ BEGIN
     'options', v_llm_options
   );
   
-  IF p_format IS NOT NULL THEN
-    v_request_body := v_request_body || jsonb_build_object('format', p_format);
+  IF v_format IS NOT NULL THEN
+    v_request_body := v_request_body || jsonb_build_object('format', v_format);
   END IF;
 
   RAISE NOTICE 'Calling call-llm at: % with model: %', v_edge_function_url, v_llm_model;
@@ -150,7 +131,7 @@ Parameters:
 - p_prompt: The prompt to send to the LLM
 - p_format: Optional format hint (e.g., "json" for JSON responses)
 - p_config_prefix: Config key prefix for use-case specific settings (default: "llm")
-  Examples: "llm" (default), "llm.extraction", "llm.questions"
+  Examples: "llm.trait_extraction", "llm.question"
 
 Returns: LLM response text
 

@@ -1,6 +1,6 @@
 -- Function: regenerate_place_traits
 -- Category: places
--- Purpose: Regenerate traits for a place from all approved sessions
+-- Purpose: Add new traits to a place from session descriptions (ADDITIVE)
 -- Spec: openspec/specs/database/spec.md#learning-triggers
 CREATE OR REPLACE FUNCTION "game_logic"."regenerate_place_traits" ("p_place_id" UUID) returns void language plpgsql security definer
 SET
@@ -10,6 +10,7 @@ SET
 DECLARE
   v_place RECORD;
   v_session_descriptions TEXT[];
+  v_existing_traits TEXT[];
   v_combined_context TEXT;
   v_llm_prompt TEXT;
   v_llm_response TEXT;
@@ -18,6 +19,7 @@ DECLARE
   v_trait_clauses TEXT[];
   v_combined_traits TEXT;
   v_embedding_id UUID;
+  v_trait_embedding_id UUID;
 BEGIN
   -- ============================================================================
   -- INPUT VALIDATION
@@ -61,17 +63,32 @@ BEGIN
     AND pending_review = FALSE;
 
   -- ============================================================================
+  -- QUERY EXISTING TRAITS FOR THIS PLACE
+  -- ============================================================================
+  SELECT array_agg(t.clause)
+  INTO v_existing_traits
+  FROM place_traits pt
+  JOIN traits t ON t.id = pt.trait_id
+  WHERE pt.place_id = p_place_id;
+
+  -- ============================================================================
   -- BUILD CONTEXT FOR LLM
   -- ============================================================================
   v_combined_context := format(
     'Place: %s
-Location: (%.6f, %.6f)
+Location: (%s, %s)
 OSM ID: %s',
     v_place.name,
-    v_place.lat,
-    v_place.lng,
+    round(v_place.lat::numeric, 6),
+    round(v_place.lng::numeric, 6),
     v_place.osm_id
   );
+
+  -- Add existing traits if available (so LLM can identify NEW traits only)
+  IF v_existing_traits IS NOT NULL AND array_length(v_existing_traits, 1) > 0 THEN
+    v_combined_context := v_combined_context || E'\n\nExisting traits (already known):\n- ' 
+      || array_to_string(v_existing_traits, E'\n- ');
+  END IF;
 
   -- Add session descriptions if available
   IF v_session_descriptions IS NOT NULL AND array_length(v_session_descriptions, 1) > 0 THEN
@@ -83,7 +100,7 @@ OSM ID: %s',
   -- CALL LLM TO EXTRACT TRAITS
   -- ============================================================================
   v_llm_prompt := format(
-    'Extract traits for this place. Return a JSON array of trait objects.
+    'Extract NEW traits for this place that are not already in the existing traits list.
 
 Each trait must have:
 - id: snake_case identifier (e.g., "is_tourist_attraction", "has_religious_significance")
@@ -92,18 +109,20 @@ Each trait must have:
 
 %s
 
-Return ONLY a valid JSON array. Example format:
+IMPORTANT: Only extract traits that are NOT already in the "Existing traits" list above.
+Focus on new information from the user descriptions.
+
+Return ONLY a valid JSON array. Return an empty array [] if no new traits are found.
+Example format:
 [
   {"id": "is_historic_monument", "clause": "Is a historic monument", "category": "type"},
   {"id": "attracts_tourists", "clause": "Attracts many tourists", "category": "cultural"}
-]
-
-Extract 5-15 relevant traits based on the place data and descriptions.',
+]',
     v_combined_context
   );
 
-  -- Call LLM API
-  v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json');
+  -- Call LLM API with extraction config (no stop sequences for JSON arrays)
+  v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
 
   -- ============================================================================
   -- PARSE LLM RESPONSE
@@ -112,25 +131,32 @@ Extract 5-15 relevant traits based on the place data and descriptions.',
     -- Try to parse as JSON array
     v_traits_json := v_llm_response::jsonb;
     
-    -- Validate it's an array
-    IF jsonb_typeof(v_traits_json) != 'array' THEN
-      RAISE EXCEPTION 'LLM response is not a JSON array';
+    -- If LLM returned a single object, wrap it in an array
+    IF jsonb_typeof(v_traits_json) = 'object' THEN
+      v_traits_json := jsonb_build_array(v_traits_json);
+    ELSIF jsonb_typeof(v_traits_json) != 'array' THEN
+      RAISE EXCEPTION 'LLM response is not a JSON array or object';
     END IF;
   EXCEPTION
     WHEN others THEN
-      -- Log error but don't fail - keep existing traits
+      -- Log error but don't fail - mark place as approved but keep existing traits
       RAISE WARNING 'Failed to parse LLM trait response: %', SQLERRM;
+      UPDATE places
+      SET 
+        pending_review = FALSE,
+        updated_at = NOW()
+      WHERE id = p_place_id;
       RETURN;
   END;
 
   -- ============================================================================
-  -- DELETE EXISTING PLACE_TRAITS
+  -- INSERT/MERGE TRAITS (ADDITIVE - preserves existing traits)
   -- ============================================================================
-  DELETE FROM place_traits
-  WHERE place_id = p_place_id;
-
-  -- ============================================================================
-  -- INSERT NEW TRAITS AND LINKS
+  -- NOTE: We do NOT delete existing place_traits. This function ADDS new traits
+  -- discovered from session descriptions while preserving traits learned from:
+  -- 1. Initial Nominatim extraction
+  -- 2. Previous LLM extractions
+  -- 3. Game session learning (learn_traits_from_session)
   -- ============================================================================
   FOR v_trait IN
     SELECT
@@ -140,11 +166,15 @@ Extract 5-15 relevant traits based on the place data and descriptions.',
     WHERE t->>'id' IS NOT NULL
       AND t->>'clause' IS NOT NULL
   LOOP
-    -- Insert trait if not exists
-    INSERT INTO traits (id, clause)
-    VALUES (v_trait.id, v_trait.clause)
+    -- Generate embedding for trait clause and upsert trait
+    v_trait_embedding_id := get_embedding(v_trait.clause);
+
+    -- Upsert trait: preserve existing clause if present, only fill in nulls
+    INSERT INTO traits (id, clause, embedding_id)
+    VALUES (v_trait.id, v_trait.clause, v_trait_embedding_id)
     ON CONFLICT (id) DO UPDATE SET
-      clause = EXCLUDED.clause;
+      clause = COALESCE(traits.clause, EXCLUDED.clause),
+      embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
 
     -- Link trait to place
     INSERT INTO place_traits (place_id, trait_id)
@@ -160,16 +190,24 @@ Extract 5-15 relevant traits based on the place data and descriptions.',
   -- ============================================================================
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
     v_combined_traits := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_or_create_embedding(v_combined_traits);
+    v_embedding_id := get_embedding(v_combined_traits);
 
     UPDATE places
     SET 
       embedding_id = v_embedding_id,
+      pending_review = FALSE,
+      updated_at = NOW()
+    WHERE id = p_place_id;
+  ELSE
+    -- Even without traits, mark place as approved
+    UPDATE places
+    SET 
+      pending_review = FALSE,
       updated_at = NOW()
     WHERE id = p_place_id;
   END IF;
 
-  RAISE NOTICE 'Regenerated % traits for place %', 
+  RAISE NOTICE 'Added % new traits for place %', 
     COALESCE(array_length(v_trait_clauses, 1), 0), v_place.name;
 
   RETURN;
@@ -185,26 +223,32 @@ $$;
 ALTER FUNCTION "game_logic"."regenerate_place_traits" (UUID) owner TO "postgres";
 
 
-comment ON function "game_logic"."regenerate_place_traits" (UUID) IS 'Regenerate traits for a place from all approved sessions.
+comment ON function "game_logic"."regenerate_place_traits" (UUID) IS 'Add new traits to a place from session descriptions (ADDITIVE - preserves existing).
 
 Parameters:
-- p_place_id: The place ID to regenerate traits for
+- p_place_id: The place ID to enrich with new traits
 
 Process:
 1. Query all approved sessions for the place (pending_review = FALSE)
-2. Get place Nominatim data (name, location)
-3. Combine place data with all session descriptions
-4. Call LLM to extract complete trait list
-5. Delete existing place_traits for the place
-6. Insert new traits (create in traits table if needed)
-7. Insert new place_traits links
-8. Regenerate place embedding from combined trait clauses
+2. Query existing traits for the place (to avoid duplicates)
+3. Get place Nominatim data (name, location)
+4. Combine place data, existing traits, and session descriptions
+5. Call LLM to extract NEW traits not already in existing list
+6. Insert new traits (preserves existing trait clauses via COALESCE)
+7. Insert new place_traits links (ON CONFLICT DO NOTHING)
+8. Update place embedding from combined NEW trait clauses
+
+IMPORTANT: This function is ADDITIVE. It does NOT delete existing traits.
+Traits accumulate over time from:
+- Initial Nominatim extraction
+- Previous LLM extractions  
+- Game session learning (learn_traits_from_session)
 
 Called by:
 - Trigger: on_session_approval_regenerate_traits (when session.pending_review → FALSE)
-- Manual: Admin can call to refresh traits
+- Manual: Admin can call to add traits from session descriptions
 
 Security: SECURITY DEFINER to access game_logic functions and call LLM.
 
 Note: Failures are logged as warnings but don''t fail the transaction,
-allowing the approval to complete even if trait regeneration fails.';
+allowing the approval to complete even if trait extraction fails.';
