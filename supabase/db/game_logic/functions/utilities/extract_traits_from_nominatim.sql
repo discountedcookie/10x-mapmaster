@@ -14,13 +14,31 @@ DECLARE
   v_llm_response TEXT;
   v_traits JSONB;
   v_nominatim_summary JSONB;
+  v_address_full JSONB;
   v_address JSONB;
+  v_extratags JSONB;
   v_line TEXT;
   v_parts TEXT[];
   v_id TEXT;
   v_clause TEXT;
+  -- Keys to remove from extratags (reference codes, URLs, numeric metadata)
+  v_extratags_remove TEXT[] := ARRAY[
+    'wikipedia', 'wikidata', 'website', 'url', 'image',
+    'ref', 'ref:whc', 'ref:isil', 'ref:nrhp',
+    'max_level', 'min_level', 'building:levels', 'building:levels:underground',
+    'architect:wikidata', 'operator:wikidata', 'brand:wikidata',
+    'phone', 'fax', 'email', 'contact:phone', 'contact:email',
+    'opening_hours', 'check_date'
+  ];
+  -- Keys to remove from address (too granular for traits)
+  v_address_remove TEXT[] := ARRAY[
+    'postcode', 'house_number', 'road', 'neighbourhood', 'suburb',
+    'borough', 'city_district', 'municipality', 'county',
+    'ISO3166-2-lvl4', 'ISO3166-2-lvl6', 'country_code'
+  ];
 BEGIN
-  v_address := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
+  v_address_full := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
+  v_extratags := COALESCE(p_nominatim_data->'extratags', '{}'::jsonb);
 
   -- Check if LLM is enabled
   v_llm_enabled := COALESCE(
@@ -34,15 +52,26 @@ BEGIN
   -- LLM TRAIT EXTRACTION (if enabled)
   -- ============================================================================
   IF v_llm_enabled THEN
+    -- Filter extratags: remove noisy keys
+    FOR v_id IN SELECT unnest(v_extratags_remove)
+    LOOP
+      v_extratags := v_extratags - v_id;
+    END LOOP;
+    
+    -- Filter address: keep only country, state, city for context
+    v_address := jsonb_build_object(
+      'country', v_address_full->>'country',
+      'state', v_address_full->>'state',
+      'city', COALESCE(v_address_full->>'city', v_address_full->>'town', v_address_full->>'village')
+    );
+
     -- Build summary of nominatim data for the LLM
     v_nominatim_summary := jsonb_build_object(
       'name', COALESCE(p_nominatim_data->'namedetails'->>'name:en', p_nominatim_data->>'name'),
-      'display_name', p_nominatim_data->>'display_name',
       'class', p_nominatim_data->>'class',
       'type', p_nominatim_data->>'type',
-      'country', v_address->>'country',
-      'extratags', p_nominatim_data->'extratags',
-      'address', v_address
+      'country', v_address_full->>'country',
+      'extratags', v_extratags
     );
 
     -- Get prompt template from config and substitute
@@ -88,10 +117,10 @@ BEGIN
   END IF;
 
   -- Add country as trait
-  IF v_address->>'country' IS NOT NULL THEN
+  IF v_address_full->>'country' IS NOT NULL THEN
     v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'country:' || lower(replace(v_address->>'country', ' ', '_')),
-      'clause', v_address->>'country'
+      'id', 'country:' || lower(replace(v_address_full->>'country', ' ', '_')),
+      'clause', v_address_full->>'country'
     ));
   END IF;
 

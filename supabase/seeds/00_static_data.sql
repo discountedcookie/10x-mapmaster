@@ -89,7 +89,7 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('llm.trait_extraction.top_p', '0.9'::jsonb, 'Top-p sampling'),
 ('llm.trait_extraction.stop', '[]'::jsonb, 'Stop sequences'),
 ('llm.trait_extraction.format', 'null'::jsonb, 'Output format'),
-('llm.trait_extraction.prompt', '"Extract 5-8 distinctive traits for a geographic guessing game.\n\nPlace data:\n{{nominatim_json}}\n\nReturn one trait per line in format: category:value | description\n\nExample lines:\ntype:temple | Ancient temple complex\nstatus:unesco | UNESCO World Heritage Site"'::jsonb, 'Prompt template'),
+('llm.trait_extraction.prompt', '"Extract distinctive traits for a geographic guessing game.\n\nPlace data:\n{{nominatim_json}}\n\nReturn one trait per line in format: category:value | description\n\nExample lines:\ntype:temple | Ancient temple complex\nstatus:unesco | UNESCO World Heritage Site"'::jsonb, 'Prompt template'),
 
 -- LLM Question Generation
 ('llm.question.model', '"gemma3:1b"'::jsonb, 'Ollama model'),
