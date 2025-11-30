@@ -2,6 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/database'
+
+type GameSessionStateRow = Database['public']['Views']['game_session_state']['Row']
+type GameSessionStatus = Database['public']['Enums']['game_session_status']
 
 export interface PlaceWithScore {
   id: string
@@ -28,24 +32,6 @@ export interface ChatMessage {
   }
 }
 
-// Type for game_session_state view
-interface GameSessionStateRow {
-  session_id: string
-  description: string | null
-  status: 'active' | 'won' | 'needs_submission' | 'ended_need_actual' | 'expired'
-  semantic_constraint: string | null
-  current_question_id: string | null
-  current_question_text: string | null
-  question_type: string | null
-  pending_guess_place_id: string | null
-  pending_guess_place_name: string | null
-  correct_place_id: string | null
-  correct_place_name: string | null
-  correct_place_lat: number | null
-  correct_place_lng: number | null
-  question_count: number
-}
-
 export interface GameState {
   sessionId: string
   description: string
@@ -56,7 +42,7 @@ export interface GameState {
   semanticConstraint: string
   questionCount: number
   wrongGuessCount: number
-  status: 'active' | 'won' | 'needs_submission' | 'ended'
+  status: GameSessionStatus
   result?: {
     correct_place_id?: string
     guessed_correctly?: boolean
@@ -161,24 +147,9 @@ export const useGameStore = defineStore('game', () => {
    * Builds messages from current question/guess state
    * Extracts candidates directly from next_turn.candidates (no separate RPC call needed)
    */
-  function convertViewToGameState(row: any): GameState {
-    // Map status
-    let status: GameState['status'] = 'active'
-    switch (row.status) {
-      case 'won': {
-        status = 'won'
-        break
-      }
-      case 'needs_submission':
-      case 'ended_need_actual': {
-        status = 'needs_submission'
-        break
-      }
-      case 'expired': {
-        status = 'ended'
-        break
-      }
-    }
+  function convertViewToGameState(row: GameSessionStateRow): GameState {
+    // Status comes directly from database view - no mapping needed
+    const status: GameSessionStatus = row.status ?? 'active'
 
     // Build messages from current state
     const messages: ChatMessage[] = []
@@ -192,10 +163,12 @@ export const useGameStore = defineStore('game', () => {
     const guessPlaceName = row.pending_guess_place_name || nextTurn?.place_name
     const guessPlaceId = row.pending_guess_place_id || nextTurn?.place_id
 
+    const questionCount = row.question_count ?? 0
+
     // Add current question if exists
     if (questionText) {
       messages.push({
-        id: `question-${row.question_count + 1}`,
+        id: `question-${questionCount + 1}`,
         role: 'system',
         type: 'question',
         text: questionText,
@@ -209,7 +182,7 @@ export const useGameStore = defineStore('game', () => {
     // Add pending guess if exists
     if (guessPlaceName) {
       messages.push({
-        id: `guess-${row.question_count + 1}`,
+        id: `guess-${questionCount + 1}`,
         role: 'system',
         type: 'guess',
         text: `Is it ${guessPlaceName}?`,
@@ -234,14 +207,14 @@ export const useGameStore = defineStore('game', () => {
         : undefined
 
     return {
-      sessionId: row.session_id,
-      description: row.description || '',
+      sessionId: row.session_id ?? '',
+      description: row.description ?? '',
       messages,
       candidates,
       confidence,
       threshold: 0.92,
-      semanticConstraint: row.semantic_constraint || '',
-      questionCount: row.question_count,
+      semanticConstraint: '',
+      questionCount,
       wrongGuessCount: 0,
       status,
       result,

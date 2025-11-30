@@ -54,10 +54,10 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
 
-  -- Verify session is in 'needs_submission' state
+  -- Verify session is in 'needs_submission' state (game ended without winning)
   IF NOT (
     (v_session.next_turn->>'action' = 'give_up') OR
-    (v_session.next_turn IS NULL AND v_session.was_correct IS NULL)
+    (v_session.next_turn IS NULL AND v_session.was_correct IS NOT TRUE)
   ) THEN
     RAISE EXCEPTION 'Session % is not in needs_submission state', p_session_id;
   END IF;

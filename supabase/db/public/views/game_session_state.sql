@@ -6,9 +6,9 @@
 --
 -- Status Derivation Logic:
 -- - 'won': User guessed correctly (was_correct = TRUE)
--- - 'ended': Hit 5-turn limit without winning (was_correct = FALSE)
--- - 'needs_submission': Zero candidates OR give_up action (next_turn = NULL OR next_turn->>'action' = 'give_up')
--- - 'active': Game in progress (next_turn != NULL with question/guess action)
+-- - 'ended': Game ended and place was submitted (place_id IS NOT NULL, not won)
+-- - 'needs_submission': Game ended without winning, no place submitted yet
+-- - 'active': Game in progress
 CREATE OR REPLACE VIEW "public"."game_session_state" AS
 SELECT
   -- Session metadata
@@ -17,8 +17,7 @@ SELECT
   -- Derived status (calculated from state, not stored)
   CASE
     WHEN gs.was_correct = TRUE THEN 'won'::game_session_status
-    WHEN gs.next_turn IS NULL
-    AND gs.was_correct = FALSE THEN 'ended'::game_session_status
+    WHEN gs.next_turn IS NULL AND gs.place_id IS NOT NULL THEN 'ended'::game_session_status
     WHEN gs.next_turn IS NULL THEN 'needs_submission'::game_session_status
     WHEN gs.next_turn ->> 'action' = 'give_up' THEN 'needs_submission'::game_session_status
     ELSE 'active'::game_session_status

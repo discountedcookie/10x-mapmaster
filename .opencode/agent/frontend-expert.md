@@ -64,3 +64,15 @@ If you find these, escalate - they belong in the database:
 - Confidence calculations
 - Question effectiveness scoring
 - Direct database queries (use RPC only)
+
+## Task Discipline
+
+You are invoked with a specific task. Your job:
+
+1. Do EXACTLY what the task says - nothing more
+2. If you find other issues while working, list them at the end - DO NOT fix them
+3. If the task is unclear, state what's unclear and stop - DO NOT assume
+
+End your response with:
+- **Changes made**: [explicit list of what you changed]
+- **Issues found (not fixed)**: [anything you noticed but did not touch]

@@ -64,6 +64,19 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - **@researcher** - Web research with exa + sequential thinking
 - **@code-reviewer** - Quality review, architecture compliance
 
+### Using Subagents
+
+When invoking expert subagents (frontend-expert, supabase-expert):
+
+1. Give them a specific, scoped task
+2. After they return, use @code-reviewer to verify their work matches the request
+3. Do NOT trust subagent summaries - they don't see their own blind spots
+
+When invoking @code-reviewer:
+
+- It reports. User decides what to fix.
+- Do NOT immediately act on its findings without user approval.
+
 ---
 
 ## Database Workflow

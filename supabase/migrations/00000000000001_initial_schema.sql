@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-11-30T10:55:26.986Z
+-- Generated: 2025-11-30T12:37:39.524Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 4
 
@@ -1417,10 +1417,10 @@ BEGIN
     RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
 
-  -- Verify session is in 'needs_submission' state
+  -- Verify session is in 'needs_submission' state (game ended without winning)
   IF NOT (
     (v_session.next_turn->>'action' = 'give_up') OR
-    (v_session.next_turn IS NULL AND v_session.was_correct IS NULL)
+    (v_session.next_turn IS NULL AND v_session.was_correct IS NOT TRUE)
   ) THEN
     RAISE EXCEPTION 'Session % is not in needs_submission state', p_session_id;
   END IF;
@@ -6687,9 +6687,9 @@ comment ON trigger "on_session_approval_regenerate_traits_trigger" ON "public"."
 --
 -- Status Derivation Logic:
 -- - 'won': User guessed correctly (was_correct = TRUE)
--- - 'ended': Hit 5-turn limit without winning (was_correct = FALSE)
--- - 'needs_submission': Zero candidates OR give_up action (next_turn = NULL OR next_turn->>'action' = 'give_up')
--- - 'active': Game in progress (next_turn != NULL with question/guess action)
+-- - 'ended': Game ended and place was submitted (place_id IS NOT NULL, not won)
+-- - 'needs_submission': Game ended without winning, no place submitted yet
+-- - 'active': Game in progress
 CREATE OR REPLACE VIEW "public"."game_session_state" AS
 SELECT
   -- Session metadata
@@ -6698,8 +6698,7 @@ SELECT
   -- Derived status (calculated from state, not stored)
   CASE
     WHEN gs.was_correct = TRUE THEN 'won'::game_session_status
-    WHEN gs.next_turn IS NULL
-    AND gs.was_correct = FALSE THEN 'ended'::game_session_status
+    WHEN gs.next_turn IS NULL AND gs.place_id IS NOT NULL THEN 'ended'::game_session_status
     WHEN gs.next_turn IS NULL THEN 'needs_submission'::game_session_status
     WHEN gs.next_turn ->> 'action' = 'give_up' THEN 'needs_submission'::game_session_status
     ELSE 'active'::game_session_status
