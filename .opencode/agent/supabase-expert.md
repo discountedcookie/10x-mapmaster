@@ -1,7 +1,7 @@
 ---
 description: Supabase/Postgres expert - database schema, functions, RLS, pgvector, PostGIS
 mode: subagent
-model: openai/gpt-5.1-codex-max
+model: anthropic/claude-haiku-4-5
 temperature: 0.2
 permission:
   edit: allow

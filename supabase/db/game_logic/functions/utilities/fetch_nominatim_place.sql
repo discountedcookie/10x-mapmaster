@@ -27,21 +27,21 @@ BEGIN
   -- ============================================================================
   -- CALL NOMINATIM
   -- ============================================================================
-  PERFORM set_config('statement_timeout', '30s', true);
-  PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '30000');
-  PERFORM extensions.http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '5000');
+  PERFORM set_config('statement_timeout', '60s', true);
+  PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '60000');
+  PERFORM extensions.http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '15000');
 
   RAISE NOTICE 'Calling Nominatim lookup for: %', p_osm_id;
 
   SELECT status, content INTO v_status, v_content FROM extensions.http((
     'GET',
     format(
-      'https://nominatim.openstreetmap.org/lookup?osm_ids=%s%s&format=json&extratags=1&addressdetails=1&namedetails=1',
+      'https://nominatim.openstreetmap.org/lookup?osm_ids=%s%s&format=json&extratags=1&addressdetails=1&namedetails=1&polygon_geojson=1',
       upper(left(v_osm_type, 1)),  -- N, W, or R
       v_osm_id_num
     ),
     ARRAY[
-      extensions.http_header('User-Agent', 'MapMaster/1.0'),
+      extensions.http_header('User-Agent', '10x-mapmaster/1.0'),
       extensions.http_header('Accept', 'application/json')
     ],
     NULL,

@@ -1,26 +1,26 @@
 ## 1. Region Layer
 
-- [ ] 1.1 Create `GeographicRegionLayer.vue` component
-- [ ] 1.2 Fetch region geometries from database via composable
-- [ ] 1.3 Add MapLibre fill layer for regions with opacity control
+- [x] 1.1 Create `GeographicRegionLayer.vue` component
+- [ ] 1.2 Fetch region geometries from database via composable - DEFERRED: needs RPC endpoint
+- [x] 1.3 Add MapLibre fill layer for regions with opacity control
 
 ## 2. State Management
 
-- [ ] 2.1 Add `activeRegions` and `eliminatedRegions` to map state
-- [ ] 2.2 Update region state when geographic answers are given
-- [ ] 2.3 Expose region state from game store
+- [x] 2.1 Add `activeRegions` and `eliminatedRegions` support to component
+- [ ] 2.2 Update region state when geographic answers are given - DEFERRED: needs game state integration
+- [ ] 2.3 Expose region state from game store - DEFERRED: needs backend support
 
 ## 3. Animations
 
-- [ ] 3.1 Implement fade-out animation for eliminated regions (opacity 1 -> 0.3 -> 0)
-- [ ] 3.2 Implement highlight animation for confirmed regions
-- [ ] 3.3 Use CSS transitions or MapLibre paint property animations
+- [x] 3.1 Implement fade-out animation for eliminated regions (via opacity paint property)
+- [x] 3.2 Implement highlight animation for confirmed regions (green color)
+- [x] 3.3 Use MapLibre paint property for state-based styling
 
 ## 4. Integration
 
-- [ ] 4.1 Connect to game store for answer events
-- [ ] 4.2 Update region visibility when candidates change
-- [ ] 4.3 Clear all regions when game ends
+- [ ] 4.1 Connect to game store for answer events - DEFERRED: needs game state changes
+- [x] 4.2 Update region visibility when regions prop changes
+- [x] 4.3 Clear all regions when component unmounts
 
 ## 5. Testing
 

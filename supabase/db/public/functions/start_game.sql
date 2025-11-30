@@ -15,12 +15,17 @@ DECLARE
   v_candidates jsonb;
   v_embedding_id uuid;
 BEGIN
+  -- Require authenticated (including Supabase anonymous) session
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
   -- Rate limiting via centralized check_rate_limit function
   -- Enforces limits from game_logic.config (default: 10 per minute)
-  PERFORM game_logic.check_rate_limit(auth.uid(), 'start_game');
+  PERFORM game_logic.check_rate_limit('start_game');
 
   -- Generate description embedding first
-  v_embedding_id := get_or_create_embedding(p_description);
+  v_embedding_id := get_embedding(p_description);
   
   -- Insert session with description embedding
   INSERT INTO game_sessions (

@@ -24,7 +24,7 @@ describe('useGameStore', () => {
     description_similarity: 0.9,
     affirmed_trait_similarity: 0.8,
     denied_trait_similarity: null,
-    geographic_distance: 1000000,
+    geographic_distance: 1_000_000,
   }
 
   const mockGameSessionStateRow = {

@@ -82,14 +82,14 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- LLM
 ('llm.enabled', 'true'::jsonb, 'Master toggle for all LLM functionality'),
 
--- LLM Trait Extraction
-('llm.trait_extraction.model', '"hf.co/unsloth/Olmo-3-7B-Instruct-GGUF:latest"'::jsonb, 'Ollama model'),
-('llm.trait_extraction.temperature', '0.2'::jsonb, 'Temperature'),
-('llm.trait_extraction.num_predict', '500'::jsonb, 'Max tokens'),
-('llm.trait_extraction.top_p', '0.9'::jsonb, 'Top-p sampling'),
-('llm.trait_extraction.stop', '[]'::jsonb, 'Stop sequences'),
-('llm.trait_extraction.format', 'null'::jsonb, 'Output format'),
-('llm.trait_extraction.prompt', '"Extract distinctive traits for a geographic guessing game.\n\nPlace data:\n{{nominatim_json}}\n\nReturn one trait per line in format: category:value | description\n\nExample lines:\ntype:temple | Ancient temple complex\nstatus:unesco | UNESCO World Heritage Site"'::jsonb, 'Prompt template'),
+-- LLM Trait Extraction (gemma3:1b with JSON format)
+('llm.trait_extraction.model', '"gemma3:1b"'::jsonb, 'Ollama model - small but accurate'),
+('llm.trait_extraction.temperature', '0.3'::jsonb, 'Slightly creative but focused'),
+('llm.trait_extraction.num_predict', '250'::jsonb, 'Enough for 5 traits in JSON'),
+('llm.trait_extraction.top_p', '0.85'::jsonb, 'Tighter sampling'),
+('llm.trait_extraction.stop', '[]'::jsonb, 'No stop sequences needed for JSON'),
+('llm.trait_extraction.format', '"json"'::jsonb, 'JSON output format'),
+('llm.trait_extraction.prompt', '"Extract 3-5 distinctive traits for a guessing game. Traits must be generic characteristics, NOT location-specific.\n\nRules:\n- Use categories: style, era, feature, status, material, size\n- Clauses should work without knowing the place name\n- Do NOT mention city/country/location names in clauses\n\nExample: {\"traits\": [{\"id\": \"style:gothic\", \"clause\": \"Gothic architectural style\"}, {\"id\": \"material:iron\", \"clause\": \"Iron lattice construction\"}]}\n\nInput: {{nominatim_json}}\nOutput:"'::jsonb, 'Generic traits, no locations'),
 
 -- LLM Question Generation
 ('llm.question.model', '"gemma3:1b"'::jsonb, 'Ollama model'),
@@ -109,7 +109,7 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- Scoring configuration
 ('scoring.temperature', '1.0'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
 ('scoring.trait_aggregation_temperature', '0.1'::jsonb, 'Temperature for trait similarity aggregation. Lower = best traits dominate'),
-('scoring.initial_candidate_threshold', '0.5'::jsonb, 'Minimum aggregated trait score to become a candidate'),
+('scoring.initial_candidate_threshold', '0.1'::jsonb, 'Minimum aggregated trait score to become a candidate'),
 ('scoring.max_initial_candidates', '100'::jsonb, 'Maximum number of initial candidates'),
 
 -- Trait matching (binary via place_traits, multiplicative adjustments)

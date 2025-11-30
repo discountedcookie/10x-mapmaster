@@ -1,7 +1,7 @@
 -- Function: filter_semantic_candidates
 -- Category: game
--- Purpose: Calculate semantic similarity scores for specific place IDs
--- Returns: Place IDs with similarity scores
+-- Purpose: Calculate semantic similarity scores using softmax-weighted trait aggregation
+-- Returns: Place IDs with aggregated similarity scores
 CREATE OR REPLACE FUNCTION "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) returns TABLE (
   place_id UUID,
   base_description_similarity DOUBLE PRECISION
@@ -12,36 +12,93 @@ SET
   extensions AS $$
 DECLARE
   v_description_embedding vector(384);
-  v_semantic_threshold FLOAT;
+  v_threshold FLOAT;
+  v_temperature FLOAT;
 BEGIN
-  -- Get semantic similarity threshold from game_logic.config
-  v_semantic_threshold := get_config_float('candidates.semantic_similarity_threshold', 0.5);
+  -- Get configuration from game_logic.config
+  v_threshold := get_config_float('scoring.initial_candidate_threshold', 0.5);
+  v_temperature := get_config_float('scoring.trait_aggregation_temperature', 0.1);
 
   -- Get session embedding
   SELECT
-    de_desc.embedding as description_embedding
+    e.embedding
   INTO
     v_description_embedding
   FROM game_sessions gs
-  LEFT JOIN embeddings de_desc ON de_desc.id = gs.embedding_id
+  JOIN embeddings e ON e.id = gs.embedding_id
   WHERE gs.id = p_session_id;
 
   IF v_description_embedding IS NULL THEN
     RAISE EXCEPTION 'Session % not found or has no description embedding', p_session_id;
   END IF;
 
-  -- Calculate semantic similarity scores for given place IDs
+  -- Calculate softmax-weighted trait similarity aggregation
+  -- Formula: score = Σ(softmax(sim/τ) × sim)
+  -- where softmax(sim_i/τ) = exp(sim_i/τ) / Σexp(sim_j/τ)
   RETURN QUERY
+  WITH trait_similarities AS (
+    -- Calculate similarity between description and each trait for each place
+    SELECT
+      pt.place_id AS pid,
+      (1 - (te.embedding <=> v_description_embedding))::DOUBLE PRECISION AS sim
+    FROM
+      place_traits pt
+      JOIN traits t ON t.id = pt.trait_id
+      JOIN embeddings te ON te.id = t.embedding_id
+    WHERE
+      pt.place_id = ANY (p_place_ids)
+      AND te.embedding IS NOT NULL
+  ),
+  -- FALLBACK: For places without trait embeddings, use place embedding directly
+  -- This handles legacy seed data where traits don't have individual embeddings
+  place_fallback AS (
+    SELECT
+      p.id AS pid,
+      (1 - (pe.embedding <=> v_description_embedding))::DOUBLE PRECISION AS sim
+    FROM places p
+    JOIN embeddings pe ON pe.id = p.embedding_id
+    WHERE p.id = ANY (p_place_ids)
+      AND pe.embedding IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM trait_similarities ts WHERE ts.pid = p.id
+      )
+  ),
+  -- Combine trait-based and fallback scores
+  all_similarities AS (
+    SELECT pid, sim FROM trait_similarities
+    UNION ALL
+    SELECT pid, sim FROM place_fallback
+  ),
+  exp_similarities AS (
+    -- Calculate exp(sim/τ) for softmax
+    SELECT
+      pid,
+      sim,
+      exp(sim / v_temperature) AS exp_sim
+    FROM all_similarities
+  ),
+  softmax_weights AS (
+    -- Calculate softmax weights: exp(sim/τ) / Σexp(sim/τ)
+    SELECT
+      pid,
+      sim,
+      exp_sim,
+      SUM(exp_sim) OVER (PARTITION BY pid) AS sum_exp
+    FROM exp_similarities
+  ),
+  aggregated_scores AS (
+    -- Calculate weighted average: Σ(weight × sim)
+    SELECT
+      pid AS place_id,
+      SUM((exp_sim / NULLIF(sum_exp, 0)) * sim)::DOUBLE PRECISION AS aggregated_score
+    FROM softmax_weights
+    GROUP BY pid
+  )
   SELECT
-    p.id AS place_id,
-    (1 - (e.embedding <=> v_description_embedding))::DOUBLE PRECISION AS base_description_similarity
-  FROM
-    places p
-    JOIN embeddings e ON e.id = p.embedding_id
-  WHERE
-    p.id = ANY (p_place_ids)
-    -- Only return candidates above base similarity threshold
-    AND (1 - (e.embedding <=> v_description_embedding)) > v_semantic_threshold;
+    a.place_id,
+    a.aggregated_score AS base_description_similarity
+  FROM aggregated_scores a
+  WHERE a.aggregated_score > v_threshold;
 END;
 $$;
 
@@ -49,17 +106,30 @@ $$;
 ALTER FUNCTION "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) owner TO "postgres";
 
 
-comment ON function "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) IS 'Calculates semantic similarity scores for specific place IDs (SRP: Semantics only).
+comment ON function "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) IS 'Calculates semantic similarity using softmax-weighted trait aggregation.
+
+Algorithm:
+1. For each place, compute similarity between description and each trait embedding
+2. Apply softmax weighting: weight_i = exp(sim_i/τ) / Σexp(sim_j/τ)
+3. Calculate weighted average: score = Σ(weight_i × sim_i)
+4. Filter by threshold
+
+FALLBACK: For places without trait embeddings (legacy data), uses place embedding directly.
+This ensures backward compatibility with seed data that has combined place embeddings.
+
+The softmax temperature (τ) controls how much the best traits dominate:
+- τ → 0: Approaches MAX (only best trait matters)
+- τ = 0.1: Top 2-3 traits dominate (default)
+- τ → ∞: Approaches simple average
+
+This approach handles both:
+- Categorical queries ("religious site") - matches specific traits well
+- Specific queries ("tall iron tower in Paris") - multiple traits contribute
 
 Input:
-- p_session_id: Session to get embeddings from
-- p_place_ids: Array of place IDs to score (from geographic filter)
+- p_session_id: Session to get description embedding from
+- p_place_ids: Array of place IDs to score
 
-Calculates:
-- base_description_similarity: Cosine similarity with session description
-
-Threshold: Only returns places with base_description_similarity > 0.5
-
-Returns: Only similarity scores (no geographic data, no composite scoring).
+Returns: place_id and aggregated score for places above threshold.
 
 Called by: get_candidates() which joins with geographic results.';

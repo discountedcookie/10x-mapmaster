@@ -39,14 +39,12 @@ DROP POLICY if EXISTS "Embeddings are viewable by everyone" ON "public"."embeddi
 DROP POLICY if EXISTS "Service role can manage embeddings" ON "public"."embeddings";
 
 
-CREATE POLICY "Embeddings are viewable by everyone" ON "public"."embeddings" FOR
-SELECT
-  USING (TRUE);
-
-
 CREATE POLICY "Service role can manage embeddings" ON "public"."embeddings" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
 WITH
   CHECK (("auth"."role" () = 'service_role'::"text"));
+
+-- Explicitly revoke read access from non-service roles; only service_role should see embeddings
+REVOKE ALL ON public.embeddings FROM public, anon, authenticated;
 
 
 -- Comments

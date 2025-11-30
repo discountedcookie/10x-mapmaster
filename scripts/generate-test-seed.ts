@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 
@@ -42,7 +42,7 @@ async function waitForRateLimit() {
 }
 
 function escapeSqlString(value: string): string {
-  return value.replace(/'/g, "''")
+  return value.split("'").join("''")
 }
 
 function formatEmbedding(embedding: number[] | string): string {
@@ -52,7 +52,7 @@ function formatEmbedding(embedding: number[] | string): string {
     return `'${embedding}'::vector(384)`
   }
   if (!Array.isArray(embedding)) {
-    throw new Error(`Unexpected embedding type: ${typeof embedding}`)
+    throw new TypeError(`Unexpected embedding type: ${typeof embedding}`)
   }
   return `ARRAY[${embedding.map((v) => v.toFixed(6)).join(', ')}]::vector(384)`
 }
@@ -76,10 +76,10 @@ async function createWrappers() {
         SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated);
       $$;
       
-      CREATE OR REPLACE FUNCTION public.get_or_create_embedding(p_text TEXT) RETURNS UUID 
-      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
-        SELECT game_logic.get_or_create_embedding(p_text);
-      $$;
+        CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
+          SELECT game_logic.get_embedding(p_text);
+        $$;
     `,
   })
 
@@ -103,8 +103,8 @@ async function createWrappers() {
         CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
         LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); $$;
         
-        CREATE OR REPLACE FUNCTION public.get_or_create_embedding(p_text TEXT) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.get_or_create_embedding(p_text); $$;
+        CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.get_embedding(p_text); $$;
       `,
       }),
     })
@@ -122,8 +122,8 @@ async function createWrappers() {
         CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
         LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); \\$\\$;
         
-        CREATE OR REPLACE FUNCTION public.get_or_create_embedding(p_text TEXT) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_or_create_embedding(p_text); \\$\\$;
+        CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
+        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_embedding(p_text); \\$\\$;
       "`)
     }
   }
@@ -145,14 +145,14 @@ async function dropWrappers() {
       DROP FUNCTION IF EXISTS public.fetch_nominatim_place(TEXT);
       DROP FUNCTION IF EXISTS public.extract_traits_from_nominatim(JSONB);
       DROP FUNCTION IF EXISTS public.create_place_with_traits(TEXT, JSONB, JSONB, BOOLEAN);
-      DROP FUNCTION IF EXISTS public.get_or_create_embedding(TEXT);
+      DROP FUNCTION IF EXISTS public.get_embedding(TEXT);
     "`)
   } catch {
     // Ignore errors
   }
 }
 
-async function callRpc(name: string, params: Record<string, unknown>) {
+async function callRpc(name: string, parameters: Record<string, unknown>) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: 'POST',
     headers: {
@@ -160,7 +160,7 @@ async function callRpc(name: string, params: Record<string, unknown>) {
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       apikey: SUPABASE_SERVICE_ROLE_KEY,
     },
-    body: JSON.stringify(params),
+    body: JSON.stringify(parameters),
   })
 
   if (!response.ok) {
@@ -169,6 +169,13 @@ async function callRpc(name: string, params: Record<string, unknown>) {
   }
 
   return await response.json()
+}
+
+// Remove old seed file to ensure clean generation
+const seedFilePath = path.join(process.cwd(), 'supabase', 'seeds', '01_embedding_data.sql')
+if (existsSync(seedFilePath)) {
+  unlinkSync(seedFilePath)
+  console.log('Removed old seed file: 01_embedding_data.sql')
 }
 
 console.log('Generating seed data using database functions...')
@@ -222,7 +229,7 @@ try {
   for (const testDesc of testDescriptions) {
     console.log(`  📝 "${testDesc.description}"`)
     try {
-      await callRpc('get_or_create_embedding', { p_text: testDesc.description })
+      await callRpc('get_embedding', { p_text: testDesc.description })
       console.log(`     ✓ Embedding created`)
     } catch (error) {
       console.error(`     ✗ Failed: ${error}`)
@@ -257,17 +264,9 @@ SET search_path = public, extensions;
 
 `
 
-  if (traits && traits.length > 0) {
-    sql += `-- Traits\n`
-    sql += `INSERT INTO traits (id, clause) VALUES\n`
-    sql += traits
-      .map((t) => `  ('${escapeSqlString(t.id)}', '${escapeSqlString(t.clause)}')`)
-      .join(',\n')
-    sql += `\nON CONFLICT (id) DO UPDATE SET clause = EXCLUDED.clause;\n\n`
-  }
-
+  // IMPORTANT: Embeddings must be inserted BEFORE traits (FK constraint)
   if (embeddings && embeddings.length > 0) {
-    sql += `-- Embeddings\n`
+    sql += `-- Embeddings (inserted first due to FK constraints)\n`
     sql += `INSERT INTO embeddings (id, source_text, embedding) VALUES\n`
     sql += embeddings
       .map(
@@ -276,6 +275,18 @@ SET search_path = public, extensions;
       )
       .join(',\n')
     sql += `\nON CONFLICT (source_text) DO NOTHING;\n\n`
+  }
+
+  if (traits && traits.length > 0) {
+    sql += `-- Traits\n`
+    sql += `INSERT INTO traits (id, clause, embedding_id) VALUES\n`
+    sql += traits
+      .map((t) => {
+        const embeddingId = t.embedding_id ? `'${t.embedding_id}'::uuid` : 'NULL'
+        return `  ('${escapeSqlString(t.id)}', '${escapeSqlString(t.clause)}', ${embeddingId})`
+      })
+      .join(',\n')
+    sql += `\nON CONFLICT (id) DO UPDATE SET clause = EXCLUDED.clause, embedding_id = EXCLUDED.embedding_id;\n\n`
   }
 
   if (places && places.length > 0) {

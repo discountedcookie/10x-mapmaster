@@ -14,7 +14,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."get_geographic_questions" (
   "yes_count" INTEGER,
   "no_count" INTEGER,
   "question_text" TEXT
-) language plpgsql
+) language plpgsql security definer
 SET
   search_path = public,
   game_logic,

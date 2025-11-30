@@ -2,7 +2,7 @@
 -- Category: game
 -- Purpose: Orchestrate candidate filtering and apply business logic (scoring weights)
 -- Returns: JSONB array of candidates (use jsonb_array_length for count)
-CREATE OR REPLACE FUNCTION "game_logic"."get_candidates" ("session_id_param" "uuid") returns JSONB language "plpgsql"
+CREATE OR REPLACE FUNCTION "game_logic"."get_candidates" ("session_id_param" "uuid") returns JSONB language "plpgsql" security definer
 SET
   search_path = public,
   game_logic,

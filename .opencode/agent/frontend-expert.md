@@ -1,7 +1,7 @@
 ---
 description: Vue 3 + shadcn-vue UI specialist - presentation layer only
 mode: subagent
-model: openai/gpt-5.1-codex-max
+model: anthropic/claude-haiku-4-5
 temperature: 0.3
 permission:
   edit: allow

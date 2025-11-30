@@ -92,9 +92,17 @@ const handleSubmitPlace = () => {
         <Button variant="outline" @click="handleGuess(false)"> No, try again </Button>
       </div>
 
-      <!-- Show submit button if needs submission -->
-      <div v-else-if="props.gameState.status === 'needs_submission'" class="flex gap-2">
-        <Button variant="default" @click="handleSubmitPlace"> Submit this place </Button>
+      <!-- Show submit button if needs submission or game ended without finding place -->
+      <div
+        v-else-if="
+          props.gameState.status === 'needs_submission' || props.gameState.status === 'ended'
+        "
+        class="flex gap-2"
+      >
+        <Button variant="default" @click="handleSubmitPlace">
+          Tell us what place you were thinking of
+        </Button>
+        <Button variant="outline" @click="$emit('playAgain')"> Play Again </Button>
       </div>
 
       <!-- Show play again button if game is won -->

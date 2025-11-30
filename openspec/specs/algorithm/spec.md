@@ -1,8 +1,11 @@
 # algorithm Specification
 
 ## Purpose
+
 TBD - created by archiving change 08-geographic-filtering. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Geographic Candidate Filtering
 
 The system SHALL filter candidate places by geographic regions for geographic questions.
@@ -24,17 +27,27 @@ The system SHALL filter candidate places by geographic regions for geographic qu
 
 ### Requirement: Candidate Scoring
 
-The system SHALL score places by semantic similarity and produce probabilities.
+The system SHALL score places using softmax-weighted aggregation of trait similarities and produce probabilities.
 
-#### Scenario: Similarity and softmax
+#### Scenario: Trait similarity aggregation
 
-- **WHEN** scoring candidates
-- **THEN** similarity is computed between description and place embeddings and converted to probabilities via temperature-scaled softmax
+- **WHEN** scoring a candidate place
+- **THEN** similarity is computed between description embedding and each of the place's trait embeddings, then aggregated using softmax-weighted average with configurable temperature
+
+#### Scenario: Softmax weighting
+
+- **WHEN** aggregating trait similarities
+- **THEN** weights are computed as exp(sim/τ)/Σexp(sim/τ) where τ is the aggregation temperature, giving high-similarity traits more influence
+
+#### Scenario: Probability distribution
+
+- **WHEN** converting scores to probabilities
+- **THEN** raw scores are converted via temperature-scaled softmax for confidence calculation
 
 #### Scenario: Threshold and cap
 
 - **WHEN** selecting initial candidates
-- **THEN** scores below a threshold are excluded and results are capped per configured limit
+- **THEN** aggregated scores below a threshold are excluded and results are capped per configured limit
 
 ### Requirement: Confidence Decision Rule
 
@@ -52,21 +65,36 @@ The system SHALL decide to guess or ask based on configured confidence metrics.
 
 ### Requirement: Trait Matching Adjustments
 
-The system SHALL adjust candidate scores based on trait embeddings and answers.
+The system SHALL adjust candidate scores based on binary trait ownership from place_traits table.
 
-#### Scenario: Match strength zones
+#### Scenario: Trait ownership check
 
 - **WHEN** evaluating a trait against a place
-- **THEN** match_strength is compared to strong/partial thresholds to classify match zone
+- **THEN** the system checks if the place has the trait via place_traits relationship (binary: has or doesn't have)
 
-#### Scenario: Score adjustments
+#### Scenario: Score adjustments for YES answer
 
-- **WHEN** applying an answer
-- **THEN** scores are boosted/penalized using power-law weighting per answer and match zone; not_sure makes no adjustment
+- **WHEN** player answers YES to a trait question
+- **THEN** places that have the trait are boosted (multiplied by boost_factor) and places lacking the trait are penalized (multiplied by penalty_factor)
+
+#### Scenario: Score adjustments for NO answer
+
+- **WHEN** player answers NO to a trait question
+- **THEN** places that have the trait are penalized and places lacking the trait are boosted
+
+#### Scenario: NOT SURE answer
+
+- **WHEN** player answers NOT SURE
+- **THEN** no score adjustment is made (multiplier = 1.0)
 
 ### Requirement: Question Selection
 
-The system SHALL choose the next question based on split quality, considering geographic and semantic options.
+The system SHALL choose the next question based on split quality calculated from place_traits relationships, considering geographic and semantic options, and generate natural language question text via LLM.
+
+#### Scenario: Split quality calculation
+
+- **WHEN** evaluating a trait for question selection
+- **THEN** split quality is calculated by counting how many candidates have the trait via place_traits table, measuring how close to 50/50 split
 
 #### Scenario: Geographic preference
 
@@ -76,10 +104,19 @@ The system SHALL choose the next question based on split quality, considering ge
 #### Scenario: Semantic selection
 
 - **WHEN** no geographic option qualifies
-- **THEN** the semantic trait with highest split_quality is chosen; ties broken by description similarity
+- **THEN** the semantic trait with highest split_quality is chosen; ties broken by description-to-trait embedding similarity
 
 #### Scenario: Fallback
 
 - **WHEN** no option meets min_split_quality
 - **THEN** the best available question is still selected
 
+#### Scenario: LLM question text generation
+
+- **WHEN** a trait or region is selected algorithmically
+- **THEN** the LLM generates natural language question text for that selection (no hardcoded templates)
+
+#### Scenario: Question text fallback
+
+- **WHEN** LLM is unavailable or errors
+- **THEN** a simple fallback template is used and the error is logged

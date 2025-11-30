@@ -25,7 +25,7 @@ BEGIN
   -- ============================================================================
   -- RATE LIMITING
   -- ============================================================================
-  PERFORM game_logic.check_rate_limit(auth.uid(), 'submit_place');
+  PERFORM game_logic.check_rate_limit('submit_place');
 
   -- ============================================================================
   -- INPUT VALIDATION
@@ -102,6 +102,7 @@ BEGIN
     place_id = v_place_id,
     was_correct = FALSE,
     next_turn = NULL,
+    status = 'ended',
     pending_review = v_pending_review,
     user_id = COALESCE(user_id, auth.uid())
   WHERE id = p_session_id;

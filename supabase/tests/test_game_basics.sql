@@ -10,6 +10,11 @@ SET
   game_logic,
   extensions;
 
+-- Simulate authenticated (or anonymous) user context
+SET local role authenticated;
+SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+
 
 SELECT
   plan (3);

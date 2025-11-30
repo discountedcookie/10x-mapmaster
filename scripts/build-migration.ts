@@ -244,8 +244,8 @@ function clearMigrations(): void {
   mkdirSync(MIGRATIONS_DIR, { recursive: true })
 }
 
-function extractDescription(args: string[]): string {
-  return args.find((a) => !a.startsWith('--')) || DEFAULT_DESCRIPTION
+function extractDescription(arguments_: string[]): string {
+  return arguments_.find((a) => !a.startsWith('--')) || DEFAULT_DESCRIPTION
 }
 
 async function main() {

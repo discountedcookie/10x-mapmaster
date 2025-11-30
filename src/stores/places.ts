@@ -7,15 +7,9 @@ import {
   type NominatimPlace,
 } from '@/lib/places'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import type { Tables } from '@/types/database'
 
-export interface Place {
-  id: string
-  name: string
-  lat: number
-  lng: number
-  times_encountered: number
-  descriptors?: any
-}
+export type Place = Tables<'places_with_geometry'>
 
 export const usePlacesStore = defineStore('places', () => {
   // State
@@ -45,17 +39,15 @@ export const usePlacesStore = defineStore('places', () => {
     fetchPromise = (async () => {
       try {
         const { data, error: fetchError } = await supabase
-          .from('places')
-          .select('id, name, lat, lng, times_encountered')
-          .not('lat', 'is', null)
-          .not('lng', 'is', null)
+          .from('places_with_geometry')
+          .select('*')
           .order('name')
 
         if (fetchError) {
           throw fetchError
         }
 
-        places.value = (data || []) as Place[]
+        places.value = data || []
 
         // Set up realtime subscription after initial fetch
         setupRealtimeSubscription()
@@ -95,39 +87,29 @@ export const usePlacesStore = defineStore('places', () => {
       })
   }
 
-  function handleRealtimeChange(payload: any) {
+  async function handleRealtimeChange(payload: any) {
     const { eventType, new: newRecord, old: oldRecord } = payload
 
     switch (eventType) {
-      case 'INSERT': {
-        const place = newRecord as Place
-        // Only add if it has valid coordinates and doesn't already exist
-        if (place.lat !== null && place.lng !== null) {
-          const exists = places.value.some((p) => p.id === place.id)
-          if (!exists) {
-            places.value.push(place)
-            // Sort by name to maintain order
-            places.value.sort((a, b) => a.name.localeCompare(b.name))
-          }
-        }
-        break
-      }
+      case 'INSERT':
       case 'UPDATE': {
-        const place = newRecord as Place
-        const index = places.value.findIndex((p) => p.id === place.id)
+        // Refetch the place from view to get geometry
+        const { data } = await supabase
+          .from('places_with_geometry')
+          .select('*')
+          .eq('id', newRecord.id)
+          .single()
 
-        if (index !== -1) {
-          // Update existing place
-          if (place.lat !== null && place.lng !== null) {
-            places.value[index] = place
+        if (data) {
+          // Cast through any to avoid TypeScript deep instantiation error with Supabase types
+          const placeData = data as any as Place
+          const index = places.value.findIndex((p) => p.id === placeData.id)
+          if (index !== -1) {
+            ;(places.value as any)[index] = placeData
           } else {
-            // Remove if coordinates became null
-            places.value.splice(index, 1)
+            ;(places.value as any).push(placeData)
+            places.value.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
           }
-        } else if (place.lat !== null && place.lng !== null) {
-          // Add if it wasn't in the list but now has valid coordinates
-          places.value.push(place)
-          places.value.sort((a, b) => a.name.localeCompare(b.name))
         }
         break
       }

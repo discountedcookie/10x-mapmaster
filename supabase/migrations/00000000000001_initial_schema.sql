@@ -1,7 +1,7 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-11-27T04:44:46.004Z
+-- Generated: 2025-11-30T10:55:26.986Z
 -- Mode: DEV (clean rebuild)
--- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 3
+-- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 4
 
 -- ============================================================================
 -- EXTENSIONS AND TYPES
@@ -292,14 +292,12 @@ DROP POLICY if EXISTS "Embeddings are viewable by everyone" ON "public"."embeddi
 DROP POLICY if EXISTS "Service role can manage embeddings" ON "public"."embeddings";
 
 
-CREATE POLICY "Embeddings are viewable by everyone" ON "public"."embeddings" FOR
-SELECT
-  USING (TRUE);
-
-
 CREATE POLICY "Service role can manage embeddings" ON "public"."embeddings" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
 WITH
   CHECK (("auth"."role" () = 'service_role'::"text"));
+
+-- Explicitly revoke read access from non-service roles; only service_role should see embeddings
+REVOKE ALL ON public.embeddings FROM public, anon, authenticated;
 
 
 -- Comments
@@ -597,10 +595,6 @@ CREATE POLICY "Users can view their own game sessions" ON "public"."game_session
 SELECT
   USING (
     ("auth"."uid" () = "user_id")
-    OR (
-      ("auth"."uid" () IS NULL)
-      AND ("user_id" IS NULL)
-    )
     OR ("auth"."role" () = 'service_role'::"text")
   );
 
@@ -609,12 +603,8 @@ CREATE POLICY "Users can insert their own game sessions" ON "public"."game_sessi
 WITH
   CHECK (
     (
-      ("auth"."uid" () IS NOT NULL)
-      AND ("auth"."uid" () = "user_id")
-    )
-    OR (
-      ("auth"."uid" () IS NULL)
-      AND ("user_id" IS NULL)
+      ("auth"."uid" () IS NOT NULL
+      AND "auth"."uid" () = "user_id")
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -624,20 +614,12 @@ CREATE POLICY "Users can update their own game sessions" ON "public"."game_sessi
 FOR UPDATE
   USING (
     ("auth"."uid" () = "user_id")
-    OR (
-      ("auth"."uid" () IS NULL)
-      AND ("user_id" IS NULL)
-    )
     OR ("auth"."role" () = 'service_role'::"text")
   );
 
 
 CREATE POLICY "Users can delete their own game sessions" ON "public"."game_sessions" FOR delete USING (
   ("auth"."uid" () = "user_id")
-  OR (
-    ("auth"."uid" () IS NULL)
-    AND ("user_id" IS NULL)
-  )
   OR ("auth"."role" () = 'service_role'::"text")
 );
 
@@ -740,10 +722,6 @@ SELECT
         WHERE
           (
             ("game_sessions"."user_id" = "auth"."uid" ())
-            OR (
-              ("game_sessions"."user_id" IS NULL)
-              AND ("auth"."uid" () IS NULL)
-            )
           )
       )
     )
@@ -757,18 +735,14 @@ WITH
     (
       "session_id" IN (
         SELECT
-          "game_sessions"."id"
-        FROM
-          "public"."game_sessions"
-        WHERE
-          (
-            ("game_sessions"."user_id" = "auth"."uid" ())
-            OR (
-              ("game_sessions"."user_id" IS NULL)
-              AND ("auth"."uid" () IS NULL)
-            )
-          )
+      "game_sessions"."id"
+    FROM
+      "public"."game_sessions"
+    WHERE
+      (
+        ("game_sessions"."user_id" = "auth"."uid" ())
       )
+  )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -780,18 +754,14 @@ FOR UPDATE
     (
       "session_id" IN (
         SELECT
-          "game_sessions"."id"
-        FROM
-          "public"."game_sessions"
-        WHERE
-          (
-            ("game_sessions"."user_id" = "auth"."uid" ())
-            OR (
-              ("game_sessions"."user_id" IS NULL)
-              AND ("auth"."uid" () IS NULL)
-            )
-          )
+      "game_sessions"."id"
+    FROM
+      "public"."game_sessions"
+    WHERE
+      (
+        ("game_sessions"."user_id" = "auth"."uid" ())
       )
+  )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -1222,11 +1192,16 @@ SET
 DECLARE
   v_session_record RECORD;
 BEGIN
+  -- Require authenticated (including Supabase anonymous) session
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
   -- ============================================================================
   -- RATE LIMITING
   -- ============================================================================
   -- Enforces limits from game_logic.config (default: 60 per minute)
-  PERFORM game_logic.check_rate_limit(auth.uid(), 'play_turn');
+  PERFORM game_logic.check_rate_limit('play_turn');
 
   -- ============================================================================
   -- VALIDATION & SESSION RETRIEVAL
@@ -1239,6 +1214,7 @@ BEGIN
   -- Get session details (only columns needed by handlers)
   SELECT
     id,
+    user_id,
     place_id,
     was_correct,
     next_turn,
@@ -1250,6 +1226,11 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Session % not found', p_session_id;
+  END IF;
+
+  -- Ownership check (service_role may bypass)
+  IF auth.role() <> 'service_role' AND (v_session_record.user_id IS NULL OR v_session_record.user_id != auth.uid()) THEN
+    RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
 
   -- Validate session is active
@@ -1316,12 +1297,17 @@ DECLARE
   v_candidates jsonb;
   v_embedding_id uuid;
 BEGIN
+  -- Require authenticated (including Supabase anonymous) session
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
   -- Rate limiting via centralized check_rate_limit function
   -- Enforces limits from game_logic.config (default: 10 per minute)
-  PERFORM game_logic.check_rate_limit(auth.uid(), 'start_game');
+  PERFORM game_logic.check_rate_limit('start_game');
 
   -- Generate description embedding first
-  v_embedding_id := get_or_create_embedding(p_description);
+  v_embedding_id := get_embedding(p_description);
   
   -- Insert session with description embedding
   INSERT INTO game_sessions (
@@ -1402,7 +1388,7 @@ BEGIN
   -- ============================================================================
   -- RATE LIMITING
   -- ============================================================================
-  PERFORM game_logic.check_rate_limit(auth.uid(), 'submit_place');
+  PERFORM game_logic.check_rate_limit('submit_place');
 
   -- ============================================================================
   -- INPUT VALIDATION
@@ -1479,6 +1465,7 @@ BEGIN
     place_id = v_place_id,
     was_correct = FALSE,
     next_turn = NULL,
+    status = 'ended',
     pending_review = v_pending_review,
     user_id = COALESCE(user_id, auth.uid())
   WHERE id = p_session_id;
@@ -1524,14 +1511,12 @@ Security: SECURITY DEFINER. Uses auth.uid() for ownership validation.';
 -- Function: adjust_candidates_for_answer
 -- Category: algorithm
 -- Schema: game_logic (internal - not client-accessible)
--- Purpose: Adjust all candidate scores based on a semantic answer
--- Spec: spec/algorithm.md#score-adjustment
+-- Purpose: Adjust all candidate scores based on a semantic answer using binary trait matching
+-- Spec: docs/architecture/algorithm.md#trait-matching
 CREATE OR REPLACE FUNCTION "game_logic"."adjust_candidates_for_answer" (
   p_candidates JSONB,
   p_trait_id TEXT,
-  p_answer answer_value,
-  p_base_weight FLOAT DEFAULT 0.3,
-  p_beta FLOAT DEFAULT 1.5
+  p_answer answer_value
 ) returns JSONB language plpgsql
 SET
   search_path = public, extensions, game_logic AS $$
@@ -1540,8 +1525,10 @@ DECLARE
   v_place_id UUID;
   v_current_score FLOAT;
   v_new_score FLOAT;
-  v_match_strength FLOAT;
-  v_match_zone TEXT;
+  v_has_trait BOOLEAN;
+  v_boost_factor FLOAT;
+  v_penalty_factor FLOAT;
+  v_multiplier FLOAT;
   v_result JSONB := '[]'::JSONB;
 BEGIN
   -- Not sure = return unchanged candidates
@@ -1549,55 +1536,46 @@ BEGIN
     RETURN p_candidates;
   END IF;
   
+  -- Get config values
+  v_boost_factor := get_config_float('traits.boost_factor', 1.5);
+  v_penalty_factor := get_config_float('traits.penalty_factor', 0.6);
+  
   -- Process each candidate
   FOR v_candidate IN SELECT * FROM jsonb_array_elements(p_candidates)
   LOOP
     v_place_id := (v_candidate->>'id')::UUID;
     v_current_score := COALESCE((v_candidate->>'confidence')::FLOAT, 0.5);
     
-    -- Calculate embedding similarity between place and trait
-    DECLARE
-      v_place_embedding vector(384);
-      v_trait_embedding vector(384);
-      v_similarity FLOAT;
-      v_similarity_threshold FLOAT;
-    BEGIN
-      -- Get embeddings
-      SELECT pe.embedding INTO v_place_embedding
-      FROM places p
-      JOIN embeddings pe ON pe.id = p.embedding_id
-      WHERE p.id = v_place_id;
-      
-      SELECT te.embedding INTO v_trait_embedding
-      FROM traits t
-      JOIN embeddings te ON te.id = t.embedding_id
-      WHERE t.id = p_trait_id;
-      
-      -- Calculate cosine similarity
-      v_similarity := 1 - (v_place_embedding <=> v_trait_embedding);
-      
-      -- Get similarity threshold from config
-      v_similarity_threshold := get_config_float('traits.similarity_threshold');
-      
-      -- Determine match strength based on similarity
-      IF v_similarity >= v_similarity_threshold THEN
-        v_match_strength := v_similarity;  -- Use actual similarity as strength
-        v_match_zone := 'STRONG';
-      ELSE
-        v_match_strength := v_similarity;  -- Use actual similarity as strength
-        v_match_zone := 'WEAK';
-      END IF;
-    END;
+    -- Check if place has this trait (binary lookup via place_traits)
+    SELECT EXISTS(
+      SELECT 1 FROM place_traits 
+      WHERE place_id = v_place_id AND trait_id = p_trait_id
+    ) INTO v_has_trait;
     
-    -- Calculate new score using adjust_score
-    v_new_score := adjust_score(
-      v_current_score,
-      v_match_strength,
-      v_match_zone,
-      p_answer::TEXT,
-      p_base_weight,
-      p_beta
-    );
+    -- Determine multiplier based on answer and trait ownership
+    -- YES + has_trait = boost (candidate matches affirmed trait)
+    -- YES + !has_trait = penalty (candidate lacks affirmed trait)
+    -- NO + has_trait = penalty (candidate has denied trait)
+    -- NO + !has_trait = boost (candidate correctly lacks denied trait)
+    IF p_answer = 'yes' THEN
+      IF v_has_trait THEN
+        v_multiplier := v_boost_factor;
+      ELSE
+        v_multiplier := v_penalty_factor;
+      END IF;
+    ELSE  -- p_answer = 'no'
+      IF v_has_trait THEN
+        v_multiplier := v_penalty_factor;
+      ELSE
+        v_multiplier := v_boost_factor;
+      END IF;
+    END IF;
+    
+    -- Apply multiplicative adjustment
+    v_new_score := v_current_score * v_multiplier;
+    
+    -- Clamp score to valid range [0.01, 1.0]
+    v_new_score := GREATEST(0.01, LEAST(1.0, v_new_score));
     
     -- Update candidate with new score
     v_result := v_result || jsonb_build_array(
@@ -1610,28 +1588,29 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value, FLOAT, FLOAT) owner TO postgres;
+ALTER FUNCTION "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value) owner TO postgres;
 
 
-comment ON function "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value, FLOAT, FLOAT) IS 'Adjusts all candidate scores based on a semantic answer.
+comment ON function "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value) IS 'Adjusts candidate scores using binary trait matching and multiplicative scaling.
 
-Per spec (algorithm.md#score-adjustment):
-- For each candidate, calculate match_strength against trait
-- Apply power-law adjustment: magnitude = base_weight * match_strength^beta
-- Adjustment direction based on answer + match zone
+Algorithm (per docs/architecture/algorithm.md#trait-matching):
+1. For each candidate, check if place has the trait via place_traits table (binary)
+2. Apply multiplier based on answer and trait ownership:
+   - YES + has_trait → boost_factor (1.5)
+   - YES + !has_trait → penalty_factor (0.6)  
+   - NO + has_trait → penalty_factor (0.6)
+   - NO + !has_trait → boost_factor (1.5)
+3. new_score = old_score × multiplier
 
-Match strength determination:
-- Uses embedding similarity between place and trait
-- Similarity >= threshold → STRONG match
-- Similarity < threshold → WEAK match
-- Uses actual similarity value as match_strength (0.0-1.0)
+Why binary matching instead of embedding similarity?
+- We have explicit place_traits relationships (ground truth)
+- No fuzzy matching needed - place either has trait or not
+- Faster and more accurate than embedding comparison
 
 Parameters:
 - p_candidates: JSONB array of candidates with confidence scores
 - p_trait_id: The trait being asked about
 - p_answer: yes, no, or not_sure (not_sure returns unchanged)
-- p_base_weight: Base weight for adjustments (default 0.3)
-- p_beta: Power-law exponent (default 1.5)
 
 Returns: Updated JSONB array with adjusted confidence scores';
 
@@ -2069,77 +2048,6 @@ Parameters:
 - p_answer: yes (inside), no (outside), not_sure (no filter)
 
 Returns: Filtered JSONB array (candidates matching the geographic constraint)';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/algorithm/get_initial_candidates.sql
--- --------------------------------------------------------------------------
-
--- Function: get_initial_candidates
--- Category: algorithm
--- Purpose: Get initial candidates by semantic similarity with configurable limits
--- Spec: openspec/specs/algorithm/spec.md#initial-candidate-scoring
-CREATE OR REPLACE FUNCTION "game_logic"."get_initial_candidates" (
-  p_embedding_id UUID,
-  p_initial_threshold FLOAT DEFAULT 0.3,
-  p_max_candidates INT DEFAULT 100
-) returns TABLE (
-  place_id UUID,
-  place_name TEXT,
-  lat FLOAT,
-  lng FLOAT,
-  raw_score FLOAT
-) language plpgsql
-SET
-  search_path = public,
-  game_logic,
-  extensions AS $$
-DECLARE
-  v_description_embedding vector(384);
-BEGIN
-  -- Get description embedding
-  SELECT embedding INTO v_description_embedding
-  FROM embeddings
-  WHERE id = p_embedding_id;
-  
-  IF v_description_embedding IS NULL THEN
-    RAISE EXCEPTION 'Embedding % not found', p_embedding_id;
-  END IF;
-  
-  -- Get places with raw_score >= threshold, ordered by score, limited
-  RETURN QUERY
-  SELECT
-    p.id AS place_id,
-    p.name AS place_name,
-    p.lat::FLOAT,
-    p.lng::FLOAT,
-    (1 - (e.embedding <=> v_description_embedding))::FLOAT AS raw_score
-  FROM places p
-  JOIN embeddings e ON e.id = p.embedding_id
-  WHERE p.embedding_id IS NOT NULL
-  AND (1 - (e.embedding <=> v_description_embedding)) >= p_initial_threshold
-  ORDER BY raw_score DESC
-  LIMIT p_max_candidates;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."get_initial_candidates" (UUID, FLOAT, INT) owner TO postgres;
-
-
-comment ON function "game_logic"."get_initial_candidates" (UUID, FLOAT, INT) IS 'Gets initial candidates by semantic similarity to description.
-
-Process:
-1. raw_score = similarity(place.embedding, description.embedding)
-2. Filter: raw_score >= initial_candidate_threshold
-3. Order by raw_score descending
-4. Limit to max_initial_candidates
-
-Uses pgvector cosine distance (<=>), converted to similarity (1 - distance).
-
-Parameters:
-- p_embedding_id: UUID of description embedding
-- p_initial_threshold: Minimum similarity (default 0.3)
-- p_max_candidates: Maximum candidates to return (default 100)';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/select_best_question.sql
@@ -2823,8 +2731,8 @@ Called by: get_candidates() as first filtering step.';
 
 -- Function: filter_semantic_candidates
 -- Category: game
--- Purpose: Calculate semantic similarity scores for specific place IDs
--- Returns: Place IDs with similarity scores
+-- Purpose: Calculate semantic similarity scores using softmax-weighted trait aggregation
+-- Returns: Place IDs with aggregated similarity scores
 CREATE OR REPLACE FUNCTION "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) returns TABLE (
   place_id UUID,
   base_description_similarity DOUBLE PRECISION
@@ -2835,36 +2743,93 @@ SET
   extensions AS $$
 DECLARE
   v_description_embedding vector(384);
-  v_semantic_threshold FLOAT;
+  v_threshold FLOAT;
+  v_temperature FLOAT;
 BEGIN
-  -- Get semantic similarity threshold from game_logic.config
-  v_semantic_threshold := get_config_float('candidates.semantic_similarity_threshold', 0.5);
+  -- Get configuration from game_logic.config
+  v_threshold := get_config_float('scoring.initial_candidate_threshold', 0.5);
+  v_temperature := get_config_float('scoring.trait_aggregation_temperature', 0.1);
 
   -- Get session embedding
   SELECT
-    de_desc.embedding as description_embedding
+    e.embedding
   INTO
     v_description_embedding
   FROM game_sessions gs
-  LEFT JOIN embeddings de_desc ON de_desc.id = gs.embedding_id
+  JOIN embeddings e ON e.id = gs.embedding_id
   WHERE gs.id = p_session_id;
 
   IF v_description_embedding IS NULL THEN
     RAISE EXCEPTION 'Session % not found or has no description embedding', p_session_id;
   END IF;
 
-  -- Calculate semantic similarity scores for given place IDs
+  -- Calculate softmax-weighted trait similarity aggregation
+  -- Formula: score = Σ(softmax(sim/τ) × sim)
+  -- where softmax(sim_i/τ) = exp(sim_i/τ) / Σexp(sim_j/τ)
   RETURN QUERY
+  WITH trait_similarities AS (
+    -- Calculate similarity between description and each trait for each place
+    SELECT
+      pt.place_id AS pid,
+      (1 - (te.embedding <=> v_description_embedding))::DOUBLE PRECISION AS sim
+    FROM
+      place_traits pt
+      JOIN traits t ON t.id = pt.trait_id
+      JOIN embeddings te ON te.id = t.embedding_id
+    WHERE
+      pt.place_id = ANY (p_place_ids)
+      AND te.embedding IS NOT NULL
+  ),
+  -- FALLBACK: For places without trait embeddings, use place embedding directly
+  -- This handles legacy seed data where traits don't have individual embeddings
+  place_fallback AS (
+    SELECT
+      p.id AS pid,
+      (1 - (pe.embedding <=> v_description_embedding))::DOUBLE PRECISION AS sim
+    FROM places p
+    JOIN embeddings pe ON pe.id = p.embedding_id
+    WHERE p.id = ANY (p_place_ids)
+      AND pe.embedding IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM trait_similarities ts WHERE ts.pid = p.id
+      )
+  ),
+  -- Combine trait-based and fallback scores
+  all_similarities AS (
+    SELECT pid, sim FROM trait_similarities
+    UNION ALL
+    SELECT pid, sim FROM place_fallback
+  ),
+  exp_similarities AS (
+    -- Calculate exp(sim/τ) for softmax
+    SELECT
+      pid,
+      sim,
+      exp(sim / v_temperature) AS exp_sim
+    FROM all_similarities
+  ),
+  softmax_weights AS (
+    -- Calculate softmax weights: exp(sim/τ) / Σexp(sim/τ)
+    SELECT
+      pid,
+      sim,
+      exp_sim,
+      SUM(exp_sim) OVER (PARTITION BY pid) AS sum_exp
+    FROM exp_similarities
+  ),
+  aggregated_scores AS (
+    -- Calculate weighted average: Σ(weight × sim)
+    SELECT
+      pid AS place_id,
+      SUM((exp_sim / NULLIF(sum_exp, 0)) * sim)::DOUBLE PRECISION AS aggregated_score
+    FROM softmax_weights
+    GROUP BY pid
+  )
   SELECT
-    p.id AS place_id,
-    (1 - (e.embedding <=> v_description_embedding))::DOUBLE PRECISION AS base_description_similarity
-  FROM
-    places p
-    JOIN embeddings e ON e.id = p.embedding_id
-  WHERE
-    p.id = ANY (p_place_ids)
-    -- Only return candidates above base similarity threshold
-    AND (1 - (e.embedding <=> v_description_embedding)) > v_semantic_threshold;
+    a.place_id,
+    a.aggregated_score AS base_description_similarity
+  FROM aggregated_scores a
+  WHERE a.aggregated_score > v_threshold;
 END;
 $$;
 
@@ -2872,18 +2837,31 @@ $$;
 ALTER FUNCTION "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) owner TO "postgres";
 
 
-comment ON function "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) IS 'Calculates semantic similarity scores for specific place IDs (SRP: Semantics only).
+comment ON function "game_logic"."filter_semantic_candidates" ("p_session_id" UUID, "p_place_ids" UUID[]) IS 'Calculates semantic similarity using softmax-weighted trait aggregation.
+
+Algorithm:
+1. For each place, compute similarity between description and each trait embedding
+2. Apply softmax weighting: weight_i = exp(sim_i/τ) / Σexp(sim_j/τ)
+3. Calculate weighted average: score = Σ(weight_i × sim_i)
+4. Filter by threshold
+
+FALLBACK: For places without trait embeddings (legacy data), uses place embedding directly.
+This ensures backward compatibility with seed data that has combined place embeddings.
+
+The softmax temperature (τ) controls how much the best traits dominate:
+- τ → 0: Approaches MAX (only best trait matters)
+- τ = 0.1: Top 2-3 traits dominate (default)
+- τ → ∞: Approaches simple average
+
+This approach handles both:
+- Categorical queries ("religious site") - matches specific traits well
+- Specific queries ("tall iron tower in Paris") - multiple traits contribute
 
 Input:
-- p_session_id: Session to get embeddings from
-- p_place_ids: Array of place IDs to score (from geographic filter)
+- p_session_id: Session to get description embedding from
+- p_place_ids: Array of place IDs to score
 
-Calculates:
-- base_description_similarity: Cosine similarity with session description
-
-Threshold: Only returns places with base_description_similarity > 0.5
-
-Returns: Only similarity scores (no geographic data, no composite scoring).
+Returns: place_id and aggregated score for places above threshold.
 
 Called by: get_candidates() which joins with geographic results.';
 
@@ -2895,7 +2873,7 @@ Called by: get_candidates() which joins with geographic results.';
 -- Category: game
 -- Purpose: Orchestrate candidate filtering and apply business logic (scoring weights)
 -- Returns: JSONB array of candidates (use jsonb_array_length for count)
-CREATE OR REPLACE FUNCTION "game_logic"."get_candidates" ("session_id_param" "uuid") returns JSONB language "plpgsql"
+CREATE OR REPLACE FUNCTION "game_logic"."get_candidates" ("session_id_param" "uuid") returns JSONB language "plpgsql" security definer
 SET
   search_path = public,
   game_logic,
@@ -3265,7 +3243,7 @@ BEGIN
 
   -- Per spec: Apply answer based on question type
   -- Geographic = filter candidates (binary in/out)
-  -- Semantic = adjust scores (power-law)
+  -- Semantic = adjust scores (multiplicative via place_traits)
   IF v_question_type = 'geographic' THEN
     -- Filter candidates using PostGIS
     v_candidates_after := filter_candidates_for_geography(
@@ -3302,11 +3280,11 @@ comment ON function "game_logic"."handle_question" (
   "p_session_record" record
 ) IS 'Handle question answer (YES/NO/NOT_SURE answer to a question).
 
-Per spec (algorithm.md#turn-flow):
+Per spec (docs/architecture/algorithm.md#turn-flow):
 1. Record Answer
 2. Geographic or Semantic?
    - Geographic → Filter Candidates (ST_Contains)
-   - Semantic → Adjust Scores (Power-Law)
+   - Semantic → Adjust Scores (Multiplicative via place_traits)
 3. Recalculate Probabilities (softmax)
 4. Decide Next Turn
 
@@ -3315,14 +3293,14 @@ Responsibilities (SRP):
 - Record answer with snapshot BEFORE adjustment
 - Apply answer based on question type:
   - Geographic: filter_candidates_for_geography (binary in/out)
-  - Semantic: adjust_candidates_for_answer (power-law scoring)
+  - Semantic: adjust_candidates_for_answer (multiplicative scoring)
 - Recalculate probabilities via softmax
 - Continue game via decide_next_turn
 
 Score Adjustment (semantic answers):
-- Uses adjust_candidates_for_answer which calls adjust_score for each candidate
-- new_score = old_score + adjustment (progressive, not recalculated)
-- Adjustment magnitude uses power-law: base_weight * match_strength^beta
+- Uses adjust_candidates_for_answer with binary place_traits lookup
+- new_score = old_score * multiplier (multiplicative)
+- Multiplier based on trait ownership: boost_factor or penalty_factor
 
 Storage strategy:
 - candidates: Retrieved from next_turn (state at answer time)
@@ -3712,14 +3690,35 @@ ALTER FUNCTION "game_logic"."deduplicate_places" () owner TO "postgres";
 
 -- Function: enrich_place
 -- Category: places
--- TODO: Update to work with new trait-based system
+-- Purpose: Enrich a place with traits from recent sessions
+-- Note: This is a convenience wrapper. The main learning happens via trigger.
 CREATE OR REPLACE FUNCTION "game_logic"."enrich_place" ("p_place_id" "uuid") returns "jsonb" language "plpgsql" security definer
 SET
   search_path = public,
   game_logic AS $$
+DECLARE
+  v_session_record RECORD;
+  v_result JSONB := '[]'::JSONB;
+  v_learn_result JSONB;
 BEGIN
-  -- Stubbed out for now - needs refactoring for trait-based system
-  RETURN jsonb_build_object('status', 'not_implemented');
+  -- Find recent successful sessions for this place and learn from them
+  FOR v_session_record IN
+    SELECT id
+    FROM game_sessions
+    WHERE place_id = p_place_id
+      AND was_correct = TRUE
+    ORDER BY created_at DESC
+    LIMIT 5  -- Learn from last 5 successful sessions
+  LOOP
+    v_learn_result := learn_traits_from_session(v_session_record.id, p_place_id);
+    v_result := v_result || jsonb_build_array(v_learn_result);
+  END LOOP;
+  
+  RETURN jsonb_build_object(
+    'status', 'success',
+    'sessions_processed', jsonb_array_length(v_result),
+    'results', v_result
+  );
 END;
 $$;
 
@@ -3727,7 +3726,93 @@ $$;
 ALTER FUNCTION "game_logic"."enrich_place" ("p_place_id" "uuid") owner TO "postgres";
 
 
-comment ON function "game_logic"."enrich_place" ("p_place_id" "uuid") IS 'Stub - needs refactoring for trait-based system';
+comment ON function "game_logic"."enrich_place" ("p_place_id" "uuid") IS 'Enriches a place by learning traits from recent successful game sessions.
+
+This is a convenience wrapper that can be called manually.
+The primary learning happens automatically via the enrich_place_on_session_complete trigger.
+
+Processes up to 5 most recent successful sessions for the place.';
+
+-- --------------------------------------------------------------------------
+-- game_logic/functions/places/learn_traits_from_session.sql
+-- --------------------------------------------------------------------------
+
+-- Function: learn_traits_from_session
+-- Category: places
+-- Purpose: Learn traits from a completed game session's answers
+-- Spec: docs/architecture/algorithm.md#trait-sources
+CREATE OR REPLACE FUNCTION "game_logic"."learn_traits_from_session" (
+  "p_session_id" UUID,
+  "p_place_id" UUID
+) returns JSONB language "plpgsql" security definer
+SET
+  search_path = public,
+  game_logic AS $$
+DECLARE
+  v_affirmed_count INT := 0;
+  v_already_had_count INT := 0;
+  v_trait_record RECORD;
+BEGIN
+  -- Learn from affirmed traits (YES answers to semantic questions)
+  FOR v_trait_record IN
+    SELECT ga.trait_id
+    FROM game_answers ga
+    WHERE ga.session_id = p_session_id
+      AND ga.trait_id IS NOT NULL  -- Semantic questions only
+      AND ga.answer = 'yes'        -- Affirmed traits
+  LOOP
+    -- Insert trait link if not already exists
+    INSERT INTO place_traits (place_id, trait_id)
+    VALUES (p_place_id, v_trait_record.trait_id)
+    ON CONFLICT (place_id, trait_id) DO NOTHING;
+    
+    IF FOUND THEN
+      v_affirmed_count := v_affirmed_count + 1;
+    ELSE
+      v_already_had_count := v_already_had_count + 1;
+    END IF;
+  END LOOP;
+  
+  -- Log learning result
+  IF v_affirmed_count > 0 THEN
+    RAISE NOTICE 'Learned % new traits for place % from session %', 
+      v_affirmed_count, p_place_id, p_session_id;
+  END IF;
+  
+  RETURN jsonb_build_object(
+    'status', 'success',
+    'traits_learned', v_affirmed_count,
+    'traits_already_had', v_already_had_count,
+    'session_id', p_session_id,
+    'place_id', p_place_id
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."learn_traits_from_session" (UUID, UUID) owner TO "postgres";
+
+
+comment ON function "game_logic"."learn_traits_from_session" (UUID, UUID) IS 'Learns traits from a completed game session.
+
+When a game completes successfully (user confirms the guess):
+1. Gets all game_answers where trait_id IS NOT NULL and answer = ''yes''
+2. Inserts those traits into place_traits (if not already there)
+
+This enables the game to learn new traits about places over time.
+
+Example flow:
+1. User describes "tall iron structure with observation deck"
+2. Game asks "Does it offer panoramic views?" (trait: feature:observation)
+3. User answers YES
+4. Game guesses Eiffel Tower, user confirms
+5. If Eiffel Tower didn''t have feature:observation, it learns it now
+
+Parameters:
+- p_session_id: The completed session to learn from
+- p_place_id: The place that was correctly guessed
+
+Returns: JSONB with learning statistics';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/match_places.sql
@@ -3858,7 +3943,7 @@ $$;
 
 -- Function: regenerate_place_traits
 -- Category: places
--- Purpose: Regenerate traits for a place from all approved sessions
+-- Purpose: Add new traits to a place from session descriptions (ADDITIVE)
 -- Spec: openspec/specs/database/spec.md#learning-triggers
 CREATE OR REPLACE FUNCTION "game_logic"."regenerate_place_traits" ("p_place_id" UUID) returns void language plpgsql security definer
 SET
@@ -3868,6 +3953,7 @@ SET
 DECLARE
   v_place RECORD;
   v_session_descriptions TEXT[];
+  v_existing_traits TEXT[];
   v_combined_context TEXT;
   v_llm_prompt TEXT;
   v_llm_response TEXT;
@@ -3876,6 +3962,7 @@ DECLARE
   v_trait_clauses TEXT[];
   v_combined_traits TEXT;
   v_embedding_id UUID;
+  v_trait_embedding_id UUID;
 BEGIN
   -- ============================================================================
   -- INPUT VALIDATION
@@ -3919,17 +4006,32 @@ BEGIN
     AND pending_review = FALSE;
 
   -- ============================================================================
+  -- QUERY EXISTING TRAITS FOR THIS PLACE
+  -- ============================================================================
+  SELECT array_agg(t.clause)
+  INTO v_existing_traits
+  FROM place_traits pt
+  JOIN traits t ON t.id = pt.trait_id
+  WHERE pt.place_id = p_place_id;
+
+  -- ============================================================================
   -- BUILD CONTEXT FOR LLM
   -- ============================================================================
   v_combined_context := format(
     'Place: %s
-Location: (%.6f, %.6f)
+Location: (%s, %s)
 OSM ID: %s',
     v_place.name,
-    v_place.lat,
-    v_place.lng,
+    round(v_place.lat::numeric, 6),
+    round(v_place.lng::numeric, 6),
     v_place.osm_id
   );
+
+  -- Add existing traits if available (so LLM can identify NEW traits only)
+  IF v_existing_traits IS NOT NULL AND array_length(v_existing_traits, 1) > 0 THEN
+    v_combined_context := v_combined_context || E'\n\nExisting traits (already known):\n- ' 
+      || array_to_string(v_existing_traits, E'\n- ');
+  END IF;
 
   -- Add session descriptions if available
   IF v_session_descriptions IS NOT NULL AND array_length(v_session_descriptions, 1) > 0 THEN
@@ -3941,7 +4043,7 @@ OSM ID: %s',
   -- CALL LLM TO EXTRACT TRAITS
   -- ============================================================================
   v_llm_prompt := format(
-    'Extract traits for this place. Return a JSON array of trait objects.
+    'Extract NEW traits for this place that are not already in the existing traits list.
 
 Each trait must have:
 - id: snake_case identifier (e.g., "is_tourist_attraction", "has_religious_significance")
@@ -3950,18 +4052,20 @@ Each trait must have:
 
 %s
 
-Return ONLY a valid JSON array. Example format:
+IMPORTANT: Only extract traits that are NOT already in the "Existing traits" list above.
+Focus on new information from the user descriptions.
+
+Return ONLY a valid JSON array. Return an empty array [] if no new traits are found.
+Example format:
 [
   {"id": "is_historic_monument", "clause": "Is a historic monument", "category": "type"},
   {"id": "attracts_tourists", "clause": "Attracts many tourists", "category": "cultural"}
-]
-
-Extract 5-15 relevant traits based on the place data and descriptions.',
+]',
     v_combined_context
   );
 
-  -- Call LLM API
-  v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json');
+  -- Call LLM API with extraction config (no stop sequences for JSON arrays)
+  v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
 
   -- ============================================================================
   -- PARSE LLM RESPONSE
@@ -3970,25 +4074,32 @@ Extract 5-15 relevant traits based on the place data and descriptions.',
     -- Try to parse as JSON array
     v_traits_json := v_llm_response::jsonb;
     
-    -- Validate it's an array
-    IF jsonb_typeof(v_traits_json) != 'array' THEN
-      RAISE EXCEPTION 'LLM response is not a JSON array';
+    -- If LLM returned a single object, wrap it in an array
+    IF jsonb_typeof(v_traits_json) = 'object' THEN
+      v_traits_json := jsonb_build_array(v_traits_json);
+    ELSIF jsonb_typeof(v_traits_json) != 'array' THEN
+      RAISE EXCEPTION 'LLM response is not a JSON array or object';
     END IF;
   EXCEPTION
     WHEN others THEN
-      -- Log error but don't fail - keep existing traits
+      -- Log error but don't fail - mark place as approved but keep existing traits
       RAISE WARNING 'Failed to parse LLM trait response: %', SQLERRM;
+      UPDATE places
+      SET 
+        pending_review = FALSE,
+        updated_at = NOW()
+      WHERE id = p_place_id;
       RETURN;
   END;
 
   -- ============================================================================
-  -- DELETE EXISTING PLACE_TRAITS
+  -- INSERT/MERGE TRAITS (ADDITIVE - preserves existing traits)
   -- ============================================================================
-  DELETE FROM place_traits
-  WHERE place_id = p_place_id;
-
-  -- ============================================================================
-  -- INSERT NEW TRAITS AND LINKS
+  -- NOTE: We do NOT delete existing place_traits. This function ADDS new traits
+  -- discovered from session descriptions while preserving traits learned from:
+  -- 1. Initial Nominatim extraction
+  -- 2. Previous LLM extractions
+  -- 3. Game session learning (learn_traits_from_session)
   -- ============================================================================
   FOR v_trait IN
     SELECT
@@ -3998,11 +4109,15 @@ Extract 5-15 relevant traits based on the place data and descriptions.',
     WHERE t->>'id' IS NOT NULL
       AND t->>'clause' IS NOT NULL
   LOOP
-    -- Insert trait if not exists
-    INSERT INTO traits (id, clause)
-    VALUES (v_trait.id, v_trait.clause)
+    -- Generate embedding for trait clause and upsert trait
+    v_trait_embedding_id := get_embedding(v_trait.clause);
+
+    -- Upsert trait: preserve existing clause if present, only fill in nulls
+    INSERT INTO traits (id, clause, embedding_id)
+    VALUES (v_trait.id, v_trait.clause, v_trait_embedding_id)
     ON CONFLICT (id) DO UPDATE SET
-      clause = EXCLUDED.clause;
+      clause = COALESCE(traits.clause, EXCLUDED.clause),
+      embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
 
     -- Link trait to place
     INSERT INTO place_traits (place_id, trait_id)
@@ -4018,16 +4133,24 @@ Extract 5-15 relevant traits based on the place data and descriptions.',
   -- ============================================================================
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
     v_combined_traits := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_or_create_embedding(v_combined_traits);
+    v_embedding_id := get_embedding(v_combined_traits);
 
     UPDATE places
     SET 
       embedding_id = v_embedding_id,
+      pending_review = FALSE,
+      updated_at = NOW()
+    WHERE id = p_place_id;
+  ELSE
+    -- Even without traits, mark place as approved
+    UPDATE places
+    SET 
+      pending_review = FALSE,
       updated_at = NOW()
     WHERE id = p_place_id;
   END IF;
 
-  RAISE NOTICE 'Regenerated % traits for place %', 
+  RAISE NOTICE 'Added % new traits for place %', 
     COALESCE(array_length(v_trait_clauses, 1), 0), v_place.name;
 
   RETURN;
@@ -4043,29 +4166,35 @@ $$;
 ALTER FUNCTION "game_logic"."regenerate_place_traits" (UUID) owner TO "postgres";
 
 
-comment ON function "game_logic"."regenerate_place_traits" (UUID) IS 'Regenerate traits for a place from all approved sessions.
+comment ON function "game_logic"."regenerate_place_traits" (UUID) IS 'Add new traits to a place from session descriptions (ADDITIVE - preserves existing).
 
 Parameters:
-- p_place_id: The place ID to regenerate traits for
+- p_place_id: The place ID to enrich with new traits
 
 Process:
 1. Query all approved sessions for the place (pending_review = FALSE)
-2. Get place Nominatim data (name, location)
-3. Combine place data with all session descriptions
-4. Call LLM to extract complete trait list
-5. Delete existing place_traits for the place
-6. Insert new traits (create in traits table if needed)
-7. Insert new place_traits links
-8. Regenerate place embedding from combined trait clauses
+2. Query existing traits for the place (to avoid duplicates)
+3. Get place Nominatim data (name, location)
+4. Combine place data, existing traits, and session descriptions
+5. Call LLM to extract NEW traits not already in existing list
+6. Insert new traits (preserves existing trait clauses via COALESCE)
+7. Insert new place_traits links (ON CONFLICT DO NOTHING)
+8. Update place embedding from combined NEW trait clauses
+
+IMPORTANT: This function is ADDITIVE. It does NOT delete existing traits.
+Traits accumulate over time from:
+- Initial Nominatim extraction
+- Previous LLM extractions  
+- Game session learning (learn_traits_from_session)
 
 Called by:
 - Trigger: on_session_approval_regenerate_traits (when session.pending_review → FALSE)
-- Manual: Admin can call to refresh traits
+- Manual: Admin can call to add traits from session descriptions
 
 Security: SECURITY DEFINER to access game_logic functions and call LLM.
 
 Note: Failures are logged as warnings but don''t fail the transaction,
-allowing the approval to complete even if trait regeneration fails.';
+allowing the approval to complete even if trait extraction fails.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/questions/get_geographic_questions.sql
@@ -4087,7 +4216,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."get_geographic_questions" (
   "yes_count" INTEGER,
   "no_count" INTEGER,
   "question_text" TEXT
-) language plpgsql
+) language plpgsql security definer
 SET
   search_path = public,
   game_logic,
@@ -4224,7 +4353,8 @@ Consistent return format with get_semantic_questions for use by select_best_ques
 -- Function: get_semantic_questions
 -- Category: questions
 -- Returns traits to generate semantic questions from, ranked by split quality
--- Spec: openspec/specs/algorithm/spec.md#question-selection-algorithm
+-- Uses place_traits relationship (ground truth) for split quality calculation
+-- Spec: docs/architecture/algorithm.md#question-selection
 CREATE OR REPLACE FUNCTION "game_logic"."get_semantic_questions" (
   "p_session_id" "uuid",
   "p_candidates" JSONB,
@@ -4242,34 +4372,35 @@ SET
   search_path = public, extensions, game_logic AS $$
 DECLARE
   v_candidate_count INT;
+  v_description_embedding vector(384);
 BEGIN
   v_candidate_count := jsonb_array_length(p_candidates);
   
   IF v_candidate_count <= 1 THEN
     RETURN;  -- No point asking questions with 0-1 candidates
   END IF;
+
+  -- Get session description embedding for tiebreaker
+  SELECT e.embedding INTO v_description_embedding
+  FROM game_sessions gs
+  JOIN embeddings e ON e.id = gs.embedding_id
+  WHERE gs.id = p_session_id;
   
   RETURN QUERY
-  WITH candidate_places AS (
-    -- Extract candidate place IDs and their embeddings
-    SELECT 
-      (c->>'id')::uuid as place_id,
-      pe.embedding as place_embedding
+  WITH candidate_ids AS (
+    -- Extract candidate place IDs
+    SELECT (c->>'id')::uuid as place_id
     FROM jsonb_array_elements(p_candidates) c
-    JOIN places p ON p.id = (c->>'id')::uuid
-    JOIN embeddings pe ON pe.id = p.embedding_id
   ),
-  trait_similarities AS (
-    -- Calculate embedding similarity between each trait and each candidate place
+  trait_counts AS (
+    -- Count how many candidates have each trait using place_traits (ground truth)
     SELECT
       t.id as trait_id,
       t.clause,
-      cp.place_id,
-      -- Cosine similarity: 1 - cosine_distance
-      (1 - (te.embedding::vector <=> cp.place_embedding::vector)) as similarity
+      t.embedding_id,
+      COUNT(pt.place_id) FILTER (WHERE pt.place_id IN (SELECT place_id FROM candidate_ids)) as yes_count
     FROM traits t
-    JOIN embeddings te ON te.id = t.embedding_id
-    CROSS JOIN candidate_places cp
+    LEFT JOIN place_traits pt ON pt.trait_id = t.id
     WHERE
       -- Don't ask same trait twice
       t.id NOT IN (
@@ -4278,41 +4409,42 @@ BEGIN
         WHERE ga.session_id = p_session_id
           AND ga.trait_id IS NOT NULL
       )
+    GROUP BY t.id, t.clause, t.embedding_id
   ),
   trait_splits AS (
-    -- Calculate split quality for each trait using similarity threshold
+    -- Calculate split quality for each trait
     SELECT
-      ts.trait_id,
-      ts.clause,
+      tc.trait_id,
+      tc.clause,
+      tc.embedding_id,
       'general'::text as category,
-      -- Get similarity threshold from config
-      get_config_float('traits.similarity_threshold') as similarity_threshold,
-      -- Count candidates that match trait (similarity >= threshold)
-      COUNT(*) FILTER (WHERE ts.similarity >= get_config_float('traits.similarity_threshold')) as yes_count,
-      -- Count candidates that don't match trait (similarity < threshold)
-      COUNT(*) FILTER (WHERE ts.similarity < get_config_float('traits.similarity_threshold')) as no_count,
+      tc.yes_count::INTEGER,
+      (v_candidate_count - tc.yes_count)::INTEGER as no_count,
       -- Split quality: 1.0 = perfect 50/50 split, 0.5 = all yes or all no
-      CASE 
-        WHEN v_candidate_count = 0 THEN 0.0
-        ELSE 1.0 - ABS(0.5 - (COUNT(*) FILTER (WHERE ts.similarity >= get_config_float('traits.similarity_threshold'))::float / v_candidate_count))
-      END as split_quality
-    FROM trait_similarities ts
-    GROUP BY ts.trait_id, ts.clause
-    HAVING 
+      (1.0 - ABS(0.5 - (tc.yes_count::float / v_candidate_count)))::DOUBLE PRECISION as split_quality
+    FROM trait_counts tc
+    WHERE
       -- CRITICAL: Only return traits that actually SPLIT the candidates
-      COUNT(*) FILTER (WHERE ts.similarity >= get_config_float('traits.similarity_threshold')) > 0  -- Some YES
-      AND COUNT(*) FILTER (WHERE ts.similarity < get_config_float('traits.similarity_threshold')) > 0  -- Some NO
+      tc.yes_count > 0  -- Some candidates have this trait
+      AND tc.yes_count < v_candidate_count  -- Some candidates don't have it
   )
   SELECT
-    ts.trait_id as id,
+    ts.trait_id,
     ts.clause,
     ts.category,
     ts.split_quality,
-    ts.yes_count::INTEGER,
-    ts.no_count::INTEGER,
-    NULL as question_text  -- Will be generated by LLM later
+    ts.yes_count,
+    ts.no_count,
+    NULL::TEXT as question_text  -- Will be generated by LLM later
   FROM trait_splits ts
-  ORDER BY ts.split_quality DESC
+  LEFT JOIN embeddings te ON te.id = ts.embedding_id
+  ORDER BY 
+    ts.split_quality DESC,
+    -- Tiebreaker: prefer traits most similar to description
+    CASE WHEN v_description_embedding IS NOT NULL AND te.embedding IS NOT NULL
+      THEN (1 - (te.embedding <=> v_description_embedding))
+      ELSE 0
+    END DESC
   LIMIT p_limit;
 END;
 $$;
@@ -4331,11 +4463,13 @@ comment ON function "game_logic"."get_semantic_questions" (
   "p_limit" INTEGER
 ) IS 'Returns traits to generate semantic questions from, ranked by split quality.
 
-CANDIDATE-AWARE: Uses place_traits to determine which places have which traits.
+Uses place_traits relationship (ground truth) to determine which candidates have which traits.
+This is faster and more accurate than embedding similarity.
 
-Split quality formula (from spec):
-- fraction_matching = count(places with trait) / candidate_count
-- split_quality = 1 - |0.5 - fraction_matching|
+Split quality formula (from docs/architecture/algorithm.md#question-selection):
+- yes_count = count(candidates that have this trait via place_traits)
+- no_count = candidate_count - yes_count
+- split_quality = 1 - |0.5 - (yes_count / candidate_count)|
 
 Filters by:
 1. Not already asked in this session
@@ -4343,9 +4477,10 @@ Filters by:
 
 Orders by:
 1. Split quality (perfect 50/50 split = 1.0)
+2. Tiebreaker: trait similarity to description (using embeddings)
 
 Returns: trait info + yes_count, no_count, split_quality for analysis.
-Questions are generated on-the-fly from trait clauses.';
+Question text is generated on-the-fly by LLM from trait clauses.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/questions/update_question_effectiveness_batch.sql
@@ -4856,6 +4991,7 @@ DECLARE
   v_llm_num_predict INT;
   v_llm_top_p FLOAT;
   v_llm_stop JSONB;
+  v_format TEXT;
 BEGIN
   -- Increase statement timeout for slower LLM responses (default 5s is too short)
   PERFORM set_config('statement_timeout', '15s', true);
@@ -4887,33 +5023,13 @@ BEGIN
 
   -- ============================================================================
   -- FETCH LLM SETTINGS FROM game_logic.config
-  -- Uses p_config_prefix to allow different settings per use-case:
-  --   'llm' (default) -> llm.model, llm.temperature, etc.
-  --   'llm.extraction' -> llm.extraction.model, llm.extraction.temperature, etc.
-  --   'llm.questions' -> llm.questions.model, llm.questions.temperature, etc.
-  -- Falls back to base 'llm.*' settings if prefix-specific not found
   -- ============================================================================
-  v_llm_model := COALESCE(
-    get_config_text(p_config_prefix || '.model'),
-    get_config_text('llm.model', 'gemma3:1b')
-  );
-  v_llm_temperature := COALESCE(
-    get_config_float(p_config_prefix || '.temperature'),
-    get_config_float('llm.temperature', 0.1)
-  );
-  v_llm_num_predict := COALESCE(
-    get_config_int(p_config_prefix || '.num_predict'),
-    get_config_int('llm.num_predict', 300)
-  );
-  v_llm_top_p := COALESCE(
-    get_config_float(p_config_prefix || '.top_p'),
-    get_config_float('llm.top_p', 0.9)
-  );
-  v_llm_stop := COALESCE(
-    get_config(p_config_prefix || '.stop'),
-    get_config('llm.stop'),
-    '["\\n\\n"]'::jsonb
-  );
+  v_llm_model := get_config_text(p_config_prefix || '.model');
+  v_llm_temperature := get_config_float(p_config_prefix || '.temperature');
+  v_llm_num_predict := get_config_int(p_config_prefix || '.num_predict');
+  v_llm_top_p := get_config_float(p_config_prefix || '.top_p');
+  v_llm_stop := get_config(p_config_prefix || '.stop');
+  v_format := COALESCE(p_format, get_config_text(p_config_prefix || '.format'));
 
   -- Build options object
   v_llm_options := jsonb_build_object(
@@ -4930,8 +5046,8 @@ BEGIN
     'options', v_llm_options
   );
   
-  IF p_format IS NOT NULL THEN
-    v_request_body := v_request_body || jsonb_build_object('format', p_format);
+  IF v_format IS NOT NULL THEN
+    v_request_body := v_request_body || jsonb_build_object('format', v_format);
   END IF;
 
   RAISE NOTICE 'Calling call-llm at: % with model: %', v_edge_function_url, v_llm_model;
@@ -4982,7 +5098,7 @@ Parameters:
 - p_prompt: The prompt to send to the LLM
 - p_format: Optional format hint (e.g., "json" for JSON responses)
 - p_config_prefix: Config key prefix for use-case specific settings (default: "llm")
-  Examples: "llm" (default), "llm.extraction", "llm.questions"
+  Examples: "llm.trait_extraction", "llm.question"
 
 Returns: LLM response text
 
@@ -5002,15 +5118,15 @@ Error handling:
 -- game_logic/functions/utilities/check_rate_limit.sql
 -- --------------------------------------------------------------------------
 
--- Function: check_rate_limit
 -- Category: utilities
 -- Purpose: Check and enforce rate limits
 -- Spec: openspec/specs/database/spec.md#rate-limiting
-CREATE OR REPLACE FUNCTION "game_logic"."check_rate_limit" ("p_user_id" UUID, "p_action" TEXT) returns void language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."check_rate_limit" ("p_action" TEXT) returns void language plpgsql security definer
 SET
   search_path = public,
   game_logic AS $$
 DECLARE
+  v_user_id UUID;
   v_limit INT;
   v_window_seconds INT;
   v_current_count INT;
@@ -5027,13 +5143,20 @@ BEGIN
   -- ============================================================================
   -- INPUT VALIDATION
   -- ============================================================================
-  IF p_user_id IS NULL THEN
-    -- No user context - allow the request (edge case)
+  IF p_action IS NULL OR trim(p_action) = '' THEN
+    RAISE EXCEPTION 'Action cannot be null or empty';
+  END IF;
+
+  -- Resolve user from auth context
+  v_user_id := auth.uid();
+
+  -- Service role bypasses rate limiting
+  IF auth.role() = 'service_role' THEN
     RETURN;
   END IF;
 
-  IF p_action IS NULL OR trim(p_action) = '' THEN
-    RAISE EXCEPTION 'Action cannot be null or empty';
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required for rate limited actions';
   END IF;
 
   -- ============================================================================
@@ -5080,7 +5203,7 @@ BEGIN
   -- ============================================================================
   SELECT COUNT(*) INTO v_current_count
   FROM game_logic.rate_limit_log
-  WHERE user_id = p_user_id
+  WHERE user_id = v_user_id
     AND action = p_action
     AND created_at > NOW() - (v_window_seconds || ' seconds')::INTERVAL;
 
@@ -5100,7 +5223,7 @@ BEGIN
   -- LOG REQUEST (allowed)
   -- ============================================================================
   INSERT INTO game_logic.rate_limit_log (user_id, action, created_at)
-  VALUES (p_user_id, p_action, NOW());
+  VALUES (v_user_id, p_action, NOW());
 
   -- Return void if allowed
   RETURN;
@@ -5108,13 +5231,12 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."check_rate_limit" (UUID, TEXT) owner TO "postgres";
+ALTER FUNCTION "game_logic"."check_rate_limit" (TEXT) owner TO "postgres";
 
 
-comment ON function "game_logic"."check_rate_limit" (UUID, TEXT) IS 'Check and enforce rate limits for RPC functions.
+comment ON function "game_logic"."check_rate_limit" (TEXT) IS 'Check and enforce rate limits for RPC functions.
 
 Parameters:
-- p_user_id: The user ID (from auth.uid())
 - p_action: The action being rate limited (start_game, play_turn, submit_place)
 
 Behavior:
@@ -5133,7 +5255,7 @@ Limits can be overridden via game_logic.config table:
 - rate_limit.<action>.limit: Max requests
 - rate_limit.<action>.window_seconds: Time window in seconds
 
-Security: SECURITY DEFINER to access game_logic.config and rate_limit_log.
+Security: SECURITY DEFINER to access game_logic.config and rate_limit_log. Uses auth.uid() internally; service_role bypasses limits.
 
 Error codes:
 - rate_limit_exceeded: Returns 429 status to frontend';
@@ -5167,6 +5289,7 @@ DECLARE
   v_embedding_id UUID;
   v_trait_id TEXT;
   v_trait_clause TEXT;
+  v_trait_embedding_id UUID;
 BEGIN
   -- ============================================================================
   -- EXTRACT PLACE FIELDS
@@ -5195,7 +5318,7 @@ BEGIN
   -- ============================================================================
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
     v_combined_text := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_or_create_embedding(v_combined_text);
+    v_embedding_id := get_embedding(v_combined_text);
   END IF;
 
   -- ============================================================================
@@ -5227,10 +5350,13 @@ BEGIN
       FROM jsonb_array_elements(p_traits) AS t
       WHERE t->>'id' IS NOT NULL AND t->>'clause' IS NOT NULL
     LOOP
-      -- Insert trait if not exists
-      INSERT INTO traits (id, clause)
-      VALUES (v_trait_id, v_trait_clause)
-      ON CONFLICT (id) DO NOTHING;
+      -- Generate embedding for trait clause and upsert trait
+      v_trait_embedding_id := get_embedding(v_trait_clause);
+
+      INSERT INTO traits (id, clause, embedding_id)
+      VALUES (v_trait_id, v_trait_clause, v_trait_embedding_id)
+      ON CONFLICT (id) DO UPDATE SET
+        embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
 
       -- Link trait to place
       INSERT INTO place_traits (place_id, trait_id)
@@ -5257,9 +5383,9 @@ Parameters:
 
 Process:
 1. Extract name, lat, lng, geojson from Nominatim data
-2. Generate embedding from combined trait clauses
+2. Generate embedding from combined trait clauses for place embedding
 3. Create place record via add_place()
-4. Create traits and link to place
+4. Generate embeddings for individual traits and link to place
 
 Returns: UUID of created place';
 
@@ -5295,8 +5421,7 @@ ALTER FUNCTION "game_logic"."enrich_place_on_approval" () owner TO "postgres";
 
 -- Function: enrich_place_on_session_complete
 -- Category: utilities
--- Dependencies: See migration files for full dependency chain
--- This file is auto-generated from migrations
+-- Purpose: Trigger function that enriches place with learned traits when a session completes
 CREATE OR REPLACE FUNCTION "game_logic"."enrich_place_on_session_complete" () returns "trigger" language "plpgsql"
 SET
   search_path = public,
@@ -5304,8 +5429,11 @@ SET
 BEGIN
   -- Only fire when was_correct becomes TRUE
   IF NEW.was_correct = TRUE AND (OLD.was_correct IS NULL OR OLD.was_correct = FALSE) THEN
-    -- Run enrichment asynchronously (don't block session completion)
-    PERFORM enrich_place(NEW.place_id);
+    -- Learn from the completed session's answers (existing traits)
+    PERFORM learn_traits_from_session(NEW.id, NEW.place_id);
+    
+    -- Extract NEW traits from session description via LLM
+    PERFORM regenerate_place_traits(NEW.place_id);
   END IF;
 
   RETURN NEW;
@@ -5314,6 +5442,15 @@ $$;
 
 
 ALTER FUNCTION "game_logic"."enrich_place_on_session_complete" () owner TO "postgres";
+
+
+comment ON function "game_logic"."enrich_place_on_session_complete" () IS 'Trigger function that enriches a place when a game session completes successfully.
+
+When was_correct becomes TRUE:
+1. Calls learn_traits_from_session to add affirmed traits to the place
+2. Calls regenerate_place_traits to extract NEW traits from session description via LLM
+
+This enables the game to learn new traits about places from successful games.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/extract_traits_from_nominatim.sql
@@ -5330,27 +5467,41 @@ SET
   extensions AS $$
 DECLARE
   v_llm_enabled BOOLEAN;
+  v_prompt_template TEXT;
   v_llm_prompt TEXT;
   v_llm_response TEXT;
   v_traits JSONB;
-  v_name TEXT;
-  v_display_name TEXT;
-  v_extratags JSONB;
+  v_nominatim_summary JSONB;
+  v_address_full JSONB;
   v_address JSONB;
+  v_extratags JSONB;
+  v_id TEXT;
+  v_clause TEXT;
+  -- Keys to EXCLUDE from extratags (blacklist - non-descriptive/operational data)
+  v_extratags_exclude TEXT[] := ARRAY[
+    -- External IDs and URLs (not descriptive)
+    'wikidata', 'wikipedia', 'wikimedia_commons', 'website', 'url', 'image',
+    -- Contact/operational info (not game-relevant)
+    'phone', 'fax', 'email', 'opening_hours', 'check_date', 'fee',
+    -- Administrative/source metadata
+    'source', 'operator', 'brand', 'network', 'panoramax',
+    -- Reference codes (cryptic, not descriptive)
+    'ref', 'int_ref', 'nat_ref', 'loc_ref',
+    -- Name variants (already have primary name)
+    'alt_name', 'old_name', 'short_name', 'official_name', 'loc_name',
+    -- Accessibility/service info (operational)
+    'wheelchair', 'toilets', 'internet_access', 'smoking',
+    -- Technical/rendering metadata
+    'layer', '3dmr', 'min_height'
+  ];
+  v_key TEXT;
 BEGIN
-  -- Extract fields for prompt
-  v_name := COALESCE(
-    p_nominatim_data->'namedetails'->>'name:en',
-    p_nominatim_data->>'name',
-    p_nominatim_data->>'display_name'
-  );
-  v_display_name := p_nominatim_data->>'display_name';
+  v_address_full := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
   v_extratags := COALESCE(p_nominatim_data->'extratags', '{}'::jsonb);
-  v_address := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
 
-  -- Check if LLM trait extraction is enabled
+  -- Check if LLM is enabled
   v_llm_enabled := COALESCE(
-    (game_logic.get_config('llm.extraction.enabled')#>>'{}')::BOOLEAN,
+    (game_logic.get_config('llm.enabled')#>>'{}')::BOOLEAN,
     TRUE
   );
 
@@ -5360,58 +5511,79 @@ BEGIN
   -- LLM TRAIT EXTRACTION (if enabled)
   -- ============================================================================
   IF v_llm_enabled THEN
-    v_llm_prompt := format(
-      E'You are extracting traits for a geographic guessing game. Given place data, extract 5-8 distinctive traits that would help players guess this location.
-
-Place: %s
-Full address: %s
-Category: %s/%s
-Country: %s
-Additional info: %s
-
-Extract traits covering:
-1. What it IS (temple, tower, mountain, waterfall, etc.)
-2. Religious/cultural significance (Buddhist, Hindu, Christian, Islamic, ancient, etc.)
-3. Historical period (ancient, medieval, 19th century, modern, etc.)
-4. Physical features (tall, stone, iron, carved, etc.)
-5. Famous for (UNESCO site, wonder of world, pilgrimage, etc.)
-6. Geographic context (coastal, mountain, desert, jungle, etc.)
-
-Return a JSON array with 5-8 traits:
-[{"id": "category:value", "clause": "Human readable description"}]
-
-Example for Angkor Wat:
-[
-  {"id": "type:temple", "clause": "Ancient temple complex"},
-  {"id": "religion:buddhist", "clause": "Buddhist religious site"},
-  {"id": "religion:hindu", "clause": "Originally Hindu temple"},
-  {"id": "era:medieval", "clause": "Built in 12th century"},
-  {"id": "feature:stone", "clause": "Made of sandstone"},
-  {"id": "status:unesco", "clause": "UNESCO World Heritage Site"},
-  {"id": "fame:wonder", "clause": "Largest religious monument in world"}
-]
-
-Return ONLY the JSON array.',
-      v_name,
-      v_display_name,
-      p_nominatim_data->>'class',
-      p_nominatim_data->>'type',
-      v_address->>'country',
-      v_extratags::text
+    -- Filter extratags: remove blacklisted keys (keep everything else)
+    DECLARE
+      v_filtered_extratags JSONB := '{}'::jsonb;
+    BEGIN
+      FOR v_key IN SELECT jsonb_object_keys(v_extratags)
+      LOOP
+        -- Exclude exact matches and prefix matches (e.g., 'contact:*', 'name:*', 'source:*')
+        IF NOT (
+          v_key = ANY(v_extratags_exclude) OR
+          v_key LIKE 'contact:%' OR
+          v_key LIKE 'name:%' OR
+          v_key LIKE 'source:%' OR
+          v_key LIKE 'ref:%' OR
+          v_key LIKE 'payment:%' OR
+          v_key LIKE 'addr:%' OR
+          v_key LIKE 'image:%'
+        ) THEN
+          v_filtered_extratags := v_filtered_extratags || jsonb_build_object(v_key, v_extratags->v_key);
+        END IF;
+      END LOOP;
+      v_extratags := v_filtered_extratags;
+    END;
+    
+    -- Filter address: keep only country, state, city for context
+    v_address := jsonb_build_object(
+      'country', v_address_full->>'country',
+      'state', v_address_full->>'state',
+      'city', COALESCE(v_address_full->>'city', v_address_full->>'town', v_address_full->>'village')
     );
 
-    RAISE NOTICE 'Calling LLM for trait extraction';
+    -- Build summary of nominatim data for the LLM
+    v_nominatim_summary := jsonb_build_object(
+      'name', COALESCE(p_nominatim_data->'namedetails'->>'name:en', p_nominatim_data->>'name'),
+      'class', p_nominatim_data->>'class',
+      'type', p_nominatim_data->>'type',
+      'country', v_address_full->>'country',
+      'extratags', v_extratags
+    );
 
-    -- Use llm.extraction config prefix for extraction-specific model settings
-    -- Note: Don't pass 'json' format - gemma returns cleaner JSON arrays without it
-    v_llm_response := game_logic.call_llm_api(v_llm_prompt, NULL, 'llm.extraction');
+    -- Get prompt template from config and substitute
+    v_prompt_template := game_logic.get_config_text('llm.trait_extraction.prompt');
+    v_llm_prompt := replace(v_prompt_template, '{{nominatim_json}}', v_nominatim_summary::text);
+
+    RAISE NOTICE 'Calling LLM for trait extraction: %', v_nominatim_summary->>'name';
+
+    v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
     
-    -- Strip markdown code fences if present (```json ... ```)
-    v_llm_response := regexp_replace(v_llm_response, '^```json\s*', '', 'i');
-    v_llm_response := regexp_replace(v_llm_response, '\s*```$', '', 'i');
-    v_llm_response := trim(v_llm_response);
-    
-    v_traits := v_llm_response::jsonb;
+    -- Parse JSON format: {"traits": [{"id": "...", "clause": "..."}, ...]}
+    BEGIN
+      DECLARE
+        v_json_response JSONB;
+        v_trait JSONB;
+      BEGIN
+        v_json_response := v_llm_response::jsonb;
+        
+        -- Extract traits array from response
+        FOR v_trait IN SELECT jsonb_array_elements(v_json_response->'traits')
+        LOOP
+          v_id := trim(v_trait->>'id');
+          v_clause := trim(v_trait->>'clause');
+          -- Normalize id: fix "category: value" -> "category:value", then spaces to hyphens, lowercase
+          v_id := regexp_replace(v_id, ':\s+', ':', 'g');  -- Remove spaces after colons
+          v_id := regexp_replace(v_id, '\s+', '-', 'g');   -- Replace remaining spaces with hyphens
+          v_id := lower(v_id);
+          IF v_id <> '' AND v_clause <> '' THEN
+            v_traits := v_traits || jsonb_build_array(jsonb_build_object('id', v_id, 'clause', v_clause));
+          END IF;
+        END LOOP;
+      END;
+    EXCEPTION
+      WHEN others THEN
+        RAISE WARNING 'Failed to parse LLM JSON response: %. Response was: %', SQLERRM, v_llm_response;
+    END;
   END IF;
 
   -- ============================================================================
@@ -5434,10 +5606,10 @@ Return ONLY the JSON array.',
   END IF;
 
   -- Add country as trait
-  IF v_address->>'country' IS NOT NULL THEN
+  IF v_address_full->>'country' IS NOT NULL THEN
     v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'country:' || lower(replace(v_address->>'country', ' ', '_')),
-      'clause', v_address->>'country'
+      'id', 'country:' || lower(replace(v_address_full->>'country', ' ', '_')),
+      'clause', v_address_full->>'country'
     ));
   END IF;
 
@@ -5455,14 +5627,16 @@ Parameters:
 - p_nominatim_data: JSONB from fetch_nominatim_place()
 
 Process:
-1. If features.use_llm_trait_extraction enabled, call LLM for rich trait extraction
-2. Always add rule-based traits (class, type, country)
+1. Filter extratags: remove non-descriptive keys (wikidata, URLs, contact info, ref codes)
+2. If LLM enabled, call LLM (gemma3:1b) with JSON format for rich trait extraction
+3. Parse JSON response: {"traits": [{"id": "...", "clause": "..."}, ...]}
+4. Always add rule-based traits (class, type, country)
 
 Returns: JSONB array of traits, each with:
-- id: "category:value" format
+- id: "category:value" format (e.g., "style:victorian", "era:19th_century")
 - clause: Human readable description
 
-Raises exception if LLM call fails (no fallback).';
+Logs warning if LLM JSON parsing fails, continues with rule-based traits only.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/fetch_nominatim_place.sql
@@ -5497,21 +5671,21 @@ BEGIN
   -- ============================================================================
   -- CALL NOMINATIM
   -- ============================================================================
-  PERFORM set_config('statement_timeout', '30s', true);
-  PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '30000');
-  PERFORM extensions.http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '5000');
+  PERFORM set_config('statement_timeout', '60s', true);
+  PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '60000');
+  PERFORM extensions.http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '15000');
 
   RAISE NOTICE 'Calling Nominatim lookup for: %', p_osm_id;
 
   SELECT status, content INTO v_status, v_content FROM extensions.http((
     'GET',
     format(
-      'https://nominatim.openstreetmap.org/lookup?osm_ids=%s%s&format=json&extratags=1&addressdetails=1&namedetails=1',
+      'https://nominatim.openstreetmap.org/lookup?osm_ids=%s%s&format=json&extratags=1&addressdetails=1&namedetails=1&polygon_geojson=1',
       upper(left(v_osm_type, 1)),  -- N, W, or R
       v_osm_id_num
     ),
     ARRAY[
-      extensions.http_header('User-Agent', 'MapMaster/1.0'),
+      extensions.http_header('User-Agent', '10x-mapmaster/1.0'),
       extensions.http_header('Accept', 'application/json')
     ],
     NULL,
@@ -5739,11 +5913,12 @@ SET
 DECLARE
   v_trait_clause TEXT;
   v_region_name TEXT;
+  v_prompt_template TEXT;
   v_prompt TEXT;
   v_llm_response TEXT;
   v_question_text TEXT;
 BEGIN
-  -- Get trait or region context
+  -- Get trait or region context and build prompt from config template
   IF p_trait_id IS NOT NULL THEN
     SELECT clause INTO v_trait_clause
     FROM traits
@@ -5753,12 +5928,8 @@ BEGIN
       RAISE EXCEPTION 'Trait % not found in traits table', p_trait_id;
     END IF;
     
-    -- Build semantic question prompt
-    v_prompt := 'Generate a natural yes/no question to ask about a place. ' ||
-      'The question should ask whether the place has this characteristic: "' || v_trait_clause || '". ' ||
-      'Make it conversational and natural, not robotic. ' ||
-      'Output ONLY the question, nothing else. ' ||
-      'Language: ' || p_language_code;
+    v_prompt_template := get_config_text('llm.question.trait_prompt');
+    v_prompt := replace(v_prompt_template, '{{trait_clause}}', v_trait_clause);
     
   ELSIF p_region_id IS NOT NULL THEN
     SELECT name INTO v_region_name
@@ -5769,19 +5940,15 @@ BEGIN
       RAISE EXCEPTION 'Geographic region % not found', p_region_id;
     END IF;
     
-    -- Build geographic question prompt
-    v_prompt := 'Generate a natural yes/no question to ask about a place''s location. ' ||
-      'The question should ask whether the place is in: "' || v_region_name || '". ' ||
-      'Make it conversational and natural, not robotic. ' ||
-      'Output ONLY the question, nothing else. ' ||
-      'Language: ' || p_language_code;
+    v_prompt_template := get_config_text('llm.question.region_prompt');
+    v_prompt := replace(v_prompt_template, '{{region_name}}', v_region_name);
     
   ELSE
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
   END IF;
   
-  -- Call LLM via call_llm_api - no fallback, fail if LLM fails
-  v_llm_response := call_llm_api(v_prompt);
+  -- Call LLM via call_llm_api with question-specific config - no fallback, fail if LLM fails
+  v_llm_response := call_llm_api(v_prompt, NULL, 'llm.question');
   v_question_text := trim(v_llm_response);
   
   IF v_question_text IS NULL OR v_question_text = '' THEN
@@ -5819,7 +5986,7 @@ Parameters:
 Process:
 1. Get trait clause or region name from database
 2. Build appropriate prompt for LLM
-3. Call call-llm edge function via call_llm_api
+3. Call call-llm edge function via call_llm_api (uses llm.question.* config)
 4. Extract question text from response
 
 Errors:
@@ -6030,35 +6197,13 @@ comment ON function "game_logic"."get_config_int" ("p_key" TEXT, "p_default" INT
 comment ON function "game_logic"."get_config_text" ("p_key" TEXT, "p_default" TEXT) IS 'Retrieve configuration value as TEXT with default.';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/utilities/get_max_turns.sql
+-- game_logic/functions/utilities/get_embedding.sql
 -- --------------------------------------------------------------------------
 
--- Function: get_max_turns
--- Category: utilities
--- Purpose: Get max_turns setting from game_logic.config (DRY helper)
-CREATE OR REPLACE FUNCTION "game_logic"."get_max_turns" () returns INTEGER language sql stable security definer
-SET
-  search_path = public,
-  game_logic AS $$
-  SELECT get_config_int('game.max_turns', 5);
-$$;
-
-
-ALTER FUNCTION "game_logic"."get_max_turns" () owner TO "postgres";
-
-
-comment ON function "game_logic"."get_max_turns" () IS 'Get max_turns from game_logic.config table.
-Returns 5 if setting not found.
-Marked STABLE for query optimization.';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/utilities/get_or_create_embedding.sql
--- --------------------------------------------------------------------------
-
--- Function: get_or_create_embedding
+-- Function: get_embedding
 -- Category: utilities
 -- Gets existing embedding or creates a new one for the given text
-CREATE OR REPLACE FUNCTION "game_logic"."get_or_create_embedding" ("p_text" "text") returns UUID language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_embedding" ("p_text" "text") returns UUID language "plpgsql" security definer
 SET
   "search_path" = public,
   game_logic,
@@ -6091,17 +6236,37 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."get_or_create_embedding" ("p_text" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."get_embedding" ("p_text" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."get_or_create_embedding" ("p_text" "text") IS 'Creates a new embedding for the given text.
+comment ON function "game_logic"."get_embedding" ("p_text" "text") IS 'Gets existing embedding for the given text or creates a new one.
 
 Process:
-1. Call edge function to generate embedding
-2. Store new embedding in database
-3. Return new ID
+1. Return existing embedding_id when source_text matches
+2. Otherwise call edge function to generate and store embedding
+3. Return embedding UUID';
 
-Returns: embedding UUID';
+-- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/get_max_turns.sql
+-- --------------------------------------------------------------------------
+
+-- Function: get_max_turns
+-- Category: utilities
+-- Purpose: Get max_turns setting from game_logic.config (DRY helper)
+CREATE OR REPLACE FUNCTION "game_logic"."get_max_turns" () returns INTEGER language sql stable security definer
+SET
+  search_path = public,
+  game_logic AS $$
+  SELECT get_config_int('game.max_turns', 5);
+$$;
+
+
+ALTER FUNCTION "game_logic"."get_max_turns" () owner TO "postgres";
+
+
+comment ON function "game_logic"."get_max_turns" () IS 'Get max_turns from game_logic.config table.
+Returns 5 if setting not found.
+Marked STABLE for query optimization.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/http_call_edge_function.sql
@@ -6523,8 +6688,8 @@ comment ON trigger "on_session_approval_regenerate_traits_trigger" ON "public"."
 -- Status Derivation Logic:
 -- - 'won': User guessed correctly (was_correct = TRUE)
 -- - 'ended': Hit 5-turn limit without winning (was_correct = FALSE)
--- - 'needs_submission': Zero candidates, needs manual place submission (next_turn = NULL, was_correct = NULL)
--- - 'active': Game in progress (next_turn != NULL)
+-- - 'needs_submission': Zero candidates OR give_up action (next_turn = NULL OR next_turn->>'action' = 'give_up')
+-- - 'active': Game in progress (next_turn != NULL with question/guess action)
 CREATE OR REPLACE VIEW "public"."game_session_state" AS
 SELECT
   -- Session metadata
@@ -6536,6 +6701,7 @@ SELECT
     WHEN gs.next_turn IS NULL
     AND gs.was_correct = FALSE THEN 'ended'::game_session_status
     WHEN gs.next_turn IS NULL THEN 'needs_submission'::game_session_status
+    WHEN gs.next_turn ->> 'action' = 'give_up' THEN 'needs_submission'::game_session_status
     ELSE 'active'::game_session_status
   END AS status,
   -- Next turn action (cached)
@@ -6755,6 +6921,44 @@ SELECT
 GRANT
 SELECT
   ON TABLE public.global_stats TO service_role;
+
+-- --------------------------------------------------------------------------
+-- public/views/places_with_geometry.sql
+-- --------------------------------------------------------------------------
+
+-- View: places_with_geometry
+-- Schema: public
+-- Description: Places with geometry as GeoJSON for map rendering
+-- Note: Large geometries (>500 points) are simplified for performance
+CREATE OR REPLACE VIEW "public"."places_with_geometry" AS
+SELECT
+  p.id,
+  p.name,
+  p.lat,
+  p.lng,
+  p.times_encountered,
+  -- Simplify large geometries (cities) while keeping small ones (buildings) intact
+  CASE
+    WHEN extensions.ST_NPoints(p.geom) > 500 THEN
+      extensions.ST_AsGeoJSON(extensions.ST_Simplify(p.geom, 0.001))::jsonb
+    ELSE
+      extensions.ST_AsGeoJSON(p.geom)::jsonb
+  END AS geometry
+FROM
+  places p
+WHERE
+  p.lat IS NOT NULL
+  AND p.lng IS NOT NULL
+  AND p.pending_review = false;
+
+
+ALTER VIEW "public"."places_with_geometry" OWNER TO "postgres";
+
+
+-- Permissions: public read access
+GRANT SELECT ON TABLE public.places_with_geometry TO anon;
+GRANT SELECT ON TABLE public.places_with_geometry TO authenticated;
+GRANT SELECT ON TABLE public.places_with_geometry TO service_role;
 
 -- --------------------------------------------------------------------------
 -- public/views/user_stats.sql

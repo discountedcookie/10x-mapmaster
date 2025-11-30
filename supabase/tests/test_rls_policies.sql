@@ -165,9 +165,11 @@ SELECT
 
 
 SELECT
-  lives_ok (
+  throws_ok (
     $sql$ INSERT INTO game_sessions (user_id, description, language_code) VALUES (NULL, 'Anonymous test', 'en'); $sql$,
-    'Anonymous users can create anonymous sessions'
+    '42501',
+    'new row violates row-level security policy for table "game_sessions"',
+    'Anonymous users cannot create sessions without auth'
   );
 
 
@@ -349,10 +351,28 @@ SELECT
 
 
 -- Test 19: Embeddings are publicly readable
+SET
+  local role authenticated;
+
+
 SELECT
-  lives_ok (
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '550e8400-e29b-41d4-a716-446655440001',
+    TRUE
+  );
+
+
+SELECT
+  throws_ok (
     $sql$ SELECT COUNT(*) FROM embeddings; $sql$,
-    'Embeddings are publicly readable'
+    '42501',
+    'permission denied for table embeddings',
+    'Embeddings are restricted to service_role'
   );
 
 

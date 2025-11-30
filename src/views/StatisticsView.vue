@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
+
+interface Props {
+  renderMode?: 'layers' | 'ui'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  renderMode: 'ui',
+})
 import { useI18n } from 'vue-i18n'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -23,8 +31,11 @@ function formatAverage(value: number): string {
 </script>
 
 <template>
-  <!-- Statistics card over map -->
-  <div class="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
+  <!-- No map layers for statistics view -->
+  <template v-if="renderMode === 'layers'" />
+
+  <!-- UI - Statistics card over map -->
+  <div v-else class="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
     <div class="pointer-events-auto w-full max-w-2xl">
       <Card class="shadow-2xl">
         <CardHeader class="text-center space-y-3">

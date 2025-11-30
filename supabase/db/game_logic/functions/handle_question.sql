@@ -60,7 +60,7 @@ BEGIN
 
   -- Per spec: Apply answer based on question type
   -- Geographic = filter candidates (binary in/out)
-  -- Semantic = adjust scores (power-law)
+  -- Semantic = adjust scores (multiplicative via place_traits)
   IF v_question_type = 'geographic' THEN
     -- Filter candidates using PostGIS
     v_candidates_after := filter_candidates_for_geography(
@@ -97,11 +97,11 @@ comment ON function "game_logic"."handle_question" (
   "p_session_record" record
 ) IS 'Handle question answer (YES/NO/NOT_SURE answer to a question).
 
-Per spec (algorithm.md#turn-flow):
+Per spec (docs/architecture/algorithm.md#turn-flow):
 1. Record Answer
 2. Geographic or Semantic?
    - Geographic → Filter Candidates (ST_Contains)
-   - Semantic → Adjust Scores (Power-Law)
+   - Semantic → Adjust Scores (Multiplicative via place_traits)
 3. Recalculate Probabilities (softmax)
 4. Decide Next Turn
 
@@ -110,14 +110,14 @@ Responsibilities (SRP):
 - Record answer with snapshot BEFORE adjustment
 - Apply answer based on question type:
   - Geographic: filter_candidates_for_geography (binary in/out)
-  - Semantic: adjust_candidates_for_answer (power-law scoring)
+  - Semantic: adjust_candidates_for_answer (multiplicative scoring)
 - Recalculate probabilities via softmax
 - Continue game via decide_next_turn
 
 Score Adjustment (semantic answers):
-- Uses adjust_candidates_for_answer which calls adjust_score for each candidate
-- new_score = old_score + adjustment (progressive, not recalculated)
-- Adjustment magnitude uses power-law: base_weight * match_strength^beta
+- Uses adjust_candidates_for_answer with binary place_traits lookup
+- new_score = old_score * multiplier (multiplicative)
+- Multiplier based on trait ownership: boost_factor or penalty_factor
 
 Storage strategy:
 - candidates: Retrieved from next_turn (state at answer time)

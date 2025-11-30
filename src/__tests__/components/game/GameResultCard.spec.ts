@@ -22,7 +22,7 @@ describe('GameResultCard', () => {
     description_similarity: 0.85,
     affirmed_trait_similarity: 0.9,
     denied_trait_similarity: null,
-    geographic_distance: 1000000,
+    geographic_distance: 1_000_000,
   }
 
   describe('High Confidence Guess', () => {

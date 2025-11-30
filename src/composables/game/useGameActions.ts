@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
+import { logger } from '@/lib/logger'
 import { useGameStore } from '@/stores/game'
 import type { NominatimPlace } from '@/composables/usePlaces'
 import type { useGameState } from './useGameState'
@@ -18,7 +19,7 @@ export function useGameActions(state: ReturnType<typeof useGameState>) {
       await gameStore.startNewGame(description.trim(), locale.value)
       state.gameStarted.value = true
     } catch (error) {
-      console.error('Failed to start game:', error)
+      logger.error('Failed to start game:', error)
       toast.error(t('game.toast.start_game_failed_title'), {
         description: t('game.toast.start_game_failed_body'),
       })
@@ -52,7 +53,7 @@ export function useGameActions(state: ReturnType<typeof useGameState>) {
       })
       playAgain()
     } catch (error) {
-      console.error('Failed to save game:', error)
+      logger.error('Failed to save game:', error)
       toast.error(t('game.toast.save_game_failed_title'), {
         description: t('game.toast.save_game_failed_body'),
       })
@@ -63,7 +64,7 @@ export function useGameActions(state: ReturnType<typeof useGameState>) {
 
   async function handleIncorrectGuess() {
     // This function is deprecated - handled by playTurn now
-    console.warn('handleIncorrectGuess is deprecated')
+    logger.warn('handleIncorrectGuess is deprecated')
   }
 
   async function selectPlace(_nominatimPlace: NominatimPlace) {
@@ -75,7 +76,7 @@ export function useGameActions(state: ReturnType<typeof useGameState>) {
         description: 'New places must be added by administrators',
       })
     } catch (error) {
-      console.error('Failed to select place:', error)
+      logger.error('Failed to select place:', error)
     } finally {
       saving.value = false
     }

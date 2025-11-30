@@ -278,9 +278,9 @@ SELECT
       FROM
         game_logic.config
       WHERE
-        key = 'candidates.semantic_similarity_threshold'
+        key = 'scoring.initial_candidate_threshold'
     ),
-    'Critical config key exists: candidates.semantic_similarity_threshold'
+    'Critical config key exists: scoring.initial_candidate_threshold'
   );
 
 

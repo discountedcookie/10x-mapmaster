@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+
+interface Props {
+  renderMode?: 'layers' | 'ui'
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  renderMode: 'ui',
+})
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
@@ -122,8 +130,12 @@ function goToSignup() {
 </script>
 
 <template>
-  <!-- Blurred backdrop overlay -->
+  <!-- No map layers for auth views -->
+  <template v-if="renderMode === 'layers'" />
+
+  <!-- UI - Blurred backdrop overlay -->
   <div
+    v-else
     class="absolute inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center pointer-events-none"
   >
     <div class="pointer-events-auto">

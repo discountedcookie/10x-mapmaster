@@ -41,8 +41,8 @@ function geometryToWKT(geometry: any): string {
   throw new Error(`Unsupported geometry type: ${geometry.type}`)
 }
 
-function escapeSql(str: string): string {
-  return str.split("'").join("''")
+function escapeSql(string_: string): string {
+  return string_.split("'").join("''")
 }
 
 async function main() {
@@ -115,7 +115,7 @@ async function main() {
       // Use ST_Union to merge all country geometries into continent geometry
       // ST_Collect creates a geometry collection, ST_Union merges overlaps
       const geomCollection = geometryWKTs
-        .map((wkt, idx) => `    ST_GeomFromText('${escapeSql(wkt)}', 4326)`)
+        .map((wkt, index) => `    ST_GeomFromText('${escapeSql(wkt)}', 4326)`)
         .join(',\n')
 
       sql += `INSERT INTO geographic_regions (name, level, geom, continent_id, iso_code)

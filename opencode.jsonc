@@ -46,14 +46,16 @@
       "find": "deny",
       "grep": "deny",
       "ls": "deny",
+      "npm": "deny",
       "rg": "deny",
       //
-      "bun *": "allow",
-      "npm": "deny",
-      //
-      "openspec *": "allow",
+      "bun": "allow",
+      "git": "allow",
+      "head": "allow",
+      "openspec": "allow",
       "psql": "allow",
-      "supabase *": "allow",
+      "supabase": "allow",
+      "tail": "allow",
     },
   },
 

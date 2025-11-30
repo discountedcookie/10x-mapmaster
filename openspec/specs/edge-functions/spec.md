@@ -5,9 +5,7 @@
 Edge functions provide external service integrations for the database-first architecture. They handle provider connections (LLM, embeddings, Nominatim) and abstract secrets management, allowing the database to call external services without exposing API keys.
 
 All edge functions are called ONLY by the database via http extension. Frontend does NOT call edge functions.
-
 ## Requirements
-
 ### Requirement: generate-embedding Edge Function
 
 The system SHALL provide an edge function to generate 384d embeddings from text using configurable providers.
@@ -29,12 +27,22 @@ The system SHALL provide an edge function to generate 384d embeddings from text 
 
 ### Requirement: call-llm Edge Function
 
-The system SHALL provide an edge function to call LLMs for text generation with configurable providers.
+The system SHALL provide an edge function to call LLMs for text generation and structured extraction with configurable providers.
 
 #### Scenario: Successful LLM call
 
-- **WHEN** called with valid parameters (prompt required; model, format, options optional)
-- **THEN** it returns generated text and hides provider secrets
+- **WHEN** called with valid parameters (type required; prompt, place_name, nominatim_data as needed)
+- **THEN** it returns generated text or structured data and hides provider secrets
+
+#### Scenario: Question generation
+
+- **WHEN** called with `type: 'question_generation'` and trait/region context
+- **THEN** it returns natural language question text
+
+#### Scenario: Trait extraction
+
+- **WHEN** called with `type: 'trait_extraction'` and Nominatim data
+- **THEN** it returns structured traits array with id, category, clause fields
 
 #### Scenario: Error handling
 
@@ -46,21 +54,3 @@ The system SHALL provide an edge function to call LLMs for text generation with 
 - **WHEN** changing providers
 - **THEN** configuration/env selects providers without code changes
 
-### Requirement: place-enrichment Edge Function
-
-The system SHALL provide an edge function to fetch place data by OSM ID and extract traits for submissions.
-
-#### Scenario: Successful enrichment
-
-- **WHEN** called with a valid osm_id (e.g., "way/5013364")
-- **THEN** it returns normalized Nominatim data and an extracted trait list in structured form
-
-#### Scenario: Error handling
-
-- **WHEN** Nominatim lookup or trait extraction fails
-- **THEN** standardized errors are returned without leaking secrets
-
-#### Scenario: Security
-
-- **WHEN** responding
-- **THEN** only necessary place/trait data is returned; no secrets are exposed

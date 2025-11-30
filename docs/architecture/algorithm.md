@@ -21,7 +21,7 @@ flowchart TD
     B --> C{Geographic or Semantic?}
 
     C -->|Geographic| D[Filter Candidates<br/>ST_Contains]
-    C -->|Semantic| E[Adjust Scores<br/>Power-Law]
+    C -->|Semantic| E[Adjust Scores<br/>Multiplicative via place_traits]
 
     D --> F[Recalculate Probabilities]
     E --> F
@@ -46,13 +46,43 @@ flowchart TD
 
 ### Initial Scoring
 
-Places are scored by semantic similarity to the player's description using pgvector inner product on normalized embeddings:
+Places are scored using **softmax-weighted aggregation of trait similarities**. This approach compares the player's description against each place's individual traits rather than a combined embedding, which handles both categorical descriptions ("religious site") and specific descriptions ("tall iron tower in Paris") effectively.
+
+For each place, compute similarity between the description and each of its traits:
 
 ```
-raw_score(place) = similarity(place.embedding, description.embedding)
+trait_similarities = [similarity(description.embedding, trait.embedding) for trait in place.traits]
 ```
 
-For normalized vectors, inner product is equivalent to cosine similarity. The `<#>` operator returns negative values (more negative = more similar), so we negate to get positive similarity scores.
+Then aggregate using softmax-weighted average:
+
+```
+weights_i = exp(sim_i / τ) / Σ_j exp(sim_j / τ)
+raw_score(place) = Σ_i (weights_i × sim_i)
+```
+
+Where τ (temperature) is `config.scoring.trait_aggregation_temperature`:
+
+- τ → 0: Approaches MAX (only best trait matters)
+- τ = 0.1: Top 2-3 traits dominate (recommended)
+- τ → ∞: Approaches simple average
+
+**Why softmax-weighted?**
+
+- Every trait embedding contributes meaningfully
+- High-similarity traits get high weights, low-similarity traits contribute less
+- Output is bounded between min and max similarity (interpretable)
+- Smooth gradients - small changes in similarity produce smooth score changes
+
+**Example:** "religious site" matching Sagrada Família (τ=0.1):
+
+| Trait                    | Similarity | Weight   | Contribution |
+| ------------------------ | ---------- | -------- | ------------ |
+| Christian religious site | 0.92       | 0.73     | 0.67         |
+| Catholic religious site  | 0.87       | 0.19     | 0.17         |
+| Historic monument        | 0.45       | 0.04     | 0.02         |
+| Spain                    | 0.30       | 0.02     | 0.01         |
+| **Total**                |            | **1.00** | **0.87**     |
 
 ### Initial Candidate Selection
 
@@ -68,6 +98,7 @@ This ensures:
 
 - Only semantically relevant places are considered (threshold)
 - Performance stays bounded regardless of database size (cap)
+- Categorical queries ("religious site") find relevant places via trait matching
 
 ### Probability Distribution
 
@@ -138,54 +169,60 @@ Each metric catches different failure modes:
 
 ## 3. Trait Matching
 
-When the player answers a question about a trait, candidate scores are adjusted based on how well each place matches that trait.
+When the player answers a question about a trait, candidate scores are adjusted based on whether each place has that trait. This uses the **ground truth relationship** in `place_traits` table rather than embedding similarity.
 
-### Match Strength
+### Trait Ownership
 
-Calculate similarity between each candidate and the asked trait using embeddings (no text/boolean fallbacks):
-
-```
-match_strength(place, trait) = similarity(place.embedding, trait.embedding)
-```
-
-### Match Zones
-
-Match strength falls into zones based on configured thresholds:
+For each candidate place and the asked trait:
 
 ```
-IF match_strength >= config.traits.strong_match_threshold
-   → STRONG match
-ELSE IF match_strength >= config.traits.partial_match_threshold
-   → PARTIAL match
-ELSE
-   → WEAK match
+has_trait(place, trait) = EXISTS(
+  SELECT 1 FROM place_traits
+  WHERE place_id = place.id AND trait_id = trait.id
+)
 ```
+
+This is a **binary determination** - the place either has the trait or it doesn't. No fuzzy matching needed because we have explicit relationships.
 
 ### Score Adjustment
 
-Adjustments use power-law scaling to weight stronger matches more heavily:
+Adjustments use multiplicative scaling for numerical stability:
 
 ```
-adjustment_magnitude = config.traits.base_weight × match_strength^config.traits.beta
+boost_factor = config.traits.boost_factor      # e.g., 1.5
+penalty_factor = config.traits.penalty_factor  # e.g., 0.6
 ```
 
-The direction depends on the answer and match:
+The multiplier depends on the answer and trait ownership:
 
-| Answer   | Match          | Effect                                         |
-| -------- | -------------- | ---------------------------------------------- |
-| YES      | Strong/Partial | Boost (positive adjustment)                    |
-| YES      | Weak           | Penalty (candidate lacks affirmed trait)       |
-| NO       | Strong/Partial | Penalty (candidate has denied trait)           |
-| NO       | Weak           | Boost (candidate correctly lacks denied trait) |
-| NOT SURE | Any            | No adjustment                                  |
+| Answer   | Has Trait? | Multiplier     | Rationale                              |
+| -------- | ---------- | -------------- | -------------------------------------- |
+| YES      | TRUE       | boost_factor   | Candidate has affirmed trait           |
+| YES      | FALSE      | penalty_factor | Candidate lacks affirmed trait         |
+| NO       | TRUE       | penalty_factor | Candidate has denied trait             |
+| NO       | FALSE      | boost_factor   | Candidate correctly lacks denied trait |
+| NOT SURE | Any        | 1.0            | No adjustment                          |
 
 ### Applying Adjustments
 
 ```
-new_score(place) = old_score(place) + (direction × adjustment_magnitude)
+new_score(place) = old_score(place) × multiplier
 ```
 
 After adjustments, recalculate probability distribution via softmax.
+
+### Why Binary Instead of Similarity?
+
+The previous approach used `similarity(place.embedding, trait.embedding)`, but this was redundant:
+
+- We have explicit `place_traits` relationships (ground truth)
+- Embedding similarity adds noise when we already know the answer
+- Binary matching is faster and more accurate
+
+Embeddings are still used for:
+
+1. **Initial candidate scoring** - matching description to traits
+2. **Question selection tiebreaker** - finding traits relevant to description
 
 ---
 
@@ -197,15 +234,26 @@ Select the question that maximally discriminates between current candidates. The
 
 ### Split Quality
 
-For each potential trait question, calculate what fraction of candidates match:
+For each potential trait question, use the `place_traits` relationship to count how many candidates have that trait:
 
-```
-fraction_matching = count(match_strength >= config.questions.match_threshold) / candidate_count
+```sql
+SELECT
+  trait_id,
+  COUNT(*) FILTER (
+    WHERE
+      place_id IN (candidate_ids)
+  ) as yes_count,
+  total_candidates - yes_count as no_count
+FROM
+  place_traits
+GROUP BY
+  trait_id
 ```
 
 Split quality measures how close to 50/50:
 
 ```
+fraction_matching = yes_count / candidate_count
 split_quality = 1 - |0.5 - fraction_matching|
 ```
 
@@ -216,15 +264,18 @@ split_quality = 1 - |0.5 - fraction_matching|
 | 0.10 or 0.90      | 0.6 (poor)    |
 | 0.00 or 1.00      | 0.5 (useless) |
 
+**Note:** Split quality uses `place_traits` (ground truth), not embedding similarity. This is fast and accurate.
+
 ### Selection Algorithm
 
 ```
 1. Get all traits not yet asked in this session
-2. For each trait, calculate split_quality against current candidates
+2. For each trait, calculate split_quality against current candidates using place_traits
 3. Filter traits where split_quality >= config.questions.min_split_quality
 4. Select trait with highest split_quality
 5. TIEBREAKER: If multiple traits have equal split_quality,
    prefer the trait most similar to the player's description
+   (using trait embeddings vs description embedding)
 ```
 
 Selection is deterministic and algorithmic; the LLM is used only to phrase the chosen trait/region as a natural-language question, not to choose which question to ask.
@@ -251,7 +302,7 @@ The game can ask about geographic regions (PostGIS) or semantic traits (pgvector
    → Ask semantic question with best split_quality
 ```
 
-Geographic questions use PostGIS `ST_Contains` for binary in/out filtering. Semantic questions use the trait matching system described above.
+Geographic questions use PostGIS `ST_Contains` for binary in/out filtering. Semantic questions use the trait matching system described above (binary from `place_traits`).
 
 ---
 
@@ -297,19 +348,36 @@ Traits are extracted from real Nominatim data by LLM, not invented or hardcoded.
 | `extratags.heritage` | UNESCO World Heritage      |
 | `address.country`    | Located in France          |
 
-### Embedding Generation
+### Embedding Strategy
 
-1. LLM extracts trait descriptions from Nominatim data
-2. Each trait gets an embedding (same model as places)
-3. Place embedding generated from concatenated trait descriptions
+**What gets embedded:**
+
+1. **Trait clauses** → Individual embeddings for each trait
+2. **User descriptions** → Session embeddings for matching
+
+**What does NOT need embeddings:**
+
+- ~~Place embeddings (combined traits)~~ - Replaced by softmax-aggregated trait similarity
+
+**Rationale:** Individual trait embeddings are more granular and handle categorical queries better. Combined embeddings dilute specific signals like "religious" when mixed with unrelated traits.
+
+### Data Flow
+
+```
+1. LLM extracts traits from Nominatim data
+2. Each trait clause gets embedded (e.g., "Christian religious site")
+3. place_traits table links places to their traits
+4. Initial scoring aggregates trait similarities using softmax
+5. Question answers use place_traits for binary matching
+```
 
 ### Handling Imperfect Traits
 
 LLM extraction produces imperfect, inconsistent traits. Mitigations:
 
-- Conservative thresholds reduce false positive matches
-- Power-law scaling naturally dampens weak matches
+- Softmax aggregation naturally emphasizes best-matching traits
 - Near-synonyms ("metal" ≈ "iron" ≈ "steel") are captured by embedding similarity
+- Binary trait matching after answers uses ground truth, not fuzzy similarity
 
 ---
 
@@ -327,7 +395,8 @@ All tunable parameters stored in config tables (key format: `category.parameter`
 ### Scoring (game_logic.config)
 
 - `scoring.temperature` - Softmax temperature for probability distribution
-- `scoring.initial_candidate_threshold` - Minimum similarity to become candidate
+- `scoring.trait_aggregation_temperature` - Temperature for trait similarity aggregation (default 0.1)
+- `scoring.initial_candidate_threshold` - Minimum aggregated score to become candidate
 - `scoring.max_initial_candidates` - Maximum candidates to consider (cap)
 
 ### Confidence Decision (game_logic.config)
@@ -338,15 +407,12 @@ All tunable parameters stored in config tables (key format: `category.parameter`
 
 ### Trait Matching (game_logic.config)
 
-- `traits.strong_match_threshold` - Similarity for strong match zone
-- `traits.partial_match_threshold` - Similarity for partial match zone
-- `traits.base_weight` - Maximum adjustment magnitude
-- `traits.beta` - Power-law exponent (1=linear, >1=emphasize strong matches)
+- `traits.boost_factor` - Multiplier when trait ownership matches answer (default 1.5)
+- `traits.penalty_factor` - Multiplier when trait ownership contradicts answer (default 0.6)
 
 ### Question Selection (game_logic.config)
 
 - `questions.min_split_quality` - Minimum quality to consider a question
-- `questions.match_threshold` - Similarity threshold for "matches trait"
 - `questions.geographic_preference_threshold` - Prefer geographic if split >= this
 
 ### LLM (game_logic.config)
@@ -367,11 +433,15 @@ All tunable parameters stored in config tables (key format: `category.parameter`
 
 The algorithms require these indexes for efficient operation:
 
-| Table  | Column    | Index Type | Operator Class |
-| ------ | --------- | ---------- | -------------- |
-| places | embedding | HNSW       | vector_ip_ops  |
-| places | geom      | GIST       | -              |
-| traits | embedding | HNSW       | vector_ip_ops  |
+| Table        | Column      | Index Type | Operator Class    | Purpose                   |
+| ------------ | ----------- | ---------- | ----------------- | ------------------------- |
+| traits       | embedding   | HNSW       | vector_cosine_ops | Initial candidate scoring |
+| places       | geom        | GIST       | -                 | Geographic filtering      |
+| place_traits | place_id    | BTREE      | -                 | Trait lookup by place     |
+| place_traits | trait_id    | BTREE      | -                 | Split quality calculation |
+| embeddings   | source_text | BTREE      | -                 | Deduplication             |
+
+**Note:** `places.embedding` index is no longer needed. Initial scoring uses individual trait embeddings via softmax aggregation.
 
 ---
 

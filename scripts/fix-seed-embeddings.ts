@@ -6,7 +6,7 @@ const seedPath = path.join(process.cwd(), 'supabase/seeds/01_embedding_data.sql'
 let content = readFileSync(seedPath, 'utf8')
 
 // Find all ARRAY[...] patterns and truncate to first 384 values
-content = content.replace(/ARRAY\[([-\d.,\s]+)\]::vector\(384\)/g, (_match, values) => {
+content = content.replaceAll(/ARRAY\[([-\d.,\s]+)\]::vector\(384\)/g, (_match, values) => {
   const nums = values
     .split(',')
     .map((s: string) => s.trim())

@@ -186,23 +186,6 @@
   }
 }
 
-@keyframes bounce-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  70% {
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 @keyframes wiggle {
   0%,
   100% {
@@ -260,29 +243,6 @@
   }
 }
 
-@keyframes radar {
-  0% {
-    transform: scale(0);
-    opacity: 0.6;
-  }
-  100% {
-    transform: scale(3);
-    opacity: 0;
-  }
-}
-
-@keyframes marker-pulse-glow {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
-}
-
 @keyframes celebrate {
   0%,
   100% {
@@ -327,10 +287,6 @@
   animation: slide-up-fade 0.4s ease-out;
 }
 
-.animate-bounce-in {
-  animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
 .animate-wiggle {
   animation: wiggle 0.5s ease-in-out;
 }
@@ -357,39 +313,6 @@
 
 .animate-glow {
   animation: glow 2s ease-in-out infinite;
-}
-
-.animate-radar {
-  animation: radar 3s infinite;
-}
-
-.animate-marker-pulse-glow {
-  animation: marker-pulse-glow 2s ease-in-out infinite;
-}
-
-/* Radar rings for winning marker */
-.radar-rings {
-  position: relative;
-}
-
-.radar-rings::before,
-.radar-rings::after {
-  content: '';
-  position: absolute;
-  border: 2px solid #22c55e;
-  border-radius: 50%;
-  animation: radar 3s infinite;
-  pointer-events: none;
-  inset: 0;
-}
-
-.radar-rings::after {
-  animation-delay: 1.5s;
-}
-
-.dark .radar-rings::before,
-.dark .radar-rings::after {
-  border-color: #4ade80;
 }
 
 /* Popper arrow styles */

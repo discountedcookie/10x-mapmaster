@@ -1,12 +1,12 @@
--- Function: check_rate_limit
 -- Category: utilities
 -- Purpose: Check and enforce rate limits
 -- Spec: openspec/specs/database/spec.md#rate-limiting
-CREATE OR REPLACE FUNCTION "game_logic"."check_rate_limit" ("p_user_id" UUID, "p_action" TEXT) returns void language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."check_rate_limit" ("p_action" TEXT) returns void language plpgsql security definer
 SET
   search_path = public,
   game_logic AS $$
 DECLARE
+  v_user_id UUID;
   v_limit INT;
   v_window_seconds INT;
   v_current_count INT;
@@ -23,13 +23,20 @@ BEGIN
   -- ============================================================================
   -- INPUT VALIDATION
   -- ============================================================================
-  IF p_user_id IS NULL THEN
-    -- No user context - allow the request (edge case)
+  IF p_action IS NULL OR trim(p_action) = '' THEN
+    RAISE EXCEPTION 'Action cannot be null or empty';
+  END IF;
+
+  -- Resolve user from auth context
+  v_user_id := auth.uid();
+
+  -- Service role bypasses rate limiting
+  IF auth.role() = 'service_role' THEN
     RETURN;
   END IF;
 
-  IF p_action IS NULL OR trim(p_action) = '' THEN
-    RAISE EXCEPTION 'Action cannot be null or empty';
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required for rate limited actions';
   END IF;
 
   -- ============================================================================
@@ -76,7 +83,7 @@ BEGIN
   -- ============================================================================
   SELECT COUNT(*) INTO v_current_count
   FROM game_logic.rate_limit_log
-  WHERE user_id = p_user_id
+  WHERE user_id = v_user_id
     AND action = p_action
     AND created_at > NOW() - (v_window_seconds || ' seconds')::INTERVAL;
 
@@ -96,7 +103,7 @@ BEGIN
   -- LOG REQUEST (allowed)
   -- ============================================================================
   INSERT INTO game_logic.rate_limit_log (user_id, action, created_at)
-  VALUES (p_user_id, p_action, NOW());
+  VALUES (v_user_id, p_action, NOW());
 
   -- Return void if allowed
   RETURN;
@@ -104,13 +111,12 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."check_rate_limit" (UUID, TEXT) owner TO "postgres";
+ALTER FUNCTION "game_logic"."check_rate_limit" (TEXT) owner TO "postgres";
 
 
-comment ON function "game_logic"."check_rate_limit" (UUID, TEXT) IS 'Check and enforce rate limits for RPC functions.
+comment ON function "game_logic"."check_rate_limit" (TEXT) IS 'Check and enforce rate limits for RPC functions.
 
 Parameters:
-- p_user_id: The user ID (from auth.uid())
 - p_action: The action being rate limited (start_game, play_turn, submit_place)
 
 Behavior:
@@ -129,7 +135,7 @@ Limits can be overridden via game_logic.config table:
 - rate_limit.<action>.limit: Max requests
 - rate_limit.<action>.window_seconds: Time window in seconds
 
-Security: SECURITY DEFINER to access game_logic.config and rate_limit_log.
+Security: SECURITY DEFINER to access game_logic.config and rate_limit_log. Uses auth.uid() internally; service_role bypasses limits.
 
 Error codes:
 - rate_limit_exceeded: Returns 429 status to frontend';

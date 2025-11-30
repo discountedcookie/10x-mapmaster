@@ -82,10 +82,6 @@ SELECT
         WHERE
           (
             ("game_sessions"."user_id" = "auth"."uid" ())
-            OR (
-              ("game_sessions"."user_id" IS NULL)
-              AND ("auth"."uid" () IS NULL)
-            )
           )
       )
     )
@@ -99,18 +95,14 @@ WITH
     (
       "session_id" IN (
         SELECT
-          "game_sessions"."id"
-        FROM
-          "public"."game_sessions"
-        WHERE
-          (
-            ("game_sessions"."user_id" = "auth"."uid" ())
-            OR (
-              ("game_sessions"."user_id" IS NULL)
-              AND ("auth"."uid" () IS NULL)
-            )
-          )
+      "game_sessions"."id"
+    FROM
+      "public"."game_sessions"
+    WHERE
+      (
+        ("game_sessions"."user_id" = "auth"."uid" ())
       )
+  )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -122,18 +114,14 @@ FOR UPDATE
     (
       "session_id" IN (
         SELECT
-          "game_sessions"."id"
-        FROM
-          "public"."game_sessions"
-        WHERE
-          (
-            ("game_sessions"."user_id" = "auth"."uid" ())
-            OR (
-              ("game_sessions"."user_id" IS NULL)
-              AND ("auth"."uid" () IS NULL)
-            )
-          )
+      "game_sessions"."id"
+    FROM
+      "public"."game_sessions"
+    WHERE
+      (
+        ("game_sessions"."user_id" = "auth"."uid" ())
       )
+  )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );

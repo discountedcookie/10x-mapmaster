@@ -1,7 +1,7 @@
--- Function: get_or_create_embedding
+-- Function: get_embedding
 -- Category: utilities
 -- Gets existing embedding or creates a new one for the given text
-CREATE OR REPLACE FUNCTION "game_logic"."get_or_create_embedding" ("p_text" "text") returns UUID language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_embedding" ("p_text" "text") returns UUID language "plpgsql" security definer
 SET
   "search_path" = public,
   game_logic,
@@ -34,14 +34,12 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."get_or_create_embedding" ("p_text" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."get_embedding" ("p_text" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."get_or_create_embedding" ("p_text" "text") IS 'Creates a new embedding for the given text.
+comment ON function "game_logic"."get_embedding" ("p_text" "text") IS 'Gets existing embedding for the given text or creates a new one.
 
 Process:
-1. Call edge function to generate embedding
-2. Store new embedding in database
-3. Return new ID
-
-Returns: embedding UUID';
+1. Return existing embedding_id when source_text matches
+2. Otherwise call edge function to generate and store embedding
+3. Return embedding UUID';

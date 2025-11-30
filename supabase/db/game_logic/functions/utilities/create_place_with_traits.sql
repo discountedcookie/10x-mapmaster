@@ -23,6 +23,7 @@ DECLARE
   v_embedding_id UUID;
   v_trait_id TEXT;
   v_trait_clause TEXT;
+  v_trait_embedding_id UUID;
 BEGIN
   -- ============================================================================
   -- EXTRACT PLACE FIELDS
@@ -51,7 +52,7 @@ BEGIN
   -- ============================================================================
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
     v_combined_text := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_or_create_embedding(v_combined_text);
+    v_embedding_id := get_embedding(v_combined_text);
   END IF;
 
   -- ============================================================================
@@ -83,10 +84,13 @@ BEGIN
       FROM jsonb_array_elements(p_traits) AS t
       WHERE t->>'id' IS NOT NULL AND t->>'clause' IS NOT NULL
     LOOP
-      -- Insert trait if not exists
-      INSERT INTO traits (id, clause)
-      VALUES (v_trait_id, v_trait_clause)
-      ON CONFLICT (id) DO NOTHING;
+      -- Generate embedding for trait clause and upsert trait
+      v_trait_embedding_id := get_embedding(v_trait_clause);
+
+      INSERT INTO traits (id, clause, embedding_id)
+      VALUES (v_trait_id, v_trait_clause, v_trait_embedding_id)
+      ON CONFLICT (id) DO UPDATE SET
+        embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
 
       -- Link trait to place
       INSERT INTO place_traits (place_id, trait_id)
@@ -113,8 +117,8 @@ Parameters:
 
 Process:
 1. Extract name, lat, lng, geojson from Nominatim data
-2. Generate embedding from combined trait clauses
+2. Generate embedding from combined trait clauses for place embedding
 3. Create place record via add_place()
-4. Create traits and link to place
+4. Generate embeddings for individual traits and link to place
 
 Returns: UUID of created place';

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 
 export interface PlaceWithScore {
@@ -91,6 +92,28 @@ export const useGameStore = defineStore('game', () => {
   const correctPlaceId = computed(() => gameState.value?.result?.correct_place_id ?? null)
   const correctPlace = ref<PlaceWithScore | null>(null)
 
+  // Temporary search results from Nominatim
+  const searchResultPlaces = ref<
+    Array<{
+      id: string
+      name: string
+      lat: number
+      lng: number
+    }>
+  >([])
+
+  // The place user submitted for pending review
+  const submittedPlace = ref<{
+    name: string
+    lat: number
+    lng: number
+  } | null>(null)
+
+  // Display state for pending submission
+  const isSubmissionPending = computed(
+    () => gameState.value?.status === 'ended' && submittedPlace.value !== null
+  )
+
   // Backward compatibility properties
   const questionCount = computed(() => gameState.value?.questionCount ?? 0)
   const currentQuestion = computed(() => {
@@ -128,7 +151,7 @@ export const useGameStore = defineStore('game', () => {
       // Convert view row to GameState
       gameState.value = convertViewToGameState(data)
     } catch (error_) {
-      console.error('Failed to fetch game state:', error_)
+      logger.error('Failed to fetch game state:', error_)
       throw error_
     }
   }
@@ -374,7 +397,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   async function finalizeGameSession(_result: any, _correct: boolean): Promise<void> {
-    console.warn('finalizeGameSession is deprecated - handled by playTurn')
+    logger.warn('finalizeGameSession is deprecated - handled by playTurn')
   }
 
   // Reset game state
@@ -436,14 +459,6 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  async function guessPlace(placeId: string): Promise<void> {
-    console.log('Guess place:', placeId)
-  }
-
-  async function submitPlace(name: string, lat: number, lng: number): Promise<void> {
-    console.log('Submit place:', name, lat, lng)
-  }
-
   // Fetch correct place details when game is won
   async function fetchCorrectPlace(placeId?: string): Promise<void> {
     const targetPlaceId = placeId || correctPlaceId.value
@@ -484,9 +499,35 @@ export const useGameStore = defineStore('game', () => {
         }
       }
     } catch (error_) {
-      console.error('Failed to fetch correct place:', error_)
+      logger.error('Failed to fetch correct place:', error_)
       correctPlace.value = null
     }
+  }
+
+  // Store search results from Nominatim
+  function setSearchResultPlaces(places: any[]): void {
+    searchResultPlaces.value = places.map((p) => ({
+      id: `nominatim-${p.place_id}`,
+      name: p.display_name.split(',')[0], // Short name
+      lat: parseFloat(p.lat),
+      lng: parseFloat(p.lon),
+    }))
+  }
+
+  // Clear search results
+  function clearSearchResultPlaces(): void {
+    searchResultPlaces.value = []
+  }
+
+  // Store submitted place for display
+  function setSubmittedPlace(place: { name: string; lat: number; lng: number }): void {
+    submittedPlace.value = place
+    searchResultPlaces.value = [] // Clear search results when place is selected
+  }
+
+  // Clear submitted place
+  function clearSubmittedPlace(): void {
+    submittedPlace.value = null
   }
 
   return {
@@ -508,6 +549,9 @@ export const useGameStore = defineStore('game', () => {
     currentQuestion,
     gameResult,
     isGameComplete,
+    searchResultPlaces,
+    submittedPlace,
+    isSubmissionPending,
     startNewGame,
     playTurn,
     getGameState,
@@ -519,8 +563,10 @@ export const useGameStore = defineStore('game', () => {
     updateSemanticConstraint,
     updateCandidates,
     answerQuestion,
-    guessPlace,
-    submitPlace,
     fetchCorrectPlace,
+    setSearchResultPlaces,
+    clearSearchResultPlaces,
+    setSubmittedPlace,
+    clearSubmittedPlace,
   }
 })

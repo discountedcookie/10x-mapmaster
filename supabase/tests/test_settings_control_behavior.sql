@@ -10,6 +10,11 @@ SET
   game_logic,
   extensions;
 
+-- Simulate authenticated (or anonymous) user context
+SET local role authenticated;
+SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+
 
 SELECT
   plan (2);
@@ -46,11 +51,18 @@ SELECT
 
 
 -- Raise threshold to 0.9 (very selective - should reduce candidates)
+SET local role service_role;
+SELECT set_config('request.jwt.claim.role', 'service_role', TRUE);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+
 UPDATE game_logic.config
-SET
-  value = '0.9'::jsonb
-WHERE
-  key = 'candidates.semantic_similarity_threshold';
+SET value = '0.9'::jsonb
+WHERE key = 'scoring.initial_candidate_threshold';
+
+-- Restore role for game interactions
+SET local role authenticated;
+SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
 
 
 CREATE TEMP TABLE count_at_090 AS
@@ -68,11 +80,17 @@ SELECT
 
 
 -- Restore to 0.5
+SET local role service_role;
+SELECT set_config('request.jwt.claim.role', 'service_role', TRUE);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+
 UPDATE game_logic.config
-SET
-  value = '0.5'::jsonb
-WHERE
-  key = 'candidates.semantic_similarity_threshold';
+SET value = '0.5'::jsonb
+WHERE key = 'scoring.initial_candidate_threshold';
+
+SET local role authenticated;
+SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
 
 
 -- Verify: Higher threshold = fewer (or same) candidates
@@ -90,7 +108,7 @@ SELECT
       FROM
         count_at_050
     ),
-    'Raising semantic_similarity_threshold reduces candidates (proves config controls behavior)'
+    'Raising initial_candidate_threshold reduces candidates (proves config controls behavior)'
   );
 
 

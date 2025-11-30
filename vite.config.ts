@@ -29,6 +29,9 @@ export default defineConfig({
           // Map libraries (heavy)
           maps: ['@indoorequal/vue-maplibre-gl', 'maplibre-gl'],
 
+          // deck.gl for 3D visualization
+          deckgl: ['@deck.gl/core', '@deck.gl/layers', '@deck.gl/mapbox'],
+
           // UI libraries
           ui: ['reka-ui', 'lucide-vue-next', 'clsx', 'tailwind-merge'],
 

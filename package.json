@@ -29,6 +29,10 @@
     "db:build-migration": "bun run scripts/build-migration.ts --prod"
   },
   "dependencies": {
+    "@deck.gl/aggregation-layers": "^9.2.2",
+    "@deck.gl/core": "^9.2.2",
+    "@deck.gl/layers": "^9.2.2",
+    "@deck.gl/mapbox": "^9.2.2",
     "@indoorequal/vue-maplibre-gl": "^8.4.2",
     "@popperjs/core": "^2.11.8",
     "@supabase/supabase-js": "^2.76.1",

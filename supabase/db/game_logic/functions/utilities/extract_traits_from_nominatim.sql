@@ -17,25 +17,26 @@ DECLARE
   v_address_full JSONB;
   v_address JSONB;
   v_extratags JSONB;
-  v_line TEXT;
-  v_parts TEXT[];
   v_id TEXT;
   v_clause TEXT;
-  -- Keys to remove from extratags (reference codes, URLs, numeric metadata)
-  v_extratags_remove TEXT[] := ARRAY[
-    'wikipedia', 'wikidata', 'website', 'url', 'image',
-    'ref', 'ref:whc', 'ref:isil', 'ref:nrhp',
-    'max_level', 'min_level', 'building:levels', 'building:levels:underground',
-    'architect:wikidata', 'operator:wikidata', 'brand:wikidata',
-    'phone', 'fax', 'email', 'contact:phone', 'contact:email',
-    'opening_hours', 'check_date'
+  -- Keys to EXCLUDE from extratags (blacklist - non-descriptive/operational data)
+  v_extratags_exclude TEXT[] := ARRAY[
+    -- External IDs and URLs (not descriptive)
+    'wikidata', 'wikipedia', 'wikimedia_commons', 'website', 'url', 'image',
+    -- Contact/operational info (not game-relevant)
+    'phone', 'fax', 'email', 'opening_hours', 'check_date', 'fee',
+    -- Administrative/source metadata
+    'source', 'operator', 'brand', 'network', 'panoramax',
+    -- Reference codes (cryptic, not descriptive)
+    'ref', 'int_ref', 'nat_ref', 'loc_ref',
+    -- Name variants (already have primary name)
+    'alt_name', 'old_name', 'short_name', 'official_name', 'loc_name',
+    -- Accessibility/service info (operational)
+    'wheelchair', 'toilets', 'internet_access', 'smoking',
+    -- Technical/rendering metadata
+    'layer', '3dmr', 'min_height'
   ];
-  -- Keys to remove from address (too granular for traits)
-  v_address_remove TEXT[] := ARRAY[
-    'postcode', 'house_number', 'road', 'neighbourhood', 'suburb',
-    'borough', 'city_district', 'municipality', 'county',
-    'ISO3166-2-lvl4', 'ISO3166-2-lvl6', 'country_code'
-  ];
+  v_key TEXT;
 BEGIN
   v_address_full := COALESCE(p_nominatim_data->'address', '{}'::jsonb);
   v_extratags := COALESCE(p_nominatim_data->'extratags', '{}'::jsonb);
@@ -52,11 +53,28 @@ BEGIN
   -- LLM TRAIT EXTRACTION (if enabled)
   -- ============================================================================
   IF v_llm_enabled THEN
-    -- Filter extratags: remove noisy keys
-    FOR v_id IN SELECT unnest(v_extratags_remove)
-    LOOP
-      v_extratags := v_extratags - v_id;
-    END LOOP;
+    -- Filter extratags: remove blacklisted keys (keep everything else)
+    DECLARE
+      v_filtered_extratags JSONB := '{}'::jsonb;
+    BEGIN
+      FOR v_key IN SELECT jsonb_object_keys(v_extratags)
+      LOOP
+        -- Exclude exact matches and prefix matches (e.g., 'contact:*', 'name:*', 'source:*')
+        IF NOT (
+          v_key = ANY(v_extratags_exclude) OR
+          v_key LIKE 'contact:%' OR
+          v_key LIKE 'name:%' OR
+          v_key LIKE 'source:%' OR
+          v_key LIKE 'ref:%' OR
+          v_key LIKE 'payment:%' OR
+          v_key LIKE 'addr:%' OR
+          v_key LIKE 'image:%'
+        ) THEN
+          v_filtered_extratags := v_filtered_extratags || jsonb_build_object(v_key, v_extratags->v_key);
+        END IF;
+      END LOOP;
+      v_extratags := v_filtered_extratags;
+    END;
     
     -- Filter address: keep only country, state, city for context
     v_address := jsonb_build_object(
@@ -80,21 +98,34 @@ BEGIN
 
     RAISE NOTICE 'Calling LLM for trait extraction: %', v_nominatim_summary->>'name';
 
-    v_llm_response := game_logic.call_llm_api(v_llm_prompt, NULL, 'llm.trait_extraction');
+    v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
     
-    -- Parse line-based format: "id | clause" per line
-    FOR v_line IN SELECT unnest(string_to_array(v_llm_response, E'\n'))
-    LOOP
-      v_line := trim(v_line);
-      IF v_line <> '' AND v_line LIKE '%|%' THEN
-        v_parts := string_to_array(v_line, '|');
-        v_id := trim(v_parts[1]);
-        v_clause := trim(v_parts[2]);
-        IF v_id <> '' AND v_clause <> '' THEN
-          v_traits := v_traits || jsonb_build_array(jsonb_build_object('id', v_id, 'clause', v_clause));
-        END IF;
-      END IF;
-    END LOOP;
+    -- Parse JSON format: {"traits": [{"id": "...", "clause": "..."}, ...]}
+    BEGIN
+      DECLARE
+        v_json_response JSONB;
+        v_trait JSONB;
+      BEGIN
+        v_json_response := v_llm_response::jsonb;
+        
+        -- Extract traits array from response
+        FOR v_trait IN SELECT jsonb_array_elements(v_json_response->'traits')
+        LOOP
+          v_id := trim(v_trait->>'id');
+          v_clause := trim(v_trait->>'clause');
+          -- Normalize id: fix "category: value" -> "category:value", then spaces to hyphens, lowercase
+          v_id := regexp_replace(v_id, ':\s+', ':', 'g');  -- Remove spaces after colons
+          v_id := regexp_replace(v_id, '\s+', '-', 'g');   -- Replace remaining spaces with hyphens
+          v_id := lower(v_id);
+          IF v_id <> '' AND v_clause <> '' THEN
+            v_traits := v_traits || jsonb_build_array(jsonb_build_object('id', v_id, 'clause', v_clause));
+          END IF;
+        END LOOP;
+      END;
+    EXCEPTION
+      WHEN others THEN
+        RAISE WARNING 'Failed to parse LLM JSON response: %. Response was: %', SQLERRM, v_llm_response;
+    END;
   END IF;
 
   -- ============================================================================
@@ -138,11 +169,13 @@ Parameters:
 - p_nominatim_data: JSONB from fetch_nominatim_place()
 
 Process:
-1. If features.use_llm_trait_extraction enabled, call LLM for rich trait extraction
-2. Always add rule-based traits (class, type, country)
+1. Filter extratags: remove non-descriptive keys (wikidata, URLs, contact info, ref codes)
+2. If LLM enabled, call LLM (gemma3:1b) with JSON format for rich trait extraction
+3. Parse JSON response: {"traits": [{"id": "...", "clause": "..."}, ...]}
+4. Always add rule-based traits (class, type, country)
 
 Returns: JSONB array of traits, each with:
-- id: "category:value" format
+- id: "category:value" format (e.g., "style:victorian", "era:19th_century")
 - clause: Human readable description
 
-Raises exception if LLM call fails (no fallback).';
+Logs warning if LLM JSON parsing fails, continues with rule-based traits only.';

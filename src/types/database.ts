@@ -150,6 +150,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "game_answers_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places_with_geometry"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "game_answers_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
@@ -230,6 +237,13 @@ export type Database = {
             referencedRelation: "places"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "game_sessions_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places_with_geometry"
+            referencedColumns: ["id"]
+          },
         ]
       }
       geographic_regions: {
@@ -292,6 +306,13 @@ export type Database = {
             columns: ["place_id"]
             isOneToOne: false
             referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "place_traits_place_id_fkey"
+            columns: ["place_id"]
+            isOneToOne: false
+            referencedRelation: "places_with_geometry"
             referencedColumns: ["id"]
           },
           {
@@ -408,6 +429,13 @@ export type Database = {
             referencedRelation: "places"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "game_sessions_place_id_fkey"
+            columns: ["correct_place_id"]
+            isOneToOne: false
+            referencedRelation: "places_with_geometry"
+            referencedColumns: ["id"]
+          },
         ]
       }
       global_stats: {
@@ -428,6 +456,33 @@ export type Database = {
           total_sessions: number | null
           total_traits: number | null
           unique_users: number | null
+        }
+        Relationships: []
+      }
+      places_with_geometry: {
+        Row: {
+          geometry: Json | null
+          id: string | null
+          lat: number | null
+          lng: number | null
+          name: string | null
+          times_encountered: number | null
+        }
+        Insert: {
+          geometry?: never
+          id?: string | null
+          lat?: number | null
+          lng?: number | null
+          name?: string | null
+          times_encountered?: number | null
+        }
+        Update: {
+          geometry?: never
+          id?: string | null
+          lat?: number | null
+          lng?: number | null
+          name?: string | null
+          times_encountered?: number | null
         }
         Relationships: []
       }

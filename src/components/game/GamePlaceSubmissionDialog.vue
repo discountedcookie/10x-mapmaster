@@ -39,11 +39,13 @@ const handleSubmit = async () => {
 
   try {
     submitting.value = true
+    // Format: "{osm_type}/{osm_id}" e.g. "way/5013364"
+    const osmId = `${selectedPlace.value.osm_type}/${selectedPlace.value.osm_id}`
     await gameStore.submitActualPlace(
       selectedPlace.value.display_name,
       Number.parseFloat(selectedPlace.value.lat),
       Number.parseFloat(selectedPlace.value.lon),
-      selectedPlace.value.place_id.toString()
+      osmId
     )
     emit('close')
   } catch (error) {

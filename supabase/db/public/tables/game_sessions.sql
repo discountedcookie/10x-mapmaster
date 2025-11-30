@@ -74,10 +74,6 @@ CREATE POLICY "Users can view their own game sessions" ON "public"."game_session
 SELECT
   USING (
     ("auth"."uid" () = "user_id")
-    OR (
-      ("auth"."uid" () IS NULL)
-      AND ("user_id" IS NULL)
-    )
     OR ("auth"."role" () = 'service_role'::"text")
   );
 
@@ -86,12 +82,8 @@ CREATE POLICY "Users can insert their own game sessions" ON "public"."game_sessi
 WITH
   CHECK (
     (
-      ("auth"."uid" () IS NOT NULL)
-      AND ("auth"."uid" () = "user_id")
-    )
-    OR (
-      ("auth"."uid" () IS NULL)
-      AND ("user_id" IS NULL)
+      ("auth"."uid" () IS NOT NULL
+      AND "auth"."uid" () = "user_id")
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -101,20 +93,12 @@ CREATE POLICY "Users can update their own game sessions" ON "public"."game_sessi
 FOR UPDATE
   USING (
     ("auth"."uid" () = "user_id")
-    OR (
-      ("auth"."uid" () IS NULL)
-      AND ("user_id" IS NULL)
-    )
     OR ("auth"."role" () = 'service_role'::"text")
   );
 
 
 CREATE POLICY "Users can delete their own game sessions" ON "public"."game_sessions" FOR delete USING (
   ("auth"."uid" () = "user_id")
-  OR (
-    ("auth"."uid" () IS NULL)
-    AND ("user_id" IS NULL)
-  )
   OR ("auth"."role" () = 'service_role'::"text")
 );
 

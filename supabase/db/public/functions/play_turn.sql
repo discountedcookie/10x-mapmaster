@@ -10,11 +10,16 @@ SET
 DECLARE
   v_session_record RECORD;
 BEGIN
+  -- Require authenticated (including Supabase anonymous) session
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
   -- ============================================================================
   -- RATE LIMITING
   -- ============================================================================
   -- Enforces limits from game_logic.config (default: 60 per minute)
-  PERFORM game_logic.check_rate_limit(auth.uid(), 'play_turn');
+  PERFORM game_logic.check_rate_limit('play_turn');
 
   -- ============================================================================
   -- VALIDATION & SESSION RETRIEVAL
@@ -27,6 +32,7 @@ BEGIN
   -- Get session details (only columns needed by handlers)
   SELECT
     id,
+    user_id,
     place_id,
     was_correct,
     next_turn,
@@ -38,6 +44,11 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Session % not found', p_session_id;
+  END IF;
+
+  -- Ownership check (service_role may bypass)
+  IF auth.role() <> 'service_role' AND (v_session_record.user_id IS NULL OR v_session_record.user_id != auth.uid()) THEN
+    RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
 
   -- Validate session is active

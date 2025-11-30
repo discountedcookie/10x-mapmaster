@@ -4,6 +4,7 @@ import GameView from '@/views/GameView.vue'
 import LoginView from '@/views/LoginView.vue'
 import SignupView from '@/views/SignupView.vue'
 import StatisticsView from '@/views/StatisticsView.vue'
+import PlaceView from '@/views/PlaceView.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
@@ -13,6 +14,11 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+    },
+    {
+      path: '/places/:id',
+      name: 'place',
+      component: PlaceView,
     },
     {
       path: '/login',
