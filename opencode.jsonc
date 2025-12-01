@@ -41,14 +41,13 @@
 
   "permission": {
     "bash": {
+      // ask by default
       "*": "ask",
+      // prefer OpenCode Read, Grep, List
       "cat": "deny",
       "find": "deny",
-      "grep": "deny",
       "ls": "deny",
-      "npm": "deny",
-      "rg": "deny",
-      //
+      // allow
       "bun": "allow",
       "git": "allow",
       "head": "allow",
@@ -62,7 +61,7 @@
   // Global tool defaults - limit MCP exposure, enable per-agent
   "tools": {
     "chrome-devtools_*": false,
-    "exa_*": false,
-    "sequential-thinking_*": false,
+    "exa_*": true,
+    "sequential-thinking_*": true,
   },
 }

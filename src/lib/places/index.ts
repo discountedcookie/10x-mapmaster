@@ -3,9 +3,6 @@
  *
  * Clean barrel exports for all place-related functionality:
  * - Nominatim API client (search, geocoding, formatting)
- * - Open-Elevation API client (elevation data)
- * - Overpass API client (building heights)
- * - Wikipedia API client (summaries)
  * - Type definitions
  */
 
@@ -103,15 +100,6 @@ export {
   type AddressDetails,
   type ExtraTags,
 } from './nominatim'
-
-// Open-Elevation client
-export { getElevation, enrichWithElevation } from './openElevation'
-
-// Overpass client
-export { getHeight, enrichWithHeight } from './overpass'
-
-// Wikipedia client
-export { getWikipediaSummary, getWikipediaSummaryByTitle, enrichWithWikipedia } from './wikipedia'
 
 // Embedding text generation (moved from nominatim.ts)
 export function generatePlaceEmbeddingText(place: {

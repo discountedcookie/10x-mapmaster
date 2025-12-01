@@ -1,7 +1,8 @@
 # frontend Specification
 
 ## Purpose
-TBD - created by archiving change 28-frontend-shell-and-routing. Update Purpose after archive.
+
+Specifies the Vue 3 frontend shell, routing, map visualization, and UI components. The frontend is presentation-only - it displays data from database views and calls RPC functions, never implementing game logic.
 ## Requirements
 ### Requirement: Frontend Shell and Routing
 
@@ -10,7 +11,7 @@ The system SHALL provide a layout and routes for the application shell without e
 #### Scenario: Layout
 
 - **WHEN** the app loads
-- **THEN** MapLayout renders a globe canvas with a floating panel container
+- **THEN** MapLayout renders a globe canvas (using MapLibre globe projection) with a floating panel container
 
 #### Scenario: Routing
 
@@ -21,6 +22,11 @@ The system SHALL provide a layout and routes for the application shell without e
 
 - **WHEN** rendering the shell
 - **THEN** it remains presentation-only and defers all game logic to RPC calls
+
+#### Scenario: Globe projection
+
+- **WHEN** the map initializes
+- **THEN** it uses globe projection (not flat 2D) with atmospheric styling
 
 ### Requirement: Home and Auth Experience
 

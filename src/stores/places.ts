@@ -146,38 +146,6 @@ export const usePlacesStore = defineStore('places', () => {
     }
   }
 
-  /**
-   * Enriches place descriptors with elevation and height data
-   * Call this before saving a new place to the database
-   */
-  async function enrichDescriptors(
-    lat: number,
-    lng: number,
-    descriptors: Record<string, any>
-  ): Promise<Record<string, any>> {
-    try {
-      // Dynamically import enrichment modules (browser-compatible)
-      const { enrichWithElevation, enrichWithHeight } = await import('@/lib/places')
-
-      // Enrich with elevation (natural features)
-      const elevation = await enrichWithElevation(lat, lng, descriptors as any)
-
-      // Enrich with height (buildings)
-      const height = await enrichWithHeight(lat, lng, descriptors as any)
-
-      return {
-        ...descriptors,
-        ...(elevation !== null && { elevation_meters: elevation }),
-        ...(height !== null && { height_meters: height }),
-        enrichment_timestamp: new Date().toISOString(),
-      }
-    } catch (error_) {
-      console.warn('Failed to enrich place descriptors:', error_)
-      // Return original descriptors if enrichment fails
-      return descriptors
-    }
-  }
-
   function reset() {
     places.value = []
     loading.value = false
@@ -199,7 +167,6 @@ export const usePlacesStore = defineStore('places', () => {
     // Actions
     fetchAllPlaces,
     searchPlaces,
-    enrichDescriptors,
     extractDescriptors: (place: NominatimPlace) => extractDescriptors(place),
     unsubscribeRealtime,
     reset,

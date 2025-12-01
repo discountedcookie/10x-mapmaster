@@ -1,8 +1,11 @@
 # game-core Specification
 
 ## Purpose
-TBD - created by archiving change 12-start-game-rpc. Update Purpose after archive.
+
+Defines the public RPC functions (`start_game`, `play_turn`, `submit_place`) that form the API for gameplay. These are the only entry points for game interactions - all game logic executes server-side in PostgreSQL.
+
 ## Requirements
+
 ### Requirement: start_game RPC
 
 The system SHALL expose start_game to initialize a session, embed the description, seed candidates, and set the first turn.
@@ -59,4 +62,3 @@ The system SHALL expose submit_place to handle place submission after give up, e
 
 - **WHEN** submit_place runs
 - **THEN** it enforces ownership/auth, uses hardened search_path, and relies on RLS for session isolation
-

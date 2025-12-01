@@ -33,28 +33,17 @@ vi.mock('@/lib/supabase', () => {
 vi.mock('@/lib/places', () => {
   const mockSearchNominatim = vi.fn()
   const mockExtractDescriptors = vi.fn()
-  const mockEnrichWithElevation = vi.fn()
-  const mockEnrichWithHeight = vi.fn()
 
   return {
     searchPlaces: mockSearchNominatim,
     extractDescriptors: mockExtractDescriptors,
-    enrichWithElevation: mockEnrichWithElevation,
-    enrichWithHeight: mockEnrichWithHeight,
     mockSearchNominatim,
     mockExtractDescriptors,
-    mockEnrichWithElevation,
-    mockEnrichWithHeight,
   }
 })
 
 const { mockSelect, mockOrder, mockFrom } = (await import('@/lib/supabase')) as any
-const {
-  mockSearchNominatim,
-  mockExtractDescriptors,
-  mockEnrichWithElevation,
-  mockEnrichWithHeight,
-} = (await import('@/lib/places')) as any
+const { mockSearchNominatim, mockExtractDescriptors } = (await import('@/lib/places')) as any
 
 describe('usePlacesStore', () => {
   let store: ReturnType<typeof usePlacesStore>
@@ -317,44 +306,6 @@ describe('usePlacesStore', () => {
 
       await expect(store.searchPlaces('Paris')).rejects.toBe('String error')
       expect(store.searchError).toBe('Failed to search places')
-    })
-  })
-
-  describe('enrichDescriptors', () => {
-    it('should enrich descriptors with elevation and height', async () => {
-      mockEnrichWithElevation.mockResolvedValueOnce(100)
-      mockEnrichWithHeight.mockResolvedValueOnce(50)
-
-      const descriptors = { type: 'building' }
-      const result = await store.enrichDescriptors(48.8566, 2.3522, descriptors)
-
-      expect(mockEnrichWithElevation).toHaveBeenCalledWith(48.8566, 2.3522, descriptors)
-      expect(mockEnrichWithHeight).toHaveBeenCalledWith(48.8566, 2.3522, descriptors)
-      expect(result).toMatchObject({
-        type: 'building',
-        elevation_meters: 100,
-        height_meters: 50,
-      })
-      expect(result.enrichment_timestamp).toBeDefined()
-    })
-
-    it('should handle null elevation', async () => {
-      mockEnrichWithElevation.mockResolvedValueOnce(null)
-      mockEnrichWithHeight.mockResolvedValueOnce(50)
-
-      const result = await store.enrichDescriptors(48.8566, 2.3522, {})
-
-      expect(result).not.toHaveProperty('elevation_meters')
-      expect(result).toHaveProperty('height_meters', 50)
-    })
-
-    it('should return original descriptors on error', async () => {
-      mockEnrichWithElevation.mockRejectedValueOnce(new Error('API failed'))
-
-      const descriptors = { type: 'building' }
-      const result = await store.enrichDescriptors(48.8566, 2.3522, descriptors)
-
-      expect(result).toEqual(descriptors)
     })
   })
 

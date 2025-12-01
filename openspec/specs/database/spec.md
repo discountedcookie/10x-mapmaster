@@ -2,8 +2,10 @@
 
 ## Purpose
 
-TBD - created by archiving change 01-auth-basics. Update Purpose after archive.
+Defines the database schema, authentication model, RLS policies, configuration tables, and data types. This is the foundation for the database-first architecture where all business logic resides.
+
 ## Requirements
+
 ### Requirement: Auth Model and Security Posture
 
 The system SHALL define and enforce an auth model covering anonymous, registered, and service roles, and prescribe SECURITY DEFINER and RLS guardrails.
@@ -254,4 +256,3 @@ The system SHALL store algorithm configuration in a server-only schema inaccessi
 
 - **WHEN** game logic functions read configuration
 - **THEN** they use `game_logic.get_config(key)` helper function
-

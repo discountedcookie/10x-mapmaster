@@ -1,8 +1,11 @@
 # operations Specification
 
 ## Purpose
-TBD - created by archiving change 21-rate-limiting. Update Purpose after archive.
+
+Defines operational concerns including rate limiting, maintenance jobs, and monitoring. These ensure the system remains performant and protected from abuse.
+
 ## Requirements
+
 ### Requirement: Rate Limiting
 
 The system SHALL enforce per-user rate limits for RPC actions using database primitives.
@@ -40,4 +43,3 @@ The system SHALL automate cleanup for rate limiting logs and abandoned sessions 
 
 - **WHEN** jobs execute
 - **THEN** they run under appropriate privileges and on the defined schedule
-

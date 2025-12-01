@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 08-geographic-filtering. Update Purpose after archive.
+Specifies the algorithms for candidate filtering, scoring, confidence decisions, trait matching, and question selection. All algorithm logic executes in PostgreSQL functions within the `game_logic` schema.
 
 ## Requirements
 
