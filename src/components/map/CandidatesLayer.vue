@@ -4,19 +4,19 @@ import { useMap, MglGeoJsonSource, MglCircleLayer, MglMarker } from '@indoorequa
 import { isVisibleOnGlobe } from '@/composables/map/useGlobeVisibility'
 import { useMapCenterTracking } from '@/composables/map/useMapCenterTracking'
 import CandidateMarker from './CandidateMarker.vue'
-import type { PlaceWithScore } from '@/stores/game'
+import type { PlaceWithScore } from '@/types/game'
 import type { CircleLayerSpecification } from 'maplibre-gl'
 
-interface Props {
+interface Properties {
   candidates: PlaceWithScore[]
   mapKey: symbol
   hideCircles?: boolean // Hide circles when 3D polygon is shown
-  highlightedId?: string | null // ID of place to highlight on hover
+  highlightedId?: string | undefined // ID of place to highlight on hover
 }
 
-const props = defineProps<Props>()
+const properties = defineProps<Properties>()
 
-const mapInstance = useMap(props.mapKey)
+const mapInstance = useMap(properties.mapKey)
 
 // Track map center for visibility filtering on globe
 const { mapCenter } = useMapCenterTracking(mapInstance)
@@ -32,7 +32,7 @@ function updateZoom() {
 // Filter candidates to only those visible on the globe
 const visibleCandidates = computed(() => {
   const center = mapCenter.value
-  return props.candidates.filter((c) => isVisibleOnGlobe(c.lng, c.lat, center.lng, center.lat))
+  return properties.candidates.filter((c) => isVisibleOnGlobe(c.lng, c.lat, center.lng, center.lat))
 })
 
 // Convert candidates to GeoJSON for MapLibre
@@ -54,7 +54,7 @@ const candidatesGeoJson = computed(() => {
       else radius = 8
 
       // Check if this candidate is highlighted
-      const isHighlighted = props.highlightedId === candidate.id
+      const isHighlighted = properties.highlightedId === candidate.id
 
       return {
         type: 'Feature' as const,
@@ -68,7 +68,7 @@ const candidatesGeoJson = computed(() => {
           saturation: normalized * 100,
           opacity: 0.3 + normalized * 0.7, // Min 30% opacity so markers are always visible
           // Sort key for z-index: higher confidence = higher z-index, highlighted gets priority
-          sortKey: isHighlighted ? 10000 : Math.round(candidate.confidence * 1000),
+          sortKey: isHighlighted ? 10_000 : Math.round(candidate.confidence * 1000),
           // Highlight state for styling
           highlighted: isHighlighted ? 1 : 0,
         },
@@ -110,7 +110,7 @@ const markerLayout = computed((): CircleLayerSpecification['layout'] => ({
 
 // Sort candidates by confidence (ascending) so higher confidence renders LAST (on top in DOM)
 const sortedCandidatesForLabels = computed(() => {
-  return [...visibleCandidates.value].sort((a, b) => a.confidence - b.confidence)
+  return visibleCandidates.value.toSorted((a, b) => a.confidence - b.confidence)
 })
 
 // Setup zoom tracking when map loads

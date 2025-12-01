@@ -39,10 +39,6 @@ const router = createRouter({
       // Allow anonymous access for now
     },
     {
-      path: '/game',
-      redirect: '/',
-    },
-    {
       path: '/statistics',
       name: 'statistics',
       component: StatisticsView,

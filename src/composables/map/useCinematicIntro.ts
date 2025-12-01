@@ -16,6 +16,8 @@ interface CinematicIntroOptions {
   endZoom?: number
   /** Starting latitude (default: 20) */
   startLat?: number
+  /** Abort signal to cancel animation on user interaction */
+  signal?: AbortSignal
 }
 
 /**
@@ -61,9 +63,15 @@ export function cinematicIntro(
     startZoom = 0.2,
     endZoom = 5,
     startLat = 20,
+    signal,
   } = options
 
   return new Promise((resolve) => {
+    // Check if already aborted
+    if (signal?.aborted) {
+      resolve()
+      return
+    }
     // Starting position: neutral point, very zoomed out
     const startLng = 0
 
@@ -87,6 +95,12 @@ export function cinematicIntro(
     const startTime = performance.now()
 
     function animate(currentTime: number) {
+      // Check if aborted by user interaction
+      if (signal?.aborted) {
+        resolve()
+        return
+      }
+
       const elapsed = currentTime - startTime
       const rawProgress = Math.min(elapsed / duration, 1)
 

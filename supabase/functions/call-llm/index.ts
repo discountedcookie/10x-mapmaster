@@ -1,4 +1,5 @@
 import { Ollama } from 'npm:ollama@0.5.9'
+import { CallLlmRequest } from '../types/schemas.ts'
 
 console.log('✓ call-llm module loading started')
 
@@ -19,13 +20,22 @@ Deno.serve(async (request: Request) => {
     }
 
     console.log('✓ About to parse request body')
-    const { prompt, format, model, options } = await request.json()
+    const body = await request.json()
     console.log('✓ Request body parsed successfully')
 
-    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
-      console.log('✗ prompt validation failed')
+    // Validate request with Zod schema
+    let validated
+    try {
+      validated = CallLlmRequest.parse(body)
+    } catch (error) {
+      console.log(
+        '✗ Request validation failed:',
+        error instanceof Error ? error.message : String(error)
+      )
       return new Response(
-        JSON.stringify({ error: 'prompt field is required and must be non-empty string' }),
+        JSON.stringify({
+          error: 'Invalid request: prompt field is required and must be a non-empty string',
+        }),
         {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
@@ -33,6 +43,7 @@ Deno.serve(async (request: Request) => {
       )
     }
 
+    const { prompt, format, model, options } = validated
     const modelOptions = options || {}
 
     console.log('✓ Input validated')

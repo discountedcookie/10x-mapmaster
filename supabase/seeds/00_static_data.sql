@@ -109,7 +109,7 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- Scoring configuration
 ('scoring.temperature', '1.0'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
 ('scoring.trait_aggregation_temperature', '0.1'::jsonb, 'Temperature for trait similarity aggregation. Lower = best traits dominate'),
-('scoring.initial_candidate_threshold', '0.1'::jsonb, 'Minimum aggregated trait score to become a candidate'),
+('scoring.initial_candidate_threshold', '0.3'::jsonb, 'Minimum aggregated trait score to become a candidate'),
 ('scoring.max_initial_candidates', '100'::jsonb, 'Maximum number of initial candidates'),
 
 -- Trait matching (binary via place_traits, multiplicative adjustments)

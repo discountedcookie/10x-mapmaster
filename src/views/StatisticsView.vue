@@ -2,11 +2,12 @@
 import { onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 
-interface Props {
+interface Properties {
   renderMode?: 'layers' | 'ui'
 }
 
-const props = withDefaults(defineProps<Props>(), {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _properties = withDefaults(defineProps<Properties>(), {
   renderMode: 'ui',
 })
 import { useI18n } from 'vue-i18n'

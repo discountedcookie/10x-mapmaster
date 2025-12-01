@@ -1,4 +1,5 @@
 import { Ollama } from 'npm:ollama@0.5.9'
+import { GenerateEmbeddingRequest } from '../types/schemas.ts'
 
 console.log('✓ Module loading started')
 
@@ -25,15 +26,23 @@ Deno.serve(async (request: Request) => {
     }
 
     console.log('✓ About to parse request body')
-    const { text } = await request.json()
+    const body = await request.json()
     console.log('✓ Request body parsed successfully')
 
-    console.log(`✓ Text received: "${text?.slice(0, 30)}..."`)
-
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      console.log('✗ Text validation failed')
+    // Validate request with Zod schema
+    let validated
+    try {
+      validated = GenerateEmbeddingRequest.parse(body)
+    } catch (error) {
+      console.log(
+        '✗ Request validation failed:',
+        error instanceof Error ? error.message : String(error)
+      )
       return new Response(
-        JSON.stringify({ error: 'text field is required and must be non-empty' }),
+        JSON.stringify({
+          error:
+            'Invalid request: text field is required and must be a non-empty string (max 10000 chars)',
+        }),
         {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
@@ -41,7 +50,8 @@ Deno.serve(async (request: Request) => {
       )
     }
 
-    console.log('✓ Text validated')
+    const { text } = validated
+    console.log(`✓ Text received: "${text.slice(0, 30)}..."`)
     console.log(`Generating ${EXPECTED_DIMENSIONS}d embedding for text: "${text.slice(0, 50)}..."`)
 
     console.log('✓ About to call Ollama API via ollama-js library')

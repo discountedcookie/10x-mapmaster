@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
+import { logger } from '@/lib/logger'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,6 @@ import {
 import { toast } from 'vue-sonner'
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 const { setLight, setDark, setAuto } = useTheme()
 const { t, locale } = useI18n()
@@ -58,7 +58,7 @@ async function handleSignOut() {
     toast.success(t('auth.toast.signed_out_success'))
     router.push('/')
   } catch (error) {
-    console.error('Sign out failed:', error)
+    logger.error('Sign out failed:', error)
     toast.error(t('auth.toast.sign_out_failed_title'), {
       description: t('auth.toast.sign_out_failed_body'),
     })

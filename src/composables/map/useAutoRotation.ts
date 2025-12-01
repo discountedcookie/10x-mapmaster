@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useMapCamera } from './useMapCamera'
 import { cinematicIntro } from './useCinematicIntro'
 
@@ -9,6 +9,8 @@ interface AutoRotationOptions {
   pauseBetween?: number
   /** Zoom level for viewing places (default: 5) */
   viewZoom?: number
+  /** Callback fired on EVERY user interaction (even if already paused) */
+  onInteraction?: () => void
 }
 
 interface Place {
@@ -33,8 +35,20 @@ interface Place {
  * rotation.stop()              // Stop completely
  * ```
  */
+// Shuffle array using Fisher-Yates
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const index_ = Math.floor(Math.random() * (index + 1))
+    const temporary = shuffled[index]!
+    shuffled[index] = shuffled[index_]!
+    shuffled[index_] = temporary
+  }
+  return shuffled
+}
+
 export function useAutoRotation(options: AutoRotationOptions = {}) {
-  const { flyDuration = 6000, pauseBetween = 2000, viewZoom = 5 } = options
+  const { flyDuration = 6000, pauseBetween = 2000, viewZoom = 5, onInteraction } = options
 
   const camera = useMapCamera({ syncFromMap: true })
 
@@ -43,20 +57,9 @@ export function useAutoRotation(options: AutoRotationOptions = {}) {
 
   let places: Place[] = []
   let currentIndex = 0
-  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   let isRunning = false
-
-  // Shuffle array using Fisher-Yates
-  function shuffleArray<T>(array: T[]): T[] {
-    const shuffled = [...array]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      const temp = shuffled[i]!
-      shuffled[i] = shuffled[j]!
-      shuffled[j] = temp
-    }
-    return shuffled
-  }
+  let introAbortController: AbortController | undefined
 
   // Fly to next place
   async function flyToNext() {
@@ -89,9 +92,20 @@ export function useAutoRotation(options: AutoRotationOptions = {}) {
     }
   }
 
+  // Handle user interaction
+  function handleInteraction() {
+    // Always notify about interaction (so HomeView can reset its resume timer)
+    onInteraction?.()
+
+    // Only pause if running and not already paused
+    if (isRunning && !isPaused.value) {
+      pause()
+    }
+  }
+
   // Set places to visit
   function setPlaces(newPlaces: Place[]) {
-    places = shuffleArray(newPlaces.filter((p) => p.lng != null && p.lat != null))
+    places = shuffleArray(newPlaces.filter((p) => p.lng != undefined && p.lat != undefined))
     currentIndex = 0
   }
 
@@ -111,13 +125,17 @@ export function useAutoRotation(options: AutoRotationOptions = {}) {
       // Cinematic intro: spinning globe from above, then fly to place
       const map = camera.map.value
       if (map) {
+        // Create abort controller for user interruption
+        introAbortController = new AbortController()
         cinematicIntro(map, place, {
           duration: 5000,
           extraRotations: 1,
           startZoom: 0.2,
           endZoom: viewZoom,
           startLat: 20,
+          signal: introAbortController.signal,
         }).then(() => {
+          introAbortController = undefined
           // After intro completes, schedule next fly-to
           if (isRunning && !isPaused.value) {
             timeoutId = setTimeout(flyToNext, pauseBetween)
@@ -139,18 +157,23 @@ export function useAutoRotation(options: AutoRotationOptions = {}) {
   function stop() {
     isRunning = false
     isPaused.value = false
-    if (timeoutId !== null) {
+    if (timeoutId !== undefined) {
       clearTimeout(timeoutId)
-      timeoutId = null
+      timeoutId = undefined
     }
   }
 
   // Pause rotation (can be resumed)
   function pause() {
     isPaused.value = true
-    if (timeoutId !== null) {
+    if (timeoutId !== undefined) {
       clearTimeout(timeoutId)
-      timeoutId = null
+      timeoutId = undefined
+    }
+    // Abort cinematic intro if running
+    if (introAbortController) {
+      introAbortController.abort()
+      introAbortController = undefined
     }
     camera.stop()
   }
@@ -169,12 +192,6 @@ export function useAutoRotation(options: AutoRotationOptions = {}) {
     const map = camera.map.value
     if (!map) return
 
-    const handleInteraction = () => {
-      if (isRunning && !isPaused.value) {
-        pause()
-      }
-    }
-
     map.on('mousedown', handleInteraction)
     map.on('touchstart', handleInteraction)
     map.on('wheel', handleInteraction)
@@ -188,10 +205,18 @@ export function useAutoRotation(options: AutoRotationOptions = {}) {
   }
 
   // Setup interaction listeners when camera loads
-  let cleanupListeners: (() => void) | null = null
-  if (camera.isLoaded.value) {
-    cleanupListeners = setupInteractionListeners() || null
-  }
+  let cleanupListeners: (() => void) | undefined
+
+  // Watch for camera load to set up listeners
+  watch(
+    () => camera.isLoaded.value,
+    (isLoaded) => {
+      if (isLoaded && !cleanupListeners) {
+        cleanupListeners = setupInteractionListeners()
+      }
+    },
+    { immediate: true }
+  )
 
   // Clean up on unmount
   onUnmounted(() => {

@@ -43,8 +43,13 @@ CREATE POLICY "Service role can manage embeddings" ON "public"."embeddings" FOR 
 WITH
   CHECK (("auth"."role" () = 'service_role'::"text"));
 
+
 -- Explicitly revoke read access from non-service roles; only service_role should see embeddings
-REVOKE ALL ON public.embeddings FROM public, anon, authenticated;
+REVOKE ALL ON public.embeddings
+FROM
+  public,
+  anon,
+  authenticated;
 
 
 -- Comments

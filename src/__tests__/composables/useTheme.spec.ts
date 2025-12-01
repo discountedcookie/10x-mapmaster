@@ -197,7 +197,7 @@ describe('useTheme', () => {
     it('should handle missing window object', () => {
       // Temporarily remove window
       const originalWindow = globalThis.window
-      // @ts-ignore
+      // @ts-expect-error - window may not exist in this test environment
       delete globalThis.window
 
       mockMatchMedia.mockReturnValue({

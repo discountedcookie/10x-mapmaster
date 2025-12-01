@@ -10,10 +10,22 @@ SET
   game_logic,
   extensions;
 
+
 -- Simulate authenticated (or anonymous) user context
-SET local role authenticated;
-SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+SET
+  local role authenticated;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '00000000-0000-0000-0000-000000000001',
+    TRUE
+  );
 
 
 SELECT
@@ -45,24 +57,55 @@ SELECT
 -- Verify we have at least 1 candidate with default threshold
 SELECT
   ok (
-    (SELECT count FROM count_at_050) >= 1,
+    (
+      SELECT
+        count
+      FROM
+        count_at_050
+    ) >= 1,
     'Default threshold (0.5) returns candidates'
   );
 
 
 -- Raise threshold to 0.9 (very selective - should reduce candidates)
-SET local role service_role;
-SELECT set_config('request.jwt.claim.role', 'service_role', TRUE);
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+SET
+  local role service_role;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'service_role', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '00000000-0000-0000-0000-000000000001',
+    TRUE
+  );
+
 
 UPDATE game_logic.config
-SET value = '0.9'::jsonb
-WHERE key = 'scoring.initial_candidate_threshold';
+SET
+  value = '0.9'::JSONB
+WHERE
+  key = 'scoring.initial_candidate_threshold';
+
 
 -- Restore role for game interactions
-SET local role authenticated;
-SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+SET
+  local role authenticated;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '00000000-0000-0000-0000-000000000001',
+    TRUE
+  );
 
 
 CREATE TEMP TABLE count_at_090 AS
@@ -80,17 +123,43 @@ SELECT
 
 
 -- Restore to 0.5
-SET local role service_role;
-SELECT set_config('request.jwt.claim.role', 'service_role', TRUE);
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+SET
+  local role service_role;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'service_role', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '00000000-0000-0000-0000-000000000001',
+    TRUE
+  );
+
 
 UPDATE game_logic.config
-SET value = '0.5'::jsonb
-WHERE key = 'scoring.initial_candidate_threshold';
+SET
+  value = '0.5'::JSONB
+WHERE
+  key = 'scoring.initial_candidate_threshold';
 
-SET local role authenticated;
-SELECT set_config('request.jwt.claim.role', 'authenticated', TRUE);
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', TRUE);
+
+SET
+  local role authenticated;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '00000000-0000-0000-0000-000000000001',
+    TRUE
+  );
 
 
 -- Verify: Higher threshold = fewer (or same) candidates

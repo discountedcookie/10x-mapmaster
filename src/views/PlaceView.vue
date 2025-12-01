@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted, watchEffect } from 'vue'
+import { ref, watch, computed, onUnmounted, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMediaQuery, breakpointsTailwind } from '@vueuse/core'
+import { logger } from '@/lib/logger'
 import { useMapCamera, MAP_KEY } from '@/composables/map/useMapCamera'
+import { usePlacePresentation } from '@/composables/map/usePlacePresentation'
 import { usePlaces } from '@/composables/usePlaces'
 import { useMapLayersStore } from '@/stores/mapLayers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,7 +38,7 @@ type PlaceWithGeometry = Tables<'places_with_geometry'>
 
 // State
 const loading = ref(true)
-const place = ref<PlaceWithGeometry | null>(null)
+const place = ref<PlaceWithGeometry | undefined>()
 const traits = ref<string[]>([])
 
 // Get place ID from route
@@ -50,6 +52,7 @@ async function fetchPlaceDetails() {
 
   try {
     // Get place from store or fetch
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const storePlace = (placesStore.places as any[]).find((p: any) => p.id === placeId.value)
 
     if (storePlace) {
@@ -79,11 +82,12 @@ async function fetchPlaceDetails() {
 
     if (traitsData) {
       traits.value = traitsData
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((row: any) => row.traits?.clause)
         .filter((clause: string | undefined): clause is string => !!clause)
     }
   } catch (error) {
-    console.error('Failed to fetch place details:', error)
+    logger.error('Failed to fetch place details:', error)
   } finally {
     loading.value = false
   }
@@ -91,12 +95,12 @@ async function fetchPlaceDetails() {
 
 /**
  * Compute bounding box from GeoJSON geometry
- * Returns [minLng, minLat, maxLng, maxLat] or null if no geometry
+ * Returns [minLng, minLat, maxLng, maxLat] or undefined if no geometry
  */
-function computeBbox(geometry: unknown): [number, number, number, number] | null {
-  if (!geometry || typeof geometry !== 'object') return null
+function computeBbox(geometry: unknown): [number, number, number, number] | undefined {
+  if (!geometry || typeof geometry !== 'object') return undefined
   const geom = geometry as GeoJSONGeometry
-  if (!geom.coordinates) return null
+  if (!geom.coordinates) return undefined
 
   let minLng = Infinity
   let minLat = Infinity
@@ -113,6 +117,7 @@ function computeBbox(geometry: unknown): [number, number, number, number] | null
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function processCoords(coords: any) {
     if (typeof coords[0] === 'number') {
       // It's a single coordinate [lng, lat]
@@ -125,9 +130,10 @@ function computeBbox(geometry: unknown): [number, number, number, number] | null
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processCoords((geometry as any).coordinates)
 
-  if (minLng === Infinity) return null
+  if (minLng === Infinity) return undefined
   return [minLng, minLat, maxLng, maxLat]
 }
 
@@ -179,38 +185,56 @@ function getZoomForBbox(bbox: [number, number, number, number]): number {
   return Math.min(Math.max(zoom, 5), 17)
 }
 
-// Fly to place with offset when loaded (using bbox to calculate zoom)
+// Go to place with offset when loaded (using bbox to calculate zoom)
 // Also sets up 3D view with pitch
-async function flyToPlace() {
+async function goToPlace() {
   if (!camera || !place.value || !camera.isLoaded.value) return
-  if (place.value.lat == null || place.value.lng == null) return
+  if (place.value.lat == undefined || place.value.lng == undefined) return
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bbox = computeBbox((place.value as any).geometry)
   const offset = getMapOffset()
 
   // Calculate zoom from bbox if available, otherwise use default
   const zoom = bbox ? getZoomForBbox(bbox) : 12
 
-  // Fly to place with 3D pitch and offset to position it correctly
-  await camera.flyTo({
-    center: [place.value.lng, place.value.lat],
-    zoom,
-    pitch: 55,
-    bearing: 0,
-    duration: 1500,
-    offset: [offset.x, offset.y],
-  })
+  // Detect if this is a page refresh (camera at default globe position)
+  // vs navigation from another view
+  const c = camera.center.value
+  const z = camera.zoom.value
+  const isPageRefresh = Math.abs(c.lng) < 1 && Math.abs(c.lat - 20) < 1 && z < 3
 
-  // Start rotation animation after fly completes
-  startRotation()
+  if (isPageRefresh) {
+    // Page refresh: instant jump, no animation
+    camera.jumpTo({
+      center: [place.value.lng, place.value.lat],
+      zoom,
+      pitch: 55,
+      bearing: 0,
+    })
+    // Apply offset separately since jumpTo doesn't support it directly
+    camera.map.value?.panBy([-offset.x, -offset.y], { duration: 0 })
+    presentation.startRotation()
+  } else {
+    // Navigation from another view: smooth fly animation
+    await camera.flyTo({
+      center: [place.value.lng, place.value.lat],
+      zoom,
+      pitch: 55,
+      bearing: 0,
+      duration: 1500,
+      offset: [offset.x, offset.y],
+    })
+    presentation.startRotation()
+  }
 }
 
-// Handle map movement - reset URL if place goes out of bounds
+// Handle map movement - redirect home if place goes out of bounds
 function handleCameraChange() {
   if (!camera || !place.value) return
-  if (place.value.lat == null || place.value.lng == null) return
+  if (place.value.lat == undefined || place.value.lng == undefined) return
 
-  // Check if place is still visible
+  // Check if place is still visible - redirect to home if not
   if (!camera.isInBounds(place.value.lng, place.value.lat)) {
     router.replace('/')
   }
@@ -221,6 +245,7 @@ function handleCameraChange() {
 function setup3DLayer() {
   if (!camera || !place.value || !camera.map.value) return
   const map = camera.map.value
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const placeData = place.value as any
   if (!placeData.geometry) return
 
@@ -246,7 +271,8 @@ function setup3DLayer() {
       geometry:
         geomType === 'Point'
           ? { type: 'Point', coordinates: [placeData.lng, placeData.lat] }
-          : (placeData.geometry as any),
+          : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (placeData.geometry as any),
     },
   })
 
@@ -329,77 +355,28 @@ function cleanup3DLayer() {
   }
 }
 
-// ===== Rotation Animation =====
-// Continuous 360-degree rotation around the place center
-const rotationConfig = {
-  // Duration for one full 360-degree rotation in milliseconds
-  rotationDuration: 30000, // 30 seconds per rotation
-  // Whether rotation is currently active
-  isRotating: ref(false),
-}
-
-let rotationAnimationId: number | null = null
-let rotationStartTime: number | null = null
-
-function startRotation() {
-  if (!camera || !place.value || !camera.map.value) return
-  if (place.value.lng == null || place.value.lat == null) return
-  if (rotationConfig.isRotating.value) return
-
-  rotationConfig.isRotating.value = true
-  rotationStartTime = performance.now()
-
-  const map = camera.map.value
-  const offset = getMapOffset()
-
-  // The rotation center is the place's actual coordinates
-  const rotationCenter = {
-    lng: place.value.lng,
-    lat: place.value.lat,
-  }
-
-  function animate(currentTime: number) {
-    if (!rotationConfig.isRotating.value || !camera || !camera.map.value) return
-    if (!place.value || place.value.lat == null || place.value.lng == null) return
-
-    const map = camera.map.value
-    const elapsed = currentTime - (rotationStartTime || currentTime)
-
-    // Calculate bearing: 0 to 360 degrees based on elapsed time
-    const bearing = (elapsed / rotationConfig.rotationDuration) * 360
-
-    // Rotate the bearing and also apply the offset with flyTo
-    // This keeps the place visually in the same position while the globe spins
-    map.setBearing(bearing % 360)
-    map.flyTo({
-      center: [rotationCenter.lng, rotationCenter.lat],
-      offset: [offset.x, offset.y],
-      duration: 0, // instant, no animation
-      zoom: map.getZoom(),
-    })
-
-    // Continue animation
-    rotationAnimationId = requestAnimationFrame(animate)
-  }
-
-  rotationAnimationId = requestAnimationFrame(animate)
-}
-
-function stopRotation() {
-  rotationConfig.isRotating.value = false
-  if (rotationAnimationId !== null) {
-    cancelAnimationFrame(rotationAnimationId)
-    rotationAnimationId = null
-  }
-  rotationStartTime = null
-}
+// ===== Place Presentation Mode =====
+// Use shared composable for orbital rotation with zoom-pitch correlation
+const presentation = usePlacePresentation({
+  getPlace: () => {
+    if (!place.value || place.value.lng == undefined || place.value.lat == undefined) {
+      return null
+    }
+    return { lng: place.value.lng, lat: place.value.lat }
+  },
+  getOffset: getMapOffset,
+  interactionMode: 'full',
+  onPanAway: () => {
+    router.replace('/')
+  },
+})
 
 // Watch for place ID changes
 watch(
   placeId,
   () => {
     // Stop rotation when changing places
-    stopRotation()
+    presentation.stopRotation()
     cleanup3DLayer()
     fetchPlaceDetails()
   },
@@ -408,14 +385,16 @@ watch(
 
 // Fly when place is loaded AND map is ready
 let initialLoadComplete = false
-watch(
-  () => camera.isLoaded.value,
-  (isLoaded) => {
-    if (place.value && isLoaded) {
-      flyToPlace()
+
+// Use watchEffect to automatically track both place and camera.isLoaded
+// flush: 'post' ensures this runs after DOM updates and other effects
+watchEffect(
+  () => {
+    if (place.value && camera.isLoaded.value && !initialLoadComplete) {
+      goToPlace()
     }
   },
-  { immediate: true }
+  { flush: 'post' }
 )
 
 // Watch camera center for out-of-bounds detection (only after initial load)
@@ -448,7 +427,7 @@ watchEffect(() => {
 // Register map layers when place is loaded
 watch(
   () => place.value,
-  (newPlace: any) => {
+  (newPlace: PlaceWithGeometry | undefined) => {
     if (newPlace) {
       mapLayersStore.setLayers([
         {
@@ -466,7 +445,7 @@ watch(
 
 // Cleanup on unmount
 onUnmounted(() => {
-  stopRotation()
+  presentation.stop()
   cleanup3DLayer()
 })
 

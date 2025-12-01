@@ -1,15 +1,10 @@
-import { ref, computed, watch, shallowRef } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useMap } from '@indoorequal/vue-maplibre-gl'
-import type { Map, FlyToOptions, EaseToOptions, FitBoundsOptions, LngLatBoundsLike } from 'maplibre-gl'
+import type { FlyToOptions, EaseToOptions, FitBoundsOptions, LngLatBoundsLike } from 'maplibre-gl'
 
 export const MAP_KEY = Symbol.for('baseMap')
 
-interface MapCameraState {
-  center: { lng: number; lat: number }
-  zoom: number
-  pitch: number
-  bearing: number
-}
+export type InteractionMode = 'full' | 'zoom-only' | 'none'
 
 interface UseMapCameraOptions {
   /** Initial center [lng, lat] */
@@ -18,6 +13,10 @@ interface UseMapCameraOptions {
   initialZoom?: number
   /** Sync state from map movements (default: true) */
   syncFromMap?: boolean
+  /** Interaction mode: 'full' (all controls), 'zoom-only' (zoom only), 'none' (no controls) */
+  interactionMode?: InteractionMode
+  /** Callback when user interacts with map (mousedown, touchstart, wheel) */
+  onUserInteraction?: () => void
 }
 
 /**
@@ -32,6 +31,9 @@ export function useMapCamera(options: UseMapCameraOptions = {}) {
     initialCenter = [0, 20],
     initialZoom = 2,
     syncFromMap = true,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    interactionMode: _interactionMode = 'full', // Reserved for future use
+    onUserInteraction,
   } = options
 
   const mapInstance = useMap(MAP_KEY)
@@ -66,25 +68,50 @@ export function useMapCamera(options: UseMapCameraOptions = {}) {
     bearing.value = mapInstance.map.getBearing()
   }
 
+  // Interaction handler (stored for cleanup)
+  const handleInteraction = () => {
+    onUserInteraction?.()
+  }
+
   // Setup map event listeners when map is ready
   function setupMapListeners() {
     const m = mapInstance.map
-    if (!m || !syncFromMap) return
+    if (!m) return
 
-    m.on('moveend', syncStateFromMap)
-    m.on('zoomend', syncStateFromMap)
-    m.on('pitchend', syncStateFromMap)
-    m.on('rotateend', syncStateFromMap)
+    // Sync state listeners (only if syncFromMap enabled)
+    if (syncFromMap) {
+      m.on('moveend', syncStateFromMap)
+      m.on('zoomend', syncStateFromMap)
+      m.on('pitchend', syncStateFromMap)
+      m.on('rotateend', syncStateFromMap)
+    }
+
+    // User interaction listeners (for all modes)
+    if (onUserInteraction) {
+      m.on('mousedown', handleInteraction)
+      m.on('touchstart', handleInteraction)
+      m.on('wheel', handleInteraction)
+    }
   }
 
   function cleanupMapListeners() {
     const m = mapInstance.map
     if (!m) return
 
-    m.off('moveend', syncStateFromMap)
-    m.off('zoomend', syncStateFromMap)
-    m.off('pitchend', syncStateFromMap)
-    m.off('rotateend', syncStateFromMap)
+    // Remove sync listeners
+    if (syncFromMap) {
+      m.off('moveend', syncStateFromMap)
+      m.off('zoomend', syncStateFromMap)
+      m.off('pitchend', syncStateFromMap)
+      m.off('rotateend', syncStateFromMap)
+    }
+
+    // Remove interaction listeners (if they were set up)
+    if (onUserInteraction) {
+      m.off('mousedown', handleInteraction)
+      m.off('touchstart', handleInteraction)
+      m.off('wheel', handleInteraction)
+    }
   }
 
   // Watch for map load and setup listeners
@@ -207,7 +234,12 @@ export function useMapCamera(options: UseMapCameraOptions = {}) {
   /**
    * Jump to location instantly (no animation)
    */
-  function jumpTo(options: { center?: [number, number]; zoom?: number; pitch?: number; bearing?: number }) {
+  function jumpTo(options: {
+    center?: [number, number]
+    zoom?: number
+    pitch?: number
+    bearing?: number
+  }) {
     const m = mapInstance.map
     if (!m) return
 

@@ -11,23 +11,31 @@ SELECT
   p.times_encountered,
   -- Simplify large geometries (cities) while keeping small ones (buildings) intact
   CASE
-    WHEN extensions.ST_NPoints(p.geom) > 500 THEN
-      extensions.ST_AsGeoJSON(extensions.ST_Simplify(p.geom, 0.001))::jsonb
-    ELSE
-      extensions.ST_AsGeoJSON(p.geom)::jsonb
+    WHEN extensions.st_npoints (p.geom) > 500 THEN extensions.st_asgeojson (extensions.st_simplify (p.geom, 0.001))::JSONB
+    ELSE extensions.st_asgeojson (p.geom)::JSONB
   END AS geometry
 FROM
   places p
 WHERE
   p.lat IS NOT NULL
   AND p.lng IS NOT NULL
-  AND p.pending_review = false;
+  AND p.pending_review = FALSE;
 
 
-ALTER VIEW "public"."places_with_geometry" OWNER TO "postgres";
+ALTER VIEW "public"."places_with_geometry" owner TO "postgres";
 
 
 -- Permissions: public read access
-GRANT SELECT ON TABLE public.places_with_geometry TO anon;
-GRANT SELECT ON TABLE public.places_with_geometry TO authenticated;
-GRANT SELECT ON TABLE public.places_with_geometry TO service_role;
+GRANT
+SELECT
+  ON TABLE public.places_with_geometry TO anon;
+
+
+GRANT
+SELECT
+  ON TABLE public.places_with_geometry TO authenticated;
+
+
+GRANT
+SELECT
+  ON TABLE public.places_with_geometry TO service_role;

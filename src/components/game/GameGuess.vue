@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 
-interface Props {
+interface Properties {
   guessText: string
   loading?: boolean
 }
@@ -10,7 +10,7 @@ interface Emits {
   (e: 'answer', value: boolean): void
 }
 
-defineProps<Props>()
+defineProps<Properties>()
 const emit = defineEmits<Emits>()
 </script>
 

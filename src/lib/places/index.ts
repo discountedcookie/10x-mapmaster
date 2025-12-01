@@ -14,6 +14,7 @@ interface CacheEntry<T> {
 }
 
 class APICache {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private cache = new Map<string, CacheEntry<any>>()
 
   set<T>(key: string, data: T, ttlMs: number): void {
@@ -24,13 +25,13 @@ class APICache {
     })
   }
 
-  get<T>(key: string): T | null {
+  get<T>(key: string): T | undefined {
     const entry = this.cache.get(key)
-    if (!entry) return null
+    if (!entry) return undefined
 
     if (Date.now() - entry.timestamp > entry.ttl) {
       this.cache.delete(key)
-      return null
+      return undefined
     }
 
     return entry.data
@@ -101,9 +102,18 @@ export {
   type ExtraTags,
 } from './nominatim'
 
+// Only include if name appears to be in Latin alphabet (English-friendly)
+// This filters out Greek, Chinese, Arabic, etc. characters
+// Matches: Basic Latin (ASCII), Latin-1 Supplement, Latin Extended-A/B, Latin Extended Additional
+function isLatinText(text: string): boolean {
+  return /^[A-Za-z\u00C0-\u024F\u1E00-\u1EFF\s-]+$/.test(text)
+}
+
 // Embedding text generation (moved from nominatim.ts)
+
 export function generatePlaceEmbeddingText(place: {
   name: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   descriptors: any
   wikipedia_summary?: string | null
 }): string {
@@ -140,11 +150,6 @@ export function generatePlaceEmbeddingText(place: {
   // Use name:en from extratags if available, otherwise use country_code
   const cityName = extension['name:en'] || desc.address?.city
   const countryName = extension['country:en'] || desc.address?.country
-
-  // Only include if name appears to be in Latin alphabet (English-friendly)
-  // This filters out Greek, Chinese, Arabic, etc. characters
-  // Matches: Basic Latin (ASCII), Latin-1 Supplement, Latin Extended-A/B, Latin Extended Additional
-  const isLatinText = (text: string) => /^[A-Za-z\u00C0-\u024F\u1E00-\u1EFF\s-]+$/.test(text)
 
   if (cityName && isLatinText(cityName)) {
     parts.push(`City: ${cityName}`)

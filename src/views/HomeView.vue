@@ -2,8 +2,9 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useGameStore } from '@/stores/game'
-import { usePlaces, type Place } from '@/composables/usePlaces'
+import { logger } from '@/lib/logger'
+import { useGameSessionStore } from '@/stores/gameSession'
+import { usePlaces } from '@/composables/usePlaces'
 import { useAutoRotation } from '@/composables/map/useAutoRotation'
 import { useMapCamera, MAP_KEY } from '@/composables/map/useMapCamera'
 import { useMapLayersStore } from '@/stores/mapLayers'
@@ -14,13 +15,36 @@ import { Input } from '@/components/ui/input'
 
 const router = useRouter()
 const { locale } = useI18n()
-const gameStore = useGameStore()
+const gameSessionStore = useGameSessionStore()
 const placesStore = usePlaces()
 const mapLayersStore = useMapLayersStore()
 const camera = useMapCamera()
 
+// Single constant for rotation timing (used for both pauseBetween and resume delay)
+const ROTATION_DELAY = 5000
+
+// Smart resume: reset timeout on EVERY user interaction
+let resumeTimeoutId: ReturnType<typeof setTimeout> | undefined
+
+function scheduleResume() {
+  // Clear any existing timeout
+  if (resumeTimeoutId) {
+    clearTimeout(resumeTimeoutId)
+  }
+  // Schedule resume after delay
+  resumeTimeoutId = setTimeout(() => {
+    rotation.resume()
+    resumeTimeoutId = undefined
+  }, ROTATION_DELAY)
+}
+
 // Auto-rotation for home view - travels around places
-const rotation = useAutoRotation({ flyDuration: 6000, pauseBetween: 5000, viewZoom: 5 })
+const rotation = useAutoRotation({
+  flyDuration: 6000,
+  pauseBetween: ROTATION_DELAY,
+  viewZoom: 5,
+  onInteraction: scheduleResume, // Reset timeout on EVERY interaction
+})
 
 // Description input
 const description = ref('')
@@ -36,8 +60,10 @@ onMounted(() => {
 // Update rotation and layers when places load
 watch(
   () => placesStore.places,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (places: any[]) => {
-    const validPlaces = places.filter((p: any) => p.lng != null && p.lat != null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const validPlaces = places.filter((p: any) => p.lng != undefined && p.lat != undefined)
 
     // Update layer props with new places data
     mapLayersStore.setLayers([
@@ -71,6 +97,10 @@ watch(
 
 // Clean up on unmount
 onUnmounted(() => {
+  if (resumeTimeoutId) {
+    clearTimeout(resumeTimeoutId)
+    resumeTimeoutId = undefined
+  }
   rotation.stop()
   placesStore.unsubscribeRealtime()
 })
@@ -80,19 +110,21 @@ async function handleStartGame() {
   if (!description.value.trim()) return
 
   try {
-    // Stop rotation before navigating away
     rotation.stop()
 
-    await gameStore.startNewGame(description.value, locale.value)
+    await gameSessionStore.startNewGame(description.value, locale.value)
 
-    // Redirect to game view with session ID
-    if (gameStore.gameSessionId) {
-      await router.push(`/game/${gameStore.gameSessionId}`)
+    const id = gameSessionStore.session?.session_id ?? null
+    if (id) {
+      await router.push(`/game/${id}`)
     }
   } catch (error) {
-    console.error('Failed to start game:', error)
-    // Restart rotation if game start failed
-    const validPlaces = placesStore.places.filter((p: any) => p.lng != null && p.lat != null)
+    logger.error('Failed to start game:', error)
+
+    type SimplePlace = { lng: number | null; lat: number | null }
+    const validPlaces = (placesStore.places as SimplePlace[]).filter(
+      (p) => p.lng != null && p.lat != null
+    )
     if (validPlaces.length > 0) {
       rotation.setPlaces(validPlaces as { lng: number; lat: number }[])
       rotation.start('transition')
@@ -116,10 +148,10 @@ async function handleStartGame() {
         />
         <Button
           class="w-full"
-          :disabled="!description.trim() || gameStore.loading"
+          :disabled="!description.trim() || gameSessionStore.loading"
           @click="handleStartGame"
         >
-          {{ gameStore.loading ? 'Starting...' : 'Start Game' }}
+          {{ gameSessionStore.loading ? 'Starting...' : 'Start Game' }}
         </Button>
       </CardContent>
     </Card>

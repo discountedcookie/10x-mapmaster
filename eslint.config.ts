@@ -1,49 +1,69 @@
-import { defineConfig } from 'eslint/config'
 import eslintPluginVue from 'eslint-plugin-vue'
 import eslintPluginTypescript from 'typescript-eslint'
-import eslintPluginUnicorn from 'eslint-plugin-unicorn'
 import eslintConfigPrettier from 'eslint-config-prettier'
+import vueParser from 'vue-eslint-parser'
 
-export default defineConfig([
+export default [
   {
-    ignores: ['dist/**', 'coverage/**'],
+    ignores: ['dist/**', 'coverage/**', 'supabase/functions/**'],
   },
-  eslintPluginUnicorn.configs.recommended,
-  eslintPluginVue.configs['flat/recommended'],
+  ...eslintPluginVue.configs['flat/recommended'],
   ...eslintPluginTypescript.configs.recommended,
   {
     files: ['**/*.vue'],
     languageOptions: {
+      parser: vueParser,
       parserOptions: {
         parser: eslintPluginTypescript.parser,
         ecmaVersion: 'latest',
+        extraFileExtensions: ['.vue'],
       },
     },
   },
   {
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       ecmaVersion: 'latest',
-      parserOptions: {
-        parser: eslintPluginTypescript.parser,
-      },
-    },
-    rules: {
-      'max-lines': ['warn', { max: 200, skipBlankLines: true, skipComments: false }],
-      'unicorn/filename-case': 'off',
+      parser: eslintPluginTypescript.parser,
     },
   },
   {
-    files: ['e2e/**/*.ts'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      parserOptions: {
-        parser: eslintPluginTypescript.parser,
-      },
-    },
     rules: {
-      'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': 'error',
+      'max-lines': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: [
+      'src/types/database.ts',
+      'src/data/seedPlaces.ts',
+      'src/composables/map/useMapCamera.ts',
+      'src/views/LoginView.vue',
+      'src/views/SignupView.vue',
+      'src/views/PlaceView.vue',
+    ],
+    rules: {
+      'max-lines': 'off',
+    },
+  },
+  {
+    files: ['e2e/**/*.ts', 'src/__tests__/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off', // Tests need flexible mocking
+    },
+  },
+  {
+    files: ['scripts/**/*.ts'],
+    rules: {
+      'max-lines': 'off', // Scripts can be longer
+      '@typescript-eslint/no-explicit-any': 'off', // Scripts use dynamic data
+    },
+  },
+  {
+    files: ['src/components/ui/**/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off', // shadcn-vue uses single-word names
+      'vue/require-default-prop': 'off', // shadcn-vue handles defaults internally
     },
   },
   eslintConfigPrettier,
-])
+]

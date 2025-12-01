@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useGameStore } from '@/stores/game'
-import type { PlaceWithScore } from '@/stores/game'
+import { useGameSessionStore } from '@/stores/gameSession'
+import type { PlaceWithScore } from '@/types/game'
 import { supabase } from '@/lib/supabase'
 
 // Mock Supabase client
@@ -12,8 +12,8 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-describe('useGameStore', () => {
-  let store: ReturnType<typeof useGameStore>
+describe('useGameSessionStore', () => {
+  let store: ReturnType<typeof useGameSessionStore>
 
   const mockPlace: PlaceWithScore = {
     id: 'place-1',
@@ -264,15 +264,18 @@ describe('useGameStore', () => {
 
   describe('convertViewToGameState - JSONB Fallback', () => {
     it('should parse question from flattened current_question_text field', () => {
-      const row = {
+      const _row = {
         ...mockGameSessionStateRow,
         current_question_text: 'Is it in Europe?',
         current_question_id: 'q-1',
       }
 
-      const gameState = store.startNewGame('test').then(() => {
+      const _gameState = store.startNewGame('test').then(() => {
         // This would be called internally, but we're testing the conversion logic
       })
+
+      void _row
+      void _gameState
 
       // We can't directly test the private function, but we can verify the behavior
       // through the public API by checking that messages are populated correctly

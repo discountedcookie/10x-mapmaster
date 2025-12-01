@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 
@@ -21,13 +22,13 @@ export interface UserStatistics {
   avgQuestionsPerGame: number
   avgWrongGuesses: number
   totalQuestionsAsked: number
-  mostRecentGame: string | null
+  mostRecentGame: string | undefined
 }
 
 export function useStatistics() {
   const authStore = useAuthStore()
   const loading = ref(false)
-  const error = ref<string | null>(null)
+  const error = ref<string | undefined>()
   const sessions = ref<GameSessionStats[]>([])
 
   const statistics = computed<UserStatistics>(() => {
@@ -40,7 +41,7 @@ export function useStatistics() {
         avgQuestionsPerGame: 0,
         avgWrongGuesses: 0,
         totalQuestionsAsked: 0,
-        mostRecentGame: null,
+        mostRecentGame: undefined,
       }
     }
 
@@ -58,7 +59,7 @@ export function useStatistics() {
       avgQuestionsPerGame: sessions.value.length > 0 ? totalQuestions / sessions.value.length : 0,
       avgWrongGuesses: sessions.value.length > 0 ? totalWrongGuesses / sessions.value.length : 0,
       totalQuestionsAsked: totalQuestions,
-      mostRecentGame: sessions.value[0]?.created_at || null,
+      mostRecentGame: sessions.value[0]?.created_at,
     }
   })
 
@@ -71,8 +72,9 @@ export function useStatistics() {
 
     try {
       loading.value = true
-      error.value = null
+      error.value = undefined
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: fetchError } = await (supabase as any)
         .from('game_session_stats')
         .select('*')
@@ -83,7 +85,7 @@ export function useStatistics() {
 
       sessions.value = (data || []) as GameSessionStats[]
     } catch (error_) {
-      console.error('Failed to fetch statistics:', error_)
+      logger.error('Failed to fetch statistics:', error_)
       error.value = error_ instanceof Error ? error_.message : 'Failed to load statistics'
     } finally {
       loading.value = false

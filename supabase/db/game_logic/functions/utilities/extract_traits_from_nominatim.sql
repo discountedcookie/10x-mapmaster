@@ -1,8 +1,7 @@
 -- Function: extract_traits_from_nominatim
 -- Category: utilities
 -- Purpose: Extract traits from Nominatim data using LLM + rule-based extraction
-CREATE OR REPLACE FUNCTION "game_logic"."extract_traits_from_nominatim" ("p_nominatim_data" JSONB) 
-returns JSONB language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."extract_traits_from_nominatim" ("p_nominatim_data" JSONB) returns JSONB language plpgsql security definer
 SET
   search_path = public,
   game_logic,

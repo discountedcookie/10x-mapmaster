@@ -3,7 +3,9 @@
 ## Purpose
 
 Specifies the Vue 3 frontend shell, routing, map visualization, and UI components. The frontend is presentation-only - it displays data from database views and calls RPC functions, never implementing game logic.
+
 ## Requirements
+
 ### Requirement: Frontend Shell and Routing
 
 The system SHALL provide a layout and routes for the application shell without embedding game logic.
@@ -103,4 +105,3 @@ The system SHALL present stats views and user settings without embedding game lo
 
 - **WHEN** interacting with settings and stats
 - **THEN** controls are accessible (keyboard/ARIA/reduced motion)
-

@@ -1,40 +1,59 @@
-import { ref, computed } from 'vue'
-import { useGameStore } from '@/stores/game'
+import { computed, ref, type Component } from 'vue'
+import { useGameSessionStore } from '@/stores/gameSession'
+import GameLoading from '@/components/game/states/GameLoading.vue'
+import GameError from '@/components/game/states/GameError.vue'
+import GameActive from '@/components/game/states/GameActive.vue'
+import GameWon from '@/components/game/states/GameWon.vue'
+import GameSubmission from '@/components/game/states/GameSubmission.vue'
+import GameSubmissionPending from '@/components/game/states/GameSubmissionPending.vue'
 
-export type GameState = 'idle' | 'resumeDialog' | 'start' | 'question' | 'result' | 'placeSearch'
+export type StateView = {
+  component: Component
+  props: Record<string, unknown>
+}
 
+/**
+ * Composable for managing game view state and component selection.
+ * Returns the appropriate state component and its props based on current game state.
+ */
 export function useGameState() {
-  const gameStore = useGameStore()
+  const gameSessionStore = useGameSessionStore()
+  const loadError = ref<string | undefined>()
 
-  const gameStarted = ref(false)
-  const showResumeDialog = ref(false)
-  const showPlaceSearch = ref(false)
+  // Derive state view - component and props together
+  const stateView = computed<StateView | null>(() => {
+    const title = gameSessionStore.session?.description ?? undefined
 
-  const hasExistingGame = computed(() => {
-    return gameStore.topCandidates.length > 0 || gameStore.questionCount > 0
-  })
-
-  const gameState = computed((): GameState => {
-    if (showResumeDialog.value) return 'resumeDialog'
-    if (!gameStarted.value) return 'start'
-    if (showPlaceSearch.value) return 'placeSearch'
-    if (gameStore.isGameComplete) return 'result'
-    if (gameStore.currentQuestion) return 'question'
-    return 'idle'
-  })
-
-  function checkForExistingGame() {
-    if (hasExistingGame.value && !gameStarted.value) {
-      showResumeDialog.value = true
+    if (loadError.value) {
+      return { component: GameError, props: { error: loadError.value } }
     }
-  }
+
+    if (gameSessionStore.loading && !gameSessionStore.session) {
+      return { component: GameLoading, props: {} }
+    }
+
+    if (!gameSessionStore.session) {
+      return null
+    }
+
+    if (gameSessionStore.isWon) {
+      return { component: GameWon, props: { title } }
+    }
+    if (gameSessionStore.isSubmissionPending) {
+      return { component: GameSubmissionPending, props: { title } }
+    }
+    if (gameSessionStore.isNeedsSubmission) {
+      return { component: GameSubmission, props: {} }
+    }
+    if (gameSessionStore.isGameActive) {
+      return { component: GameActive, props: { title } }
+    }
+
+    return null
+  })
 
   return {
-    gameStarted,
-    showResumeDialog,
-    showPlaceSearch,
-    hasExistingGame,
-    gameState,
-    checkForExistingGame,
+    loadError,
+    stateView,
   }
 }

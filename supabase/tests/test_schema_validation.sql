@@ -274,7 +274,8 @@ SELECT
 SELECT
   ok (
     EXISTS (
-      SELECT 1
+      SELECT
+        1
       FROM
         game_logic.config
       WHERE

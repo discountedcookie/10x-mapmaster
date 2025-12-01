@@ -12,6 +12,8 @@ SELECT
 
 -- Clean up any pre-existing test data for isolation
 DELETE FROM game_answers;
+
+
 DELETE FROM game_sessions;
 
 

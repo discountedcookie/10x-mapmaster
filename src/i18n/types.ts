@@ -5,5 +5,5 @@ export type MessageSchema = typeof en
 
 // Extend vue-i18n module declarations for type safety
 declare module 'vue-i18n' {
-  export interface DefineLocaleMessage extends MessageSchema {}
+  export type DefineLocaleMessage = MessageSchema
 }

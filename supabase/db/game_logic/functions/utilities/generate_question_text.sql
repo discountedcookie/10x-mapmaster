@@ -7,7 +7,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."generate_question_text" (
   p_language_code TEXT DEFAULT 'en'
 ) returns TEXT language plpgsql security definer
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_trait_clause TEXT;
   v_region_name TEXT;

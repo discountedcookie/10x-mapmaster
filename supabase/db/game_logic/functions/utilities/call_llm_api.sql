@@ -3,7 +3,7 @@
 -- Purpose: Call LLM via edge function with a prompt
 -- Returns: LLM response text
 CREATE OR REPLACE FUNCTION "game_logic"."call_llm_api" (
-  "p_prompt" "text", 
+  "p_prompt" "text",
   "p_format" "text" DEFAULT NULL,
   "p_config_prefix" "text" DEFAULT 'llm'
 ) returns "text" language "plpgsql" security definer
@@ -120,10 +120,18 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text", "p_config_prefix" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."call_llm_api" (
+  "p_prompt" "text",
+  "p_format" "text",
+  "p_config_prefix" "text"
+) owner TO "postgres";
 
 
-comment ON function "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text", "p_config_prefix" "text") IS 'Call LLM via call-llm edge function with database-driven configuration.
+comment ON function "game_logic"."call_llm_api" (
+  "p_prompt" "text",
+  "p_format" "text",
+  "p_config_prefix" "text"
+) IS 'Call LLM via call-llm edge function with database-driven configuration.
 
 Fetches LLM settings from game_logic.config and passes them to the edge function.
 

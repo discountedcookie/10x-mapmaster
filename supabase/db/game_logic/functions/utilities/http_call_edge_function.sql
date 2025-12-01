@@ -8,7 +8,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."http_call_edge_function" (
   p_body JSONB DEFAULT '{}'
 ) returns JSONB language plpgsql security definer
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_url TEXT;
   v_auth_token TEXT;

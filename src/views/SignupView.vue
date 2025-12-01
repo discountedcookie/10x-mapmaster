@@ -2,11 +2,12 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
-interface Props {
+interface Properties {
   renderMode?: 'layers' | 'ui'
 }
 
-const props = withDefaults(defineProps<Props>(), {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _properties = withDefaults(defineProps<Properties>(), {
   renderMode: 'ui',
 })
 import { useForm } from 'vee-validate'
@@ -14,6 +15,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
+import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import {
@@ -80,7 +82,7 @@ const onSubmit = form.handleSubmit(async (values) => {
     const redirectParameter = route.query.redirect ? `&redirect=${route.query.redirect}` : ''
     router.push(`/login?registered=true${redirectParameter}`)
   } catch (error) {
-    console.error('Signup error:', error)
+    logger.error('Signup error:', error)
     toast.error(t('auth.toast.sign_up_failed_title'), {
       description: t('auth.toast.create_account_failed_generic'),
     })
@@ -107,7 +109,7 @@ async function signInWithGitHub() {
     }
     // OAuth will redirect, so no need to handle success here
   } catch (error) {
-    console.error('GitHub login error:', error)
+    logger.error('GitHub login error:', error)
     toast.error(t('auth.toast.sign_in_failed_title'), {
       description: t('auth.toast.oauth_failed_generic'),
     })

@@ -2,30 +2,30 @@
 import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 
-interface Props {
+interface Properties {
   name: string
   confidence: number // 0-1
   zoom: number
   highlighted?: boolean // True when hovering in the search panel
 }
 
-const props = defineProps<Props>()
+const properties = defineProps<Properties>()
 
 // Fade in/out labels based on zoom level
 const opacity = computed(() => {
-  if (props.zoom < 3) return 0
-  if (props.zoom < 4) return props.zoom - 3 // Fade in: 0 to 1 between zoom 3-4
-  if (props.zoom > 11) return Math.max(0, 12 - props.zoom) // Fade out: 1 to 0 between zoom 11-12
+  if (properties.zoom < 3) return 0
+  if (properties.zoom < 4) return properties.zoom - 3 // Fade in: 0 to 1 between zoom 3-4
+  if (properties.zoom > 11) return Math.max(0, 12 - properties.zoom) // Fade out: 1 to 0 between zoom 11-12
   return 1
 })
 
 // Confidence percentage
-const confidencePercent = computed(() => Math.round(props.confidence * 100))
+const confidencePercent = computed(() => Math.round(properties.confidence * 100))
 
 // Border color based on confidence (grey → primary blue)
-const normalizedConfidence = computed(() => Math.max(0, (props.confidence - 0.5) * 2))
+const normalizedConfidence = computed(() => Math.max(0, (properties.confidence - 0.5) * 2))
 const borderColor = computed(() => {
-  if (props.highlighted) {
+  if (properties.highlighted) {
     return 'hsl(220, 90%, 50%)' // Bright blue when highlighted
   }
   const saturation = normalizedConfidence.value * 80
@@ -33,7 +33,7 @@ const borderColor = computed(() => {
 })
 
 // Scale up when highlighted
-const transform = computed(() => (props.highlighted ? 'scale(1.15)' : 'scale(1)'))
+const transform = computed(() => (properties.highlighted ? 'scale(1.15)' : 'scale(1)'))
 </script>
 
 <template>

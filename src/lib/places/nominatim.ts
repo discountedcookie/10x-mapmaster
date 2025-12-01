@@ -7,6 +7,7 @@
 
 import * as Nominatim from 'nominatim-ts'
 import type { JSONPlace } from 'nominatim-ts/lib/types'
+import { logger } from '@/lib/logger'
 import type { PlaceDescriptors } from './types'
 import { waitForRateLimit, withCache } from './index'
 
@@ -111,7 +112,7 @@ export async function queryPlaceWithRetry(
 
       if (isNetworkError && attempt < maxRetries) {
         const backoffMs = Math.min(1000 * Math.pow(2, attempt), 10_000) // Exponential backoff, max 10s
-        console.log('Network error querying place, retrying...', {
+        logger.log('Network error querying place, retrying...', {
           placeName,
           attempt,
           maxRetries,
@@ -119,7 +120,7 @@ export async function queryPlaceWithRetry(
         })
         await new Promise((resolve) => setTimeout(resolve, backoffMs))
       } else if (attempt === maxRetries) {
-        console.error('Failed to query place after multiple attempts:', {
+        logger.error('Failed to query place after multiple attempts:', {
           placeName,
           maxRetries,
           error: lastError,

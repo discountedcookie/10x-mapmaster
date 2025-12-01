@@ -115,7 +115,7 @@ async function main() {
       // Use ST_Union to merge all country geometries into continent geometry
       // ST_Collect creates a geometry collection, ST_Union merges overlaps
       const geomCollection = geometryWKTs
-        .map((wkt, index) => `    ST_GeomFromText('${escapeSql(wkt)}', 4326)`)
+        .map((wkt) => `    ST_GeomFromText('${escapeSql(wkt)}', 4326)`)
         .join(',\n')
 
       sql += `INSERT INTO geographic_regions (name, level, geom, continent_id, iso_code)

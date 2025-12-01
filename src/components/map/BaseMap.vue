@@ -132,9 +132,9 @@ watch(resolvedTheme, () => {
     >
       <!-- Render map layers from store -->
       <component
+        :is="layer.component"
         v-for="layer in mapLayersStore.layers"
         :key="layer.key"
-        :is="layer.component"
         v-bind="layer.props || {}"
       />
     </MglMap>

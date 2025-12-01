@@ -17,7 +17,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."get_semantic_questions" (
   "question_text" TEXT
 ) language plpgsql
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_candidate_count INT;
   v_description_embedding vector(384);

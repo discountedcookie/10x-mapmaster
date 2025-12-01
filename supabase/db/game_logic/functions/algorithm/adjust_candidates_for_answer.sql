@@ -9,7 +9,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."adjust_candidates_for_answer" (
   p_answer answer_value
 ) returns JSONB language plpgsql
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_candidate JSONB;
   v_place_id UUID;

@@ -6,7 +6,6 @@ import {
   extractDescriptors,
   type NominatimPlace,
 } from '@/lib/places'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { Tables } from '@/types/database'
 
 export type Place = Tables<'places_with_geometry'>
@@ -15,11 +14,10 @@ export const usePlacesStore = defineStore('places', () => {
   // State
   const places = ref<Place[]>([])
   const loading = ref(false)
-  const error = ref<string | null>(null)
+  const error = ref<string | undefined>()
   const searchLoading = ref(false)
-  const searchError = ref<string | undefined>(undefined)
-  let fetchPromise: Promise<void> | null = null
-  let realtimeChannel: RealtimeChannel | null = null
+  const searchError = ref<string | undefined>()
+  let fetchPromise: Promise<void> | undefined
 
   // Actions
   async function fetchAllPlaces() {
@@ -34,7 +32,7 @@ export const usePlacesStore = defineStore('places', () => {
     }
 
     loading.value = true
-    error.value = null
+    error.value = undefined
 
     fetchPromise = (async () => {
       try {
@@ -48,87 +46,15 @@ export const usePlacesStore = defineStore('places', () => {
         }
 
         places.value = data || []
-
-        // Set up realtime subscription after initial fetch
-        setupRealtimeSubscription()
       } catch (error_) {
         error.value = error_ instanceof Error ? error_.message : 'Failed to fetch places'
       } finally {
         loading.value = false
-        fetchPromise = null
+        fetchPromise = undefined
       }
     })()
 
     return fetchPromise
-  }
-
-  function setupRealtimeSubscription() {
-    // Clean up existing subscription if any
-    if (realtimeChannel) {
-      supabase.removeChannel(realtimeChannel)
-    }
-
-    // Subscribe to changes in the places table
-    realtimeChannel = supabase
-      .channel('places-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'places',
-        },
-        (payload) => {
-          handleRealtimeChange(payload)
-        }
-      )
-      .subscribe((_status) => {
-        // Subscription status updated
-      })
-  }
-
-  async function handleRealtimeChange(payload: any) {
-    const { eventType, new: newRecord, old: oldRecord } = payload
-
-    switch (eventType) {
-      case 'INSERT':
-      case 'UPDATE': {
-        // Refetch the place from view to get geometry
-        const { data } = await supabase
-          .from('places_with_geometry')
-          .select('*')
-          .eq('id', newRecord.id)
-          .single()
-
-        if (data) {
-          // Cast through any to avoid TypeScript deep instantiation error with Supabase types
-          const placeData = data as any as Place
-          const index = places.value.findIndex((p) => p.id === placeData.id)
-          if (index !== -1) {
-            ;(places.value as any)[index] = placeData
-          } else {
-            ;(places.value as any).push(placeData)
-            places.value.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-          }
-        }
-        break
-      }
-      case 'DELETE': {
-        const deletedId = oldRecord.id
-        const index = places.value.findIndex((p) => p.id === deletedId)
-        if (index !== -1) {
-          places.value.splice(index, 1)
-        }
-        break
-      }
-    }
-  }
-
-  function unsubscribeRealtime() {
-    if (realtimeChannel) {
-      supabase.removeChannel(realtimeChannel)
-      realtimeChannel = null
-    }
   }
 
   async function searchPlaces(query: string): Promise<NominatimPlace[]> {
@@ -149,11 +75,19 @@ export const usePlacesStore = defineStore('places', () => {
   function reset() {
     places.value = []
     loading.value = false
-    error.value = null
+    error.value = undefined
     searchLoading.value = false
     searchError.value = undefined
-    fetchPromise = null
-    unsubscribeRealtime()
+    fetchPromise = undefined
+  }
+
+  /**
+   * Unsubscribe from realtime updates
+   * Called by useRealtimePlaces composable
+   */
+  function unsubscribeRealtime() {
+    // Realtime subscription is now managed by useRealtimePlaces composable
+    // This function is kept for backward compatibility with HomeView.vue
   }
 
   return {

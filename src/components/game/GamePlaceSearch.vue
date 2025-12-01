@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePlaces, type NominatimPlace } from '@/composables/usePlaces'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ const emit = defineEmits<{
   select: [place: NominatimPlace]
   cancel: []
   searchResults: [places: NominatimPlace[]]
-  hover: [place: NominatimPlace | null]
+  hover: [place: NominatimPlace | undefined]
 }>()
 
 const placesStore = usePlaces()
@@ -20,8 +20,8 @@ const { t } = useI18n()
 
 const query = ref('')
 const results = ref<NominatimPlace[]>([])
-const selectedIndex = ref<number | null>(null)
-const debounceTimeout = ref<ReturnType<typeof setTimeout> | undefined>(undefined)
+const selectedIndex = ref<number | undefined>()
+const debounceTimeout = ref<ReturnType<typeof setTimeout> | undefined>()
 
 watch(query, (newQuery) => {
   if (debounceTimeout.value) {
@@ -50,16 +50,16 @@ function selectPlace(place: NominatimPlace, index: number) {
   emit('select', place)
 }
 
-function handleHover(place: NominatimPlace | null) {
+function handleHover(place: NominatimPlace | undefined) {
   emit('hover', place)
 }
 
 function clearSearch() {
   query.value = ''
   results.value = []
-  selectedIndex.value = null
+  selectedIndex.value = undefined
   emit('searchResults', [])
-  emit('hover', null)
+  emit('hover', undefined)
 }
 
 // Parse display_name to extract primary name and location details
@@ -77,14 +77,18 @@ function parseDisplayName(displayName: string): { name: string; details: string 
 // Get OSM type badge variant
 function getOsmTypeBadge(osmType: string): string {
   switch (osmType) {
-    case 'way':
+    case 'way': {
       return 'Building'
-    case 'relation':
+    }
+    case 'relation': {
       return 'Area'
-    case 'node':
+    }
+    case 'node': {
       return 'Point'
-    default:
+    }
+    default: {
       return osmType
+    }
   }
 }
 </script>
@@ -143,7 +147,7 @@ function getOsmTypeBadge(osmType: string): string {
           ]"
           @click="selectPlace(result, index)"
           @mouseenter="handleHover(result)"
-          @mouseleave="handleHover(null)"
+          @mouseleave="handleHover(undefined)"
         >
           <div class="flex items-start gap-3">
             <!-- Map pin icon -->

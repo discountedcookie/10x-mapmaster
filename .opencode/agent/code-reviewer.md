@@ -8,12 +8,15 @@ permission:
   edit: deny
   bash:
     "*": deny
+    "bun run lint*": allow
+    "bun run test*": allow
+    "bun run type-check": allow
 tools:
   read: true
   glob: true
   grep: true
   list: true
-  bash: false
+  bash: true
   edit: false
   write: false
   patch: false

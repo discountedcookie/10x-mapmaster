@@ -2,24 +2,26 @@
 import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 
-interface Props {
+interface Properties {
   name: string
   zoom: number
 }
 
-const props = defineProps<Props>()
+const properties = defineProps<Properties>()
 
 // Fade in/out labels based on zoom level
 // Visible between zoom 4-12, hidden when zoomed out or zoomed in to 3D layer
 const opacity = computed(() => {
-  if (props.zoom < 4) return 0
-  if (props.zoom < 5) return props.zoom - 4 // Fade in: 0 to 1 between zoom 4-5
-  if (props.zoom > 11) return Math.max(0, 12 - props.zoom) // Fade out: 1 to 0 between zoom 11-12
+  if (properties.zoom < 4) return 0
+  if (properties.zoom < 5) return properties.zoom - 4 // Fade in: 0 to 1 between zoom 4-5
+  if (properties.zoom > 11) return Math.max(0, 12 - properties.zoom) // Fade out: 1 to 0 between zoom 11-12
   return 1
 })
 
 // Disable pointer events when invisible
-const pointerEvents = computed(() => (props.zoom >= 4 && props.zoom <= 12 ? 'auto' : 'none'))
+const pointerEvents = computed(() =>
+  properties.zoom >= 4 && properties.zoom <= 12 ? 'auto' : 'none'
+)
 </script>
 
 <template>

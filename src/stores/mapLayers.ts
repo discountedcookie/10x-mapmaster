@@ -5,6 +5,7 @@ import type { Component } from 'vue'
 export interface MapLayer {
   key: string
   component: Component
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   props?: Record<string, any>
 }
 

@@ -1,8 +1,7 @@
 -- Function: fetch_nominatim_place
 -- Category: utilities
 -- Purpose: Fetch place data from Nominatim by OSM ID
-CREATE OR REPLACE FUNCTION "game_logic"."fetch_nominatim_place" ("p_osm_id" TEXT) 
-returns JSONB language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."fetch_nominatim_place" ("p_osm_id" TEXT) returns JSONB language plpgsql security definer
 SET
   search_path = public,
   game_logic,

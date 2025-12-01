@@ -14,15 +14,15 @@ import PlaceMarker from './PlaceMarker.vue'
 import type { Place } from '@/stores/places'
 import type { FillLayerSpecification, CircleLayerSpecification } from 'maplibre-gl'
 
-interface Props {
+interface Properties {
   places: Place[]
   mapKey: symbol
 }
 
-const props = defineProps<Props>()
+const properties = defineProps<Properties>()
 
 const router = useRouter()
-const mapInstance = useMap(props.mapKey)
+const mapInstance = useMap(properties.mapKey)
 
 // Track map center for visibility filtering
 const { mapCenter } = useMapCenterTracking(mapInstance)
@@ -38,8 +38,11 @@ function updateZoom() {
 // Filter places to only those visible on the globe
 const visiblePlaces = computed(() => {
   const center = mapCenter.value
-  return props.places.filter(
-    (p) => p.lat != null && p.lng != null && isVisibleOnGlobe(p.lng, p.lat, center.lng, center.lat)
+  return properties.places.filter(
+    (p) =>
+      p.lat != undefined &&
+      p.lng != undefined &&
+      isVisibleOnGlobe(p.lng, p.lat, center.lng, center.lat)
   )
 })
 
@@ -62,7 +65,7 @@ const polygonsGeoJson = computed(() => ({
 const pointsGeoJson = computed(() => ({
   type: 'FeatureCollection' as const,
   features: visiblePlaces.value
-    .filter((p) => p.lat != null && p.lng != null)
+    .filter((p) => p.lat != undefined && p.lng != undefined)
     .map((place) => ({
       type: 'Feature' as const,
       properties: {
@@ -128,6 +131,7 @@ function setupEventListeners() {
   updateZoom()
 
   // Click handlers - navigate to place route
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleClick = (e: any) => {
     if (!e.features?.length) return
     const feature = e.features[0]

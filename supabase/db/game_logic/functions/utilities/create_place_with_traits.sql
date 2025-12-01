@@ -6,8 +6,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."create_place_with_traits" (
   "p_nominatim_data" JSONB,
   "p_traits" JSONB,
   "p_is_curated" BOOLEAN DEFAULT FALSE
-) 
-returns UUID language plpgsql security definer
+) returns UUID language plpgsql security definer
 SET
   search_path = public,
   game_logic,

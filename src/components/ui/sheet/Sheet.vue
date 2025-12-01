@@ -2,10 +2,10 @@
 import type { DialogRootEmits, DialogRootProps } from 'reka-ui'
 import { DialogRoot, useForwardPropsEmits } from 'reka-ui'
 
-const props = defineProps<DialogRootProps>()
+const properties = defineProps<DialogRootProps>()
 const emits = defineEmits<DialogRootEmits>()
 
-const forwarded = useForwardPropsEmits(props, emits)
+const forwarded = useForwardPropsEmits(properties, emits)
 </script>
 
 <template>

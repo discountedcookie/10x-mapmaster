@@ -2,10 +2,7 @@
 -- Category: places
 -- Purpose: Learn traits from a completed game session's answers
 -- Spec: docs/architecture/algorithm.md#trait-sources
-CREATE OR REPLACE FUNCTION "game_logic"."learn_traits_from_session" (
-  "p_session_id" UUID,
-  "p_place_id" UUID
-) returns JSONB language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."learn_traits_from_session" ("p_session_id" UUID, "p_place_id" UUID) returns JSONB language "plpgsql" security definer
 SET
   search_path = public,
   game_logic AS $$

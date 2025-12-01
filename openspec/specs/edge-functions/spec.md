@@ -5,7 +5,9 @@
 Edge functions provide external service integrations for the database-first architecture. They handle provider connections (LLM, embeddings, Nominatim) and abstract secrets management, allowing the database to call external services without exposing API keys.
 
 All edge functions are called ONLY by the database via http extension. Frontend does NOT call edge functions.
+
 ## Requirements
+
 ### Requirement: generate-embedding Edge Function
 
 The system SHALL provide an edge function to generate 384d embeddings from text using configurable providers.
@@ -53,4 +55,3 @@ The system SHALL provide an edge function to call LLMs for text generation and s
 
 - **WHEN** changing providers
 - **THEN** configuration/env selects providers without code changes
-

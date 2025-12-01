@@ -82,8 +82,10 @@ CREATE POLICY "Users can insert their own game sessions" ON "public"."game_sessi
 WITH
   CHECK (
     (
-      ("auth"."uid" () IS NOT NULL
-      AND "auth"."uid" () = "user_id")
+      (
+        "auth"."uid" () IS NOT NULL
+        AND "auth"."uid" () = "user_id"
+      )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );

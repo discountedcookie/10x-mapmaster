@@ -14,7 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { sheetVariants } from '.'
 
-interface SheetContentProps extends DialogContentProps {
+interface SheetContentProperties extends DialogContentProps {
   class?: HTMLAttributes['class']
   side?: SheetVariants['side']
 }
@@ -23,13 +23,13 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = defineProps<SheetContentProps>()
+const props = defineProps<SheetContentProperties>()
 
 const emits = defineEmits<DialogContentEmits>()
 
-const delegatedProps = reactiveOmit(props, 'class', 'side')
+const delegatedProperties = reactiveOmit(props, 'class', 'side')
 
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+const forwarded = useForwardPropsEmits(delegatedProperties, emits)
 </script>
 
 <template>

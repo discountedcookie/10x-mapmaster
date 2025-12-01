@@ -1,16 +1,13 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-11-30T12:37:39.524Z
+-- Generated: 2025-12-01T12:30:04.014Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 4
-
 -- ============================================================================
 -- EXTENSIONS AND TYPES
 -- ============================================================================
-
 -- --------------------------------------------------------------------------
 -- schema/01_extensions.sql
 -- --------------------------------------------------------------------------
-
 -- ============================================================================
 -- PostgreSQL Extensions
 -- ============================================================================
@@ -243,14 +240,13 @@ authenticated,
 anon,
 service_role;
 
+
 -- ============================================================================
 -- TABLE DEFINITIONS
 -- ============================================================================
-
 -- --------------------------------------------------------------------------
 -- public/tables/embeddings.sql
 -- --------------------------------------------------------------------------
-
 -- Table: embeddings
 -- Schema: public
 -- Description: Stores text embeddings separately from entities for efficient querying
@@ -296,17 +292,22 @@ CREATE POLICY "Service role can manage embeddings" ON "public"."embeddings" FOR 
 WITH
   CHECK (("auth"."role" () = 'service_role'::"text"));
 
+
 -- Explicitly revoke read access from non-service roles; only service_role should see embeddings
-REVOKE ALL ON public.embeddings FROM public, anon, authenticated;
+REVOKE ALL ON public.embeddings
+FROM
+  public,
+  anon,
+  authenticated;
 
 
 -- Comments
 comment ON TABLE "public"."embeddings" IS 'Stores 384d text embeddings (gte-small compatible).';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/geographic_regions.sql
 -- --------------------------------------------------------------------------
-
 -- Table: geographic_regions
 -- Schema: public
 -- Description: Geographic regions (continents and countries) from Natural Earth
@@ -373,10 +374,10 @@ Used to generate geographic questions dynamically via v_geographic_questions vie
 - continent_id: NULL for continents, references continent for countries
 - iso_code: ISO 3166-1 alpha-2 code for countries (e.g., FR, JP)';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/traits.sql
 -- --------------------------------------------------------------------------
-
 -- Table: traits
 -- Schema: public
 -- Description: Canonical trait definitions used to describe and filter places
@@ -430,10 +431,10 @@ WITH
 -- Comments
 comment ON TABLE "public"."traits" IS 'Canonical trait vocabulary per spec. Each trait has id, clause (text), and embedding_id for semantic similarity calculations.';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/places.sql
 -- --------------------------------------------------------------------------
-
 -- Table: places
 -- Schema: public
 -- Description: Stores geographic locations with trait-based descriptions
@@ -515,10 +516,10 @@ FOR UPDATE
 -- Comments
 comment ON TABLE "public"."places" IS 'Geographic locations with trait-based descriptions and embeddings.';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/game_sessions.sql
 -- --------------------------------------------------------------------------
-
 -- Table: game_sessions
 -- Schema: public
 -- Description: Tracks active and completed game sessions with trait-based state
@@ -603,8 +604,10 @@ CREATE POLICY "Users can insert their own game sessions" ON "public"."game_sessi
 WITH
   CHECK (
     (
-      ("auth"."uid" () IS NOT NULL
-      AND "auth"."uid" () = "user_id")
+      (
+        "auth"."uid" () IS NOT NULL
+        AND "auth"."uid" () = "user_id"
+      )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -633,11 +636,9 @@ comment ON COLUMN "public"."game_sessions"."next_turn" IS 'Cached next turn for 
 
 
 -- Note: Triggers defined in schema/triggers.sql (loaded after functions)
-
 -- --------------------------------------------------------------------------
 -- public/tables/game_answers.sql
 -- --------------------------------------------------------------------------
-
 -- Table: game_answers
 -- Schema: public
 -- Description: Records each answer (question response or wrong guess) during a game session
@@ -720,9 +721,7 @@ SELECT
         FROM
           "public"."game_sessions"
         WHERE
-          (
-            ("game_sessions"."user_id" = "auth"."uid" ())
-          )
+          (("game_sessions"."user_id" = "auth"."uid" ()))
       )
     )
     OR ("auth"."role" () = 'service_role'::"text")
@@ -735,14 +734,12 @@ WITH
     (
       "session_id" IN (
         SELECT
-      "game_sessions"."id"
-    FROM
-      "public"."game_sessions"
-    WHERE
-      (
-        ("game_sessions"."user_id" = "auth"."uid" ())
+          "game_sessions"."id"
+        FROM
+          "public"."game_sessions"
+        WHERE
+          (("game_sessions"."user_id" = "auth"."uid" ()))
       )
-  )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -754,14 +751,12 @@ FOR UPDATE
     (
       "session_id" IN (
         SELECT
-      "game_sessions"."id"
-    FROM
-      "public"."game_sessions"
-    WHERE
-      (
-        ("game_sessions"."user_id" = "auth"."uid" ())
+          "game_sessions"."id"
+        FROM
+          "public"."game_sessions"
+        WHERE
+          (("game_sessions"."user_id" = "auth"."uid" ()))
       )
-  )
     )
     OR ("auth"."role" () = 'service_role'::"text")
   );
@@ -770,10 +765,10 @@ FOR UPDATE
 -- Comments
 comment ON TABLE "public"."game_answers" IS 'Records player answers. Questions are generated from trait_id or geographic_region_id, not stored.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/tables/config.sql
 -- --------------------------------------------------------------------------
-
 -- Table: config
 -- Schema: game_logic
 -- Description: Server-only configuration settings for game logic
@@ -829,10 +824,10 @@ comment ON COLUMN "game_logic"."config"."value" IS 'Configuration value as JSON'
 
 comment ON COLUMN "game_logic"."config"."description" IS 'Human-readable description of the setting';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/tables/question_stats.sql
 -- --------------------------------------------------------------------------
-
 -- Table: question_stats
 -- Schema: game_logic
 -- Description: Tracks effectiveness of questions (internal analytics)
@@ -910,10 +905,10 @@ delete ON "game_logic"."question_stats" TO service_role;
 -- Comments
 comment ON TABLE "game_logic"."question_stats" IS 'Internal: Tracks question effectiveness for algorithm tuning.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/tables/rate_limit_log.sql
 -- --------------------------------------------------------------------------
-
 -- Table: rate_limit_log
 -- Schema: game_logic
 -- Description: Tracks rate limit requests for enforcement and analytics (internal)
@@ -983,10 +978,10 @@ comment ON TABLE "game_logic"."rate_limit_log" IS 'Internal: Tracks rate limit r
 
 comment ON COLUMN "game_logic"."rate_limit_log"."action" IS 'Action being rate limited (e.g., start_game, play_turn)';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/app_settings.sql
 -- --------------------------------------------------------------------------
-
 -- Table: app_settings
 -- Schema: public
 -- Description: Stores application configuration including LLM prompts
@@ -1035,10 +1030,10 @@ comment ON COLUMN "public"."app_settings"."value" IS 'Configuration value (e.g.,
 
 comment ON COLUMN "public"."app_settings"."description" IS 'Human-readable description of the setting';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/config.sql
 -- --------------------------------------------------------------------------
-
 -- Table: config
 -- Schema: public
 -- Description: Client-visible configuration settings
@@ -1087,10 +1082,10 @@ comment ON COLUMN "public"."config"."value" IS 'Configuration value as JSON';
 
 comment ON COLUMN "public"."config"."description" IS 'Human-readable description of the setting';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/zz_place_traits.sql
 -- --------------------------------------------------------------------------
-
 -- Table: place_traits
 -- Schema: public
 -- Description: Links places to traits
@@ -1146,10 +1141,10 @@ WITH
 -- Comments
 comment ON TABLE "public"."place_traits" IS 'Associates places with traits.';
 
+
 -- --------------------------------------------------------------------------
 -- public/tables/zz_rls_deferred.sql
 -- --------------------------------------------------------------------------
-
 -- Deferred RLS Policies
 -- Schema: public
 -- Description: RLS policies that reference tables with circular dependencies
@@ -1172,14 +1167,13 @@ CREATE POLICY "Users can delete their own places" ON "public"."places" FOR delet
   OR ("auth"."role" () = 'service_role'::"text")
 );
 
+
 -- ============================================================================
 -- FUNCTION DEFINITIONS
 -- ============================================================================
-
 -- --------------------------------------------------------------------------
 -- public/functions/play_turn.sql
 -- --------------------------------------------------------------------------
-
 -- Function: play_turn
 -- Category: game
 -- Purpose: Route turn processing to appropriate handler (SRP - Router pattern)
@@ -1276,10 +1270,10 @@ SOLID principles:
 Returns: VOID (raises exception on error)
 Frontend fetches full game state from game_session_state view after call.';
 
+
 -- --------------------------------------------------------------------------
 -- public/functions/start_game.sql
 -- --------------------------------------------------------------------------
-
 -- Function: start_game
 -- Category: game
 -- Dependencies: See migration files for full dependency chain
@@ -1357,10 +1351,10 @@ CONSERVATIVE GUESS POLICY:
 - Guess when: (candidate_count = 1) OR (candidate_count <= 2 AND top_confidence >= 0.90 AND confidence_gap >= 0.15)
 - Guard: If candidate_count <= 3 at start, force a guess (no questions needed)';
 
+
 -- --------------------------------------------------------------------------
 -- public/functions/submit_place.sql
 -- --------------------------------------------------------------------------
-
 -- Function: submit_place
 -- Category: game
 -- Purpose: Submit the correct place after game gives up
@@ -1504,10 +1498,10 @@ Process:
 
 Security: SECURITY DEFINER. Uses auth.uid() for ownership validation.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/adjust_candidates_for_answer.sql
 -- --------------------------------------------------------------------------
-
 -- Function: adjust_candidates_for_answer
 -- Category: algorithm
 -- Schema: game_logic (internal - not client-accessible)
@@ -1519,7 +1513,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."adjust_candidates_for_answer" (
   p_answer answer_value
 ) returns JSONB language plpgsql
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_candidate JSONB;
   v_place_id UUID;
@@ -1614,10 +1610,10 @@ Parameters:
 
 Returns: Updated JSONB array with adjusted confidence scores';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/adjust_score.sql
 -- --------------------------------------------------------------------------
-
 -- Function: adjust_score
 -- Category: algorithm
 -- Purpose: Adjust candidate score based on answer using power-law scaling
@@ -1690,10 +1686,10 @@ Parameters:
 - p_base_weight: Base weight for adjustments (default 0.3)
 - p_beta: Power-law exponent (default 1.5)';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/apply_softmax_to_candidates.sql
 -- --------------------------------------------------------------------------
-
 -- Function: apply_softmax_to_candidates
 -- Category: algorithm
 -- Schema: game_logic (internal - not client-accessible)
@@ -1763,10 +1759,10 @@ Parameters:
 
 Returns: JSONB array with added "probability" field, sorted by probability DESC';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/calculate_split_quality.sql
 -- --------------------------------------------------------------------------
-
 -- Function: calculate_split_quality
 -- Category: algorithm
 -- Purpose: Calculate how evenly a question splits candidates
@@ -1813,10 +1809,10 @@ Quality interpretation:
 
 Returns value between 0.5 and 1.0.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/confidence_metrics.sql
 -- --------------------------------------------------------------------------
-
 -- Function: calculate_confidence_metrics
 -- Category: algorithm
 -- Purpose: Calculate top_prob, margin, and normalized_entropy for guess decision
@@ -1895,10 +1891,10 @@ Returns:
 
 Used by should_guess() to determine if confidence thresholds are met.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/filter_by_geography.sql
 -- --------------------------------------------------------------------------
-
 -- Function: filter_candidates_by_geography
 -- Category: algorithm
 -- Purpose: Filter candidates via PostGIS for geographic YES/NO answers
@@ -1971,10 +1967,10 @@ Parameters:
 
 Returns: Filtered JSONB array of candidates';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/filter_candidates_for_geography.sql
 -- --------------------------------------------------------------------------
-
 -- Function: filter_candidates_for_geography
 -- Category: algorithm
 -- Schema: game_logic (internal - not client-accessible)
@@ -2049,10 +2045,10 @@ Parameters:
 
 Returns: Filtered JSONB array (candidates matching the geographic constraint)';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/select_best_question.sql
 -- --------------------------------------------------------------------------
-
 -- Function: select_best_question
 -- Category: algorithm
 -- Schema: game_logic (internal - not client-accessible)
@@ -2167,10 +2163,10 @@ Returns: question_type, trait_id OR geographic_region_id, question_text, split_q
 
 NOTE: This is an internal function that should be in game_logic schema (not client-accessible).';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/should_guess.sql
 -- --------------------------------------------------------------------------
-
 -- Function: should_guess
 -- Category: algorithm
 -- Purpose: Decide whether to guess based on confidence thresholds
@@ -2231,10 +2227,10 @@ Edge cases:
 
 Returns TRUE if should guess, FALSE if should ask question.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/softmax_probabilities.sql
 -- --------------------------------------------------------------------------
-
 -- Function: softmax_probabilities
 -- Category: algorithm
 -- Purpose: Convert raw scores to probability distribution via softmax with temperature
@@ -2307,10 +2303,10 @@ Returns: Array of probabilities that sum to 1.0
 
 Uses numerical stability trick: subtracts max score before exp to prevent overflow.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/trait_match_strength.sql
 -- --------------------------------------------------------------------------
-
 -- Function: calculate_trait_match_strength
 -- Category: algorithm
 -- Purpose: Calculate match strength and zone for trait-place pairs
@@ -2367,10 +2363,10 @@ Returns:
 - match_strength: cosine similarity (0-1)
 - match_zone: STRONG, PARTIAL, or WEAK';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/apply_answer_to_session_state.sql
 -- --------------------------------------------------------------------------
-
 -- Function: apply_answer_to_session_state
 -- Category: game
 -- Applies a player's answer to the session state
@@ -2430,10 +2426,10 @@ Parameters:
 - p_geographic_region_id: Region ID for geographic questions (NULL for semantic)
 ';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/decide_next_turn.sql
 -- --------------------------------------------------------------------------
-
 -- Function: decide_next_turn
 -- Category: game
 -- Purpose: Decide whether to guess or ask a question based on current candidates
@@ -2606,10 +2602,10 @@ Configuration (from app_settings):
 
 Returns: VOID (side-effect only)';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/filter_geographic_candidates.sql
 -- --------------------------------------------------------------------------
-
 -- Function: filter_geographic_candidates
 -- Category: game
 -- Purpose: Apply geographic filters and calculate distance metrics
@@ -2725,10 +2721,10 @@ Returns: Places that pass geographic filters + distance metrics.
 
 Called by: get_candidates() as first filtering step.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/filter_semantic_candidates.sql
 -- --------------------------------------------------------------------------
-
 -- Function: filter_semantic_candidates
 -- Category: game
 -- Purpose: Calculate semantic similarity scores using softmax-weighted trait aggregation
@@ -2865,10 +2861,10 @@ Returns: place_id and aggregated score for places above threshold.
 
 Called by: get_candidates() which joins with geographic results.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/get_candidates.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_candidates
 -- Category: game
 -- Purpose: Orchestrate candidate filtering and apply business logic (scoring weights)
@@ -2996,10 +2992,10 @@ Returns: JSONB array of ALL candidates above threshold, ordered by confidence DE
   - confidence: Final composite score with weights applied
 Optimized: Returns JSONB directly to avoid repeated conversions.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/get_question.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_question
 -- Category: game
 -- Chooses the best question using algorithmic selection (split_quality)
@@ -3095,10 +3091,10 @@ Per docs/architecture/algorithm.md:
 
 Returns: question_type, trait_id/geographic_region_id, question_text, reasoning';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/handle_guess.sql
 -- --------------------------------------------------------------------------
-
 -- Function: handle_guess
 -- Category: game
 -- Purpose: Handle guess confirmation (SRP - Single Responsibility)
@@ -3177,10 +3173,10 @@ Storage strategy (no duplication):
 Returns: VOID (raises exception on error)
 Extracted from play_turn for Single Responsibility Principle.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/handle_question.sql
 -- --------------------------------------------------------------------------
-
 -- Function: handle_question
 -- Category: game
 -- Purpose: Handle question answer (SRP - Single Responsibility)
@@ -3309,10 +3305,10 @@ Storage strategy:
 
 Returns: VOID (raises exception on error)';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/maintenance/maintenance_cleanup.sql
 -- --------------------------------------------------------------------------
-
 -- Function: maintenance_cleanup
 -- Category: maintenance
 -- Deletes expired sessions, prunes question stats, and cleans up rate limit logs
@@ -3353,10 +3349,10 @@ ALTER FUNCTION "game_logic"."maintenance_cleanup" () owner TO "postgres";
 comment ON function "game_logic"."maintenance_cleanup" () IS 'Daily maintenance function that deletes expired sessions (24+ hours old)
 and prunes question_stats to keep only the top 450 most effective ones.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/maintenance/maintenance_weekly.sql
 -- --------------------------------------------------------------------------
-
 -- Function: maintenance_weekly
 -- Category: maintenance
 -- TODO: Update for trait-based system
@@ -3386,10 +3382,10 @@ $$;
 
 ALTER FUNCTION "game_logic"."maintenance_weekly" () owner TO "postgres";
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/add_place.sql
 -- --------------------------------------------------------------------------
-
 -- Function: add_place
 -- Category: places
 -- Adds a place to the database with geometry from Nominatim (Point, Polygon, or MultiPolygon)
@@ -3506,10 +3502,10 @@ Geometry handling:
 
 Returns: place_id (UUID)';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/approve_pending_place.sql
 -- --------------------------------------------------------------------------
-
 -- Function: approve_pending_place
 -- Category: places
 -- Purpose: Admin function to approve pending places (placeholder)
@@ -3551,10 +3547,10 @@ NOTE: Currently places do not have pending_review - that is on game_sessions.
 Use approve_pending_session trigger for anonymous submission approval.
 This function returns success for any existing place.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/deduplicate_places.sql
 -- --------------------------------------------------------------------------
-
 -- Function: deduplicate_places
 -- Category: places
 -- Dependencies: See migration files for full dependency chain
@@ -3684,10 +3680,10 @@ $$;
 
 ALTER FUNCTION "game_logic"."deduplicate_places" () owner TO "postgres";
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/enrich_place.sql
 -- --------------------------------------------------------------------------
-
 -- Function: enrich_place
 -- Category: places
 -- Purpose: Enrich a place with traits from recent sessions
@@ -3733,18 +3729,15 @@ The primary learning happens automatically via the enrich_place_on_session_compl
 
 Processes up to 5 most recent successful sessions for the place.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/learn_traits_from_session.sql
 -- --------------------------------------------------------------------------
-
 -- Function: learn_traits_from_session
 -- Category: places
 -- Purpose: Learn traits from a completed game session's answers
 -- Spec: docs/architecture/algorithm.md#trait-sources
-CREATE OR REPLACE FUNCTION "game_logic"."learn_traits_from_session" (
-  "p_session_id" UUID,
-  "p_place_id" UUID
-) returns JSONB language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."learn_traits_from_session" ("p_session_id" UUID, "p_place_id" UUID) returns JSONB language "plpgsql" security definer
 SET
   search_path = public,
   game_logic AS $$
@@ -3814,10 +3807,10 @@ Parameters:
 
 Returns: JSONB with learning statistics';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/match_places.sql
 -- --------------------------------------------------------------------------
-
 -- Function: match_places
 -- Category: places
 -- Purpose: Find places matching query embedding with geographic filters
@@ -3937,10 +3930,10 @@ BEGIN
 END;
 $$;
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/regenerate_place_traits.sql
 -- --------------------------------------------------------------------------
-
 -- Function: regenerate_place_traits
 -- Category: places
 -- Purpose: Add new traits to a place from session descriptions (ADDITIVE)
@@ -4196,10 +4189,10 @@ Security: SECURITY DEFINER to access game_logic functions and call LLM.
 Note: Failures are logged as warnings but don''t fail the transaction,
 allowing the approval to complete even if trait extraction fails.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/questions/get_geographic_questions.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_geographic_questions
 -- Category: questions
 -- Returns geographic regions to generate questions from, ranked by split quality
@@ -4346,10 +4339,10 @@ Progressive narrowing: continent → country
 Returns: geographic_region_id, region_name, region_level, split_quality, yes_count, no_count, question_text.
 Consistent return format with get_semantic_questions for use by select_best_question.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/questions/get_semantic_questions.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_semantic_questions
 -- Category: questions
 -- Returns traits to generate semantic questions from, ranked by split quality
@@ -4369,7 +4362,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."get_semantic_questions" (
   "question_text" TEXT
 ) language plpgsql
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_candidate_count INT;
   v_description_embedding vector(384);
@@ -4482,10 +4477,10 @@ Orders by:
 Returns: trait info + yes_count, no_count, split_quality for analysis.
 Question text is generated on-the-fly by LLM from trait clauses.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/questions/update_question_effectiveness_batch.sql
 -- --------------------------------------------------------------------------
-
 -- Function: update_question_effectiveness_batch
 -- Category: questions
 -- Updates game_logic.question_stats based on game performance
@@ -4610,10 +4605,10 @@ Formula:
 
 Also increments times_asked for each question used in the session.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/record_game_answer.sql
 -- --------------------------------------------------------------------------
-
 -- Function: record_game_answer
 -- Category: game
 -- Purpose: DRY helper for recording answers in game_answers table
@@ -4674,10 +4669,10 @@ comment ON function "game_logic"."record_game_answer" (
 
 Questions are generated on-the-fly from trait_id or geographic_region_id.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/triggers/on_session_approval_regenerate_traits.sql
 -- --------------------------------------------------------------------------
-
 -- Trigger Function: on_session_approval_regenerate_traits
 -- Schema: game_logic
 -- Purpose: Triggers trait regeneration when a session is approved
@@ -4706,10 +4701,10 @@ ALTER FUNCTION "game_logic"."on_session_approval_regenerate_traits" () owner TO 
 comment ON function "game_logic"."on_session_approval_regenerate_traits" () IS 'Trigger function that fires when game_sessions.pending_review changes from TRUE to FALSE.
 Calls regenerate_place_traits() to update the place traits based on all approved sessions.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/apply_metadata_filter.sql
 -- --------------------------------------------------------------------------
-
 -- Function: apply_metadata_filter
 -- Category: utilities
 -- Dependencies: See migration files for full dependency chain
@@ -4819,10 +4814,10 @@ Parameters:
 
 Returns TRUE if the filter condition matches the expected answer.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/approve_pending_session.sql
 -- --------------------------------------------------------------------------
-
 -- Function: approve_pending_session
 -- Category: utilities
 -- Purpose: Trigger to process approved place submissions
@@ -4850,10 +4845,10 @@ ALTER FUNCTION "game_logic"."approve_pending_session" () owner TO "postgres";
 comment ON function "game_logic"."approve_pending_session" () IS 'Trigger function for processing approved place submissions.
 When places.pending_review changes from TRUE to FALSE, the place is marked as approved.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/build_guess_turn.sql
 -- --------------------------------------------------------------------------
-
 -- Function: build_guess_turn
 -- Category: utilities
 -- Purpose: Pure function to build guess next_turn JSONB (SRP)
@@ -4883,10 +4878,10 @@ IMMUTABLE: Same inputs always produce same output (no side effects).
 
 Extracted from decide_next_turn for Single Responsibility Principle.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/build_question_turn.sql
 -- --------------------------------------------------------------------------
-
 -- Function: build_question_turn
 -- Category: utilities
 -- Purpose: Pure function to build question next_turn JSONB (SRP)
@@ -4961,16 +4956,16 @@ Returns JSONB structure:
 
 Extracted from decide_next_turn for Single Responsibility Principle.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/call_llm_api.sql
 -- --------------------------------------------------------------------------
-
 -- Function: call_llm_api
 -- Category: utilities
 -- Purpose: Call LLM via edge function with a prompt
 -- Returns: LLM response text
 CREATE OR REPLACE FUNCTION "game_logic"."call_llm_api" (
-  "p_prompt" "text", 
+  "p_prompt" "text",
   "p_format" "text" DEFAULT NULL,
   "p_config_prefix" "text" DEFAULT 'llm'
 ) returns "text" language "plpgsql" security definer
@@ -5087,10 +5082,18 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text", "p_config_prefix" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."call_llm_api" (
+  "p_prompt" "text",
+  "p_format" "text",
+  "p_config_prefix" "text"
+) owner TO "postgres";
 
 
-comment ON function "game_logic"."call_llm_api" ("p_prompt" "text", "p_format" "text", "p_config_prefix" "text") IS 'Call LLM via call-llm edge function with database-driven configuration.
+comment ON function "game_logic"."call_llm_api" (
+  "p_prompt" "text",
+  "p_format" "text",
+  "p_config_prefix" "text"
+) IS 'Call LLM via call-llm edge function with database-driven configuration.
 
 Fetches LLM settings from game_logic.config and passes them to the edge function.
 
@@ -5114,10 +5117,10 @@ Error handling:
 - Raises exception on HTTP error
 - Raises exception on parsing failure';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/check_rate_limit.sql
 -- --------------------------------------------------------------------------
-
 -- Category: utilities
 -- Purpose: Check and enforce rate limits
 -- Spec: openspec/specs/database/spec.md#rate-limiting
@@ -5260,10 +5263,10 @@ Security: SECURITY DEFINER to access game_logic.config and rate_limit_log. Uses 
 Error codes:
 - rate_limit_exceeded: Returns 429 status to frontend';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/create_place_with_traits.sql
 -- --------------------------------------------------------------------------
-
 -- Function: create_place_with_traits
 -- Category: utilities
 -- Purpose: Create a place record with traits and embedding from Nominatim data
@@ -5272,8 +5275,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."create_place_with_traits" (
   "p_nominatim_data" JSONB,
   "p_traits" JSONB,
   "p_is_curated" BOOLEAN DEFAULT FALSE
-) 
-returns UUID language plpgsql security definer
+) returns UUID language plpgsql security definer
 SET
   search_path = public,
   game_logic,
@@ -5389,10 +5391,10 @@ Process:
 
 Returns: UUID of created place';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/enrich_place_on_approval.sql
 -- --------------------------------------------------------------------------
-
 -- Function: enrich_place_on_approval
 -- Category: utilities
 -- Dependencies: See migration files for full dependency chain
@@ -5415,10 +5417,10 @@ $$;
 
 ALTER FUNCTION "game_logic"."enrich_place_on_approval" () owner TO "postgres";
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/enrich_place_on_session_complete.sql
 -- --------------------------------------------------------------------------
-
 -- Function: enrich_place_on_session_complete
 -- Category: utilities
 -- Purpose: Trigger function that enriches place with learned traits when a session completes
@@ -5452,15 +5454,14 @@ When was_correct becomes TRUE:
 
 This enables the game to learn new traits about places from successful games.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/extract_traits_from_nominatim.sql
 -- --------------------------------------------------------------------------
-
 -- Function: extract_traits_from_nominatim
 -- Category: utilities
 -- Purpose: Extract traits from Nominatim data using LLM + rule-based extraction
-CREATE OR REPLACE FUNCTION "game_logic"."extract_traits_from_nominatim" ("p_nominatim_data" JSONB) 
-returns JSONB language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."extract_traits_from_nominatim" ("p_nominatim_data" JSONB) returns JSONB language plpgsql security definer
 SET
   search_path = public,
   game_logic,
@@ -5638,15 +5639,14 @@ Returns: JSONB array of traits, each with:
 
 Logs warning if LLM JSON parsing fails, continues with rule-based traits only.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/fetch_nominatim_place.sql
 -- --------------------------------------------------------------------------
-
 -- Function: fetch_nominatim_place
 -- Category: utilities
 -- Purpose: Fetch place data from Nominatim by OSM ID
-CREATE OR REPLACE FUNCTION "game_logic"."fetch_nominatim_place" ("p_osm_id" TEXT) 
-returns JSONB language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."fetch_nominatim_place" ("p_osm_id" TEXT) returns JSONB language plpgsql security definer
 SET
   search_path = public,
   game_logic,
@@ -5728,10 +5728,10 @@ Raises exception if:
 - Nominatim request fails
 - Place not found';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/generate_embedding.sql
 -- --------------------------------------------------------------------------
-
 -- Function: generate_embedding
 -- Category: utilities
 -- Dependencies: See migration files for full dependency chain
@@ -5896,10 +5896,10 @@ EXECUTE ON function game_logic.generate_embedding (TEXT) TO postgres;
 GRANT
 EXECUTE ON function game_logic.generate_embedding (TEXT) TO service_role;
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/generate_question_text.sql
 -- --------------------------------------------------------------------------
-
 -- Function: generate_question_text
 -- Category: utilities
 -- Purpose: Generate natural language question text using LLM via call_llm_api
@@ -5909,7 +5909,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."generate_question_text" (
   p_language_code TEXT DEFAULT 'en'
 ) returns TEXT language plpgsql security definer
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_trait_clause TEXT;
   v_region_name TEXT;
@@ -5995,10 +5997,10 @@ Errors:
 
 Returns: Natural language question text ending with "?"';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/geo_region_for.sql
 -- --------------------------------------------------------------------------
-
 -- Function: geo_region_for
 -- Category: utilities
 -- Purpose: Map geographic feature values to standard bounding boxes (SRID 4326)
@@ -6083,16 +6085,14 @@ Returns NULL if feature value not recognized.
 
 Used by generate_question to set geographic_region when question_type=''geographic''.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/get_config.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_config
 -- Category: utilities
 -- Purpose: Retrieve configuration value from game_logic.config
-CREATE OR REPLACE FUNCTION "game_logic"."get_config" (
-  "p_key" TEXT
-) returns JSONB language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_config" ("p_key" TEXT) returns JSONB language plpgsql security definer
 SET
   search_path = public,
   game_logic AS $$
@@ -6108,11 +6108,9 @@ BEGIN
 END;
 $$;
 
+
 -- Helper function to get numeric config value (FLOAT)
-CREATE OR REPLACE FUNCTION "game_logic"."get_config_float" (
-  "p_key" TEXT,
-  "p_default" FLOAT DEFAULT 0.0
-) returns FLOAT language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_config_float" ("p_key" TEXT, "p_default" FLOAT DEFAULT 0.0) returns FLOAT language plpgsql security definer
 SET
   search_path = public,
   game_logic AS $$
@@ -6132,11 +6130,9 @@ BEGIN
 END;
 $$;
 
+
 -- Helper function to get integer config value
-CREATE OR REPLACE FUNCTION "game_logic"."get_config_int" (
-  "p_key" TEXT,
-  "p_default" INTEGER DEFAULT 0
-) returns INTEGER language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_config_int" ("p_key" TEXT, "p_default" INTEGER DEFAULT 0) returns INTEGER language plpgsql security definer
 SET
   search_path = public,
   game_logic AS $$
@@ -6156,11 +6152,9 @@ BEGIN
 END;
 $$;
 
+
 -- Helper function to get text config value
-CREATE OR REPLACE FUNCTION "game_logic"."get_config_text" (
-  "p_key" TEXT,
-  "p_default" TEXT DEFAULT NULL
-) returns TEXT language plpgsql security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_config_text" ("p_key" TEXT, "p_default" TEXT DEFAULT NULL) returns TEXT language plpgsql security definer
 SET
   search_path = public,
   game_logic AS $$
@@ -6182,24 +6176,33 @@ $$;
 
 
 ALTER FUNCTION "game_logic"."get_config" ("p_key" TEXT) owner TO "postgres";
+
+
 ALTER FUNCTION "game_logic"."get_config_float" ("p_key" TEXT, "p_default" FLOAT) owner TO "postgres";
+
+
 ALTER FUNCTION "game_logic"."get_config_int" ("p_key" TEXT, "p_default" INTEGER) owner TO "postgres";
+
+
 ALTER FUNCTION "game_logic"."get_config_text" ("p_key" TEXT, "p_default" TEXT) owner TO "postgres";
 
 
 comment ON function "game_logic"."get_config" ("p_key" TEXT) IS 'Retrieve configuration value from game_logic.config as JSONB.
 Returns NULL if key not found.';
 
+
 comment ON function "game_logic"."get_config_float" ("p_key" TEXT, "p_default" FLOAT) IS 'Retrieve configuration value as FLOAT with default.';
+
 
 comment ON function "game_logic"."get_config_int" ("p_key" TEXT, "p_default" INTEGER) IS 'Retrieve configuration value as INTEGER with default.';
 
+
 comment ON function "game_logic"."get_config_text" ("p_key" TEXT, "p_default" TEXT) IS 'Retrieve configuration value as TEXT with default.';
+
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/get_embedding.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_embedding
 -- Category: utilities
 -- Gets existing embedding or creates a new one for the given text
@@ -6246,10 +6249,10 @@ Process:
 2. Otherwise call edge function to generate and store embedding
 3. Return embedding UUID';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/get_max_turns.sql
 -- --------------------------------------------------------------------------
-
 -- Function: get_max_turns
 -- Category: utilities
 -- Purpose: Get max_turns setting from game_logic.config (DRY helper)
@@ -6268,10 +6271,10 @@ comment ON function "game_logic"."get_max_turns" () IS 'Get max_turns from game_
 Returns 5 if setting not found.
 Marked STABLE for query optimization.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/http_call_edge_function.sql
 -- --------------------------------------------------------------------------
-
 -- Function: http_call_edge_function
 -- Category: utilities
 -- Purpose: Call Supabase Edge Functions from database using pg_net extension
@@ -6282,7 +6285,9 @@ CREATE OR REPLACE FUNCTION "game_logic"."http_call_edge_function" (
   p_body JSONB DEFAULT '{}'
 ) returns JSONB language plpgsql security definer
 SET
-  search_path = public, extensions, game_logic AS $$
+  search_path = public,
+  extensions,
+  game_logic AS $$
 DECLARE
   v_url TEXT;
   v_auth_token TEXT;
@@ -6380,10 +6385,10 @@ Returns: JSONB response from edge function
 
 Raises exception on HTTP errors or invalid JSON response.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/is_installed.sql
 -- --------------------------------------------------------------------------
-
 -- Helper: is_installed
 -- Purpose: Test helper to check extension presence (pgTAP compatible signature)
 -- Note: Ignores the description argument; returns true if extension exists.
@@ -6396,10 +6401,10 @@ SET
   );
 $$;
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/row_security_is_enabled.sql
 -- --------------------------------------------------------------------------
-
 -- Helper: row_security_is_enabled
 -- Purpose: pgTAP helper to assert RLS is enabled on a table
 -- Schema: public (SECURITY DEFINER)
@@ -6420,10 +6425,10 @@ BEGIN
 END;
 $$;
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/update_embedding.sql
 -- --------------------------------------------------------------------------
-
 -- Function: update_embedding
 -- Category: utilities
 -- Updates existing embedding with new text
@@ -6458,10 +6463,10 @@ ALTER FUNCTION "game_logic"."update_embedding" ("p_id" UUID, "p_new_text" "text"
 
 comment ON function "game_logic"."update_embedding" ("p_id" UUID, "p_new_text" "text") IS 'Updates existing embedding with new text. Regenerates embedding.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/update_place_embedding.sql
 -- --------------------------------------------------------------------------
-
 -- Function: update_place_embedding
 -- Category: utilities
 -- Purpose: Update place embedding using weighted average (learning)
@@ -6553,10 +6558,10 @@ Uses 384-dimensional vectors (gte-small compatible per spec).
 Updates embedding via embedding_id FK to embeddings table.
 After update, bumps times_encountered counter.';
 
+
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/validate_user_input.sql
 -- --------------------------------------------------------------------------
-
 -- Function: validate_user_input
 -- Category: utilities
 -- Dependencies: See migration files for full dependency chain
@@ -6628,14 +6633,13 @@ Checks:
 
 Returns trimmed input if valid, raises exception otherwise.';
 
+
 -- ============================================================================
 -- TRIGGER DEFINITIONS
 -- ============================================================================
-
 -- --------------------------------------------------------------------------
 -- schema/triggers.sql
 -- --------------------------------------------------------------------------
-
 -- ============================================================================
 -- Database Triggers
 -- ============================================================================
@@ -6671,14 +6675,13 @@ EXECUTE function "game_logic"."on_session_approval_regenerate_traits" ();
 
 comment ON trigger "on_session_approval_regenerate_traits_trigger" ON "public"."game_sessions" IS 'Triggers trait regeneration when a session is approved (pending_review: TRUE → FALSE).';
 
+
 -- ============================================================================
 -- VIEW DEFINITIONS
 -- ============================================================================
-
 -- --------------------------------------------------------------------------
 -- public/views/game_session_state.sql
 -- --------------------------------------------------------------------------
-
 -- View: game_session_state
 -- Schema: public
 -- Description: Exposes all game state data needed by frontend UI in a single query
@@ -6698,23 +6701,45 @@ SELECT
   -- Derived status (calculated from state, not stored)
   CASE
     WHEN gs.was_correct = TRUE THEN 'won'::game_session_status
-    WHEN gs.next_turn IS NULL AND gs.place_id IS NOT NULL THEN 'ended'::game_session_status
+    WHEN gs.next_turn IS NULL
+    AND gs.place_id IS NOT NULL THEN 'ended'::game_session_status
     WHEN gs.next_turn IS NULL THEN 'needs_submission'::game_session_status
     WHEN gs.next_turn ->> 'action' = 'give_up' THEN 'needs_submission'::game_session_status
     ELSE 'active'::game_session_status
   END AS status,
-  -- Next turn action (cached)
-  gs.next_turn,
-  -- Flattened next_turn fields for frontend access
-  gs.next_turn ->> 'question_text' AS current_question_text,
-  gs.next_turn ->> 'question_id' AS current_question_id,
-  gs.next_turn ->> 'place_name' AS pending_guess_place_name,
-  gs.next_turn ->> 'place_id' AS pending_guess_place_id,
-  -- Win state (if won)
-  gs.place_id AS correct_place_id,
-  wp.name AS correct_place_name,
-  wp.lat AS correct_place_lat,
-  wp.lng AS correct_place_lng,
+  -- Structured frontend JSON blobs
+  CASE
+    WHEN gs.next_turn ->> 'action' = 'question' THEN jsonb_build_object(
+      'id',
+      gs.next_turn ->> 'question_id',
+      'text',
+      gs.next_turn ->> 'question_text'
+    )
+    ELSE NULL
+  END AS question,
+  CASE
+    WHEN gs.next_turn ->> 'action' = 'guess' THEN jsonb_build_object(
+      'place_id',
+      gs.next_turn ->> 'place_id',
+      'place_name',
+      gs.next_turn ->> 'place_name'
+    )
+    ELSE NULL
+  END AS guess,
+  CASE
+    WHEN gs.place_id IS NULL THEN NULL
+    ELSE jsonb_build_object(
+      'id',
+      gs.place_id,
+      'name',
+      wp.name,
+      'lat',
+      wp.lat,
+      'lng',
+      wp.lng
+    )
+  END AS place,
+  coalesce(gs.next_turn -> 'candidates', '[]'::JSONB) AS candidates,
   -- Metadata
   (
     SELECT
@@ -6738,10 +6763,10 @@ WHERE
 
 ALTER VIEW "public"."game_session_state" owner TO "postgres";
 
+
 -- --------------------------------------------------------------------------
 -- public/views/global_stats.sql
 -- --------------------------------------------------------------------------
-
 -- View: global_stats
 -- Schema: public
 -- Description: Provides global game statistics for analytics and leaderboards
@@ -6921,10 +6946,10 @@ GRANT
 SELECT
   ON TABLE public.global_stats TO service_role;
 
+
 -- --------------------------------------------------------------------------
 -- public/views/places_with_geometry.sql
 -- --------------------------------------------------------------------------
-
 -- View: places_with_geometry
 -- Schema: public
 -- Description: Places with geometry as GeoJSON for map rendering
@@ -6938,31 +6963,39 @@ SELECT
   p.times_encountered,
   -- Simplify large geometries (cities) while keeping small ones (buildings) intact
   CASE
-    WHEN extensions.ST_NPoints(p.geom) > 500 THEN
-      extensions.ST_AsGeoJSON(extensions.ST_Simplify(p.geom, 0.001))::jsonb
-    ELSE
-      extensions.ST_AsGeoJSON(p.geom)::jsonb
+    WHEN extensions.st_npoints (p.geom) > 500 THEN extensions.st_asgeojson (extensions.st_simplify (p.geom, 0.001))::JSONB
+    ELSE extensions.st_asgeojson (p.geom)::JSONB
   END AS geometry
 FROM
   places p
 WHERE
   p.lat IS NOT NULL
   AND p.lng IS NOT NULL
-  AND p.pending_review = false;
+  AND p.pending_review = FALSE;
 
 
-ALTER VIEW "public"."places_with_geometry" OWNER TO "postgres";
+ALTER VIEW "public"."places_with_geometry" owner TO "postgres";
 
 
 -- Permissions: public read access
-GRANT SELECT ON TABLE public.places_with_geometry TO anon;
-GRANT SELECT ON TABLE public.places_with_geometry TO authenticated;
-GRANT SELECT ON TABLE public.places_with_geometry TO service_role;
+GRANT
+SELECT
+  ON TABLE public.places_with_geometry TO anon;
+
+
+GRANT
+SELECT
+  ON TABLE public.places_with_geometry TO authenticated;
+
+
+GRANT
+SELECT
+  ON TABLE public.places_with_geometry TO service_role;
+
 
 -- --------------------------------------------------------------------------
 -- public/views/user_stats.sql
 -- --------------------------------------------------------------------------
-
 -- View: user_stats
 -- Schema: public
 -- Description: Provides user-specific game statistics per spec
@@ -7065,4 +7098,3 @@ SELECT
 GRANT
 SELECT
   ON TABLE public.user_stats TO service_role;
-
