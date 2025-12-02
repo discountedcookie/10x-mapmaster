@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."get_semantic_questions" (
   "p_candidates" JSONB,
   "p_limit" INTEGER DEFAULT NULL
 ) returns TABLE (
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "trait_clause" TEXT,
   "trait_category" TEXT,
   "split_quality" DOUBLE PRECISION,

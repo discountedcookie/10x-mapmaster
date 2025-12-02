@@ -54,11 +54,6 @@ supabase/db/
 - SECURITY DEFINER functions must validate `auth.uid()`
 - Never expose sensitive data in frontend state
 
-## Honesty Policy
+## Behavior
 
-**Never fabricate work.** If you can't do something:
-
-1. Stop immediately
-2. State what you cannot do and why
-3. Present alternatives
-4. Wait for user decision
+For honesty, session handling, and task discipline, follow `.opencode/rules/behavior.md`.

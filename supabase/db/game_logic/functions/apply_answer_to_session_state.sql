@@ -5,7 +5,7 @@
 CREATE OR REPLACE FUNCTION "game_logic"."apply_answer_to_session_state" (
   "p_session_id" UUID,
   "p_answer" answer_value,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID
 ) returns void language "plpgsql" security definer
 SET
@@ -33,7 +33,7 @@ $$;
 ALTER FUNCTION "game_logic"."apply_answer_to_session_state" (
   "p_session_id" UUID,
   "p_answer" answer_value,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID
 ) owner TO "postgres";
 
@@ -41,7 +41,7 @@ ALTER FUNCTION "game_logic"."apply_answer_to_session_state" (
 comment ON function "game_logic"."apply_answer_to_session_state" (
   "p_session_id" UUID,
   "p_answer" answer_value,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID
 ) IS 'Applies a user answer to the session.
 

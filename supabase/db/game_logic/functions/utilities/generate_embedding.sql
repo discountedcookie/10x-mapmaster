@@ -2,7 +2,10 @@
 -- Category: utilities
 -- Dependencies: See migration files for full dependency chain
 -- This file is auto-generated from migrations
-CREATE OR REPLACE FUNCTION "game_logic"."generate_embedding" ("p_text" "text") returns "extensions"."vector" language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."generate_embedding" (
+  "p_text" "text",
+  "p_input_type" "text" DEFAULT 'query'  -- 'query' for searches, 'passage' for documents/traits
+) returns "extensions"."vector" language "plpgsql" security definer
 SET
   search_path = public,
   game_logic,
@@ -14,7 +17,13 @@ DECLARE
   validated_text TEXT;
   embedding_vector vector(384);
   v_anon_key TEXT;
+  v_input_type TEXT;
 BEGIN
+  -- Validate input_type (must be 'query' or 'passage')
+  v_input_type := COALESCE(p_input_type, 'query');
+  IF v_input_type NOT IN ('query', 'passage') THEN
+    RAISE EXCEPTION 'Invalid input_type: %. Must be ''query'' or ''passage''', v_input_type;
+  END IF;
   -- ============================================================================
   -- pgTAP TEST SHORT-CIRCUIT
   -- ============================================================================
@@ -71,7 +80,7 @@ BEGIN
       extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
     ],
     'application/json',
-    jsonb_build_object('text', validated_text)::text
+    jsonb_build_object('text', validated_text, 'inputType', v_input_type)::text
   )::extensions.http_request);
 
   RAISE NOTICE 'Response status: %', v_status;
@@ -100,12 +109,19 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."generate_embedding" ("p_text" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."generate_embedding" ("p_text" "text", "p_input_type" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."generate_embedding" ("p_text" "text") IS 'Generates a 384-dimensional embedding vector for the given text with input validation.
+comment ON function "game_logic"."generate_embedding" ("p_text" "text", "p_input_type" "text") IS 'Generates a 384-dimensional embedding vector for the given text with input validation.
 Parameters:
 - p_text: text to embed (validated: 1-1000 chars, no control chars)
+- p_input_type: ''query'' for user searches, ''passage'' for documents/traits (default: ''query'')
+
+E5 Model Prefixes:
+- E5 models use asymmetric retrieval training
+- ''query'' inputs are prefixed with "query: " (for user descriptions being searched)
+- ''passage'' inputs are prefixed with "passage: " (for traits being matched against)
+- This asymmetric prefixing is critical for optimal matching quality
 
 Security:
 - Validates input via validate_user_input()
@@ -118,7 +134,7 @@ Configuration:
 - Uses current_setting(''app.supabase_anon_key'', true) with fallback to local dev anon key
 
 Process:
-1. Validates input text
+1. Validates input text and input_type
 2. Calls edge function (generate-embedding) via synchronous http extension
 3. Parses and returns vector(384)
 
@@ -137,27 +153,27 @@ Technical:
 -- NOT directly from the frontend, to prevent API quota abuse.
 -- Rate limiting is enforced at the entry points (start_game, etc.)
 REVOKE
-EXECUTE ON function game_logic.generate_embedding (TEXT)
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT)
 FROM
   public;
 
 
 REVOKE
-EXECUTE ON function game_logic.generate_embedding (TEXT)
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT)
 FROM
   anon;
 
 
 REVOKE
-EXECUTE ON function game_logic.generate_embedding (TEXT)
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT)
 FROM
   authenticated;
 
 
 -- Only postgres role and service_role can execute
 GRANT
-EXECUTE ON function game_logic.generate_embedding (TEXT) TO postgres;
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT) TO postgres;
 
 
 GRANT
-EXECUTE ON function game_logic.generate_embedding (TEXT) TO service_role;
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT) TO service_role;

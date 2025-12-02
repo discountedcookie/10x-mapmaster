@@ -26,7 +26,7 @@ const allPlacesData: PlaceInput[] = JSON.parse(
 )
 
 // Limit places to avoid rate limits during development (set to 0 for all)
-const PLACE_LIMIT = process.env.PLACE_LIMIT !== undefined ? Number(process.env.PLACE_LIMIT) : 1
+const PLACE_LIMIT = process.env.PLACE_LIMIT !== undefined ? Number(process.env.PLACE_LIMIT) : 0
 const placesData = PLACE_LIMIT > 0 ? allPlacesData.slice(0, PLACE_LIMIT) : allPlacesData
 
 const testDescriptions: TestDescription[] = JSON.parse(
@@ -65,21 +65,18 @@ function formatEmbedding(embedding: number[] | string): string {
 async function createWrappers() {
   const { execSync } = await import('node:child_process')
   execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "
-    CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
+    CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB
     LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.fetch_nominatim_place(p_osm_id); \\$\\$;
-    
-    CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
-    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data); \\$\\$;
-    
-    CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
+
+    CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID
     LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); \\$\\$;
-    
-    CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
-    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_embedding(p_text); \\$\\$;
-    
-    CREATE OR REPLACE FUNCTION public.update_place_traits(p_place_id UUID) RETURNS VOID 
+
+    CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT, p_input_type TEXT DEFAULT 'query') RETURNS UUID
+    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_embedding(p_text, p_input_type); \\$\\$;
+
+    CREATE OR REPLACE FUNCTION public.update_place_traits(p_place_id UUID) RETURNS VOID
     LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.update_place_traits(p_place_id); \\$\\$;
-    
+
     NOTIFY pgrst, 'reload schema';
   "`)
 
@@ -92,9 +89,8 @@ async function dropWrappers() {
   try {
     execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "
       DROP FUNCTION IF EXISTS public.fetch_nominatim_place(TEXT);
-      DROP FUNCTION IF EXISTS public.extract_traits_from_nominatim(JSONB);
       DROP FUNCTION IF EXISTS public.create_place_with_traits(TEXT, JSONB, JSONB, BOOLEAN);
-      DROP FUNCTION IF EXISTS public.get_embedding(TEXT);
+      DROP FUNCTION IF EXISTS public.get_embedding(TEXT, TEXT);
       DROP FUNCTION IF EXISTS public.update_place_traits(UUID);
     "`)
   } catch {
@@ -157,46 +153,35 @@ try {
     console.log(`[${index + 1}/${placesData.length}] ${place.osm_id}`)
     await waitForRateLimit()
 
-    let traitStart = 0
     try {
       // 1. Fetch from Nominatim
       const nominatimData = await callRpc('fetch_nominatim_place', { p_osm_id: place.osm_id })
       console.log(`  ✓ ${nominatimData.display_name}`)
 
-      // 2. Extract traits
-      traitStart = Date.now()
-      const traits = await callRpc('extract_traits_from_nominatim', {
-        p_nominatim_data: nominatimData,
-      })
-      console.log(
-        `  🏷️  ${Array.isArray(traits) ? traits.length : 0} traits (${Date.now() - traitStart}ms)`
-      )
-
-      // 3. Create place with traits (this also generates embedding)
+      // 2. Create place (no initial traits - LLM will generate all)
       const placeId = await callRpc('create_place_with_traits', {
         p_osm_id: place.osm_id,
         p_nominatim_data: nominatimData,
-        p_traits: traits,
+        p_traits: [],
         p_is_curated: true,
       })
       createdPlaceIds.push(placeId)
       console.log(`  📍 Created place: ${placeId}`)
 
-      // 4. Call LLM to generate rich traits
+      // 3. Call LLM to generate traits
       const llmStart = Date.now()
       try {
         await callRpc('update_place_traits', { p_place_id: placeId })
-        // Count updated traits
         const { data: updatedTraits } = await supabase
           .from('place_traits')
           .select('trait_id')
           .eq('place_id', placeId)
         console.log(`  🤖 LLM traits: ${updatedTraits?.length || 0} (${Date.now() - llmStart}ms)`)
       } catch (error) {
-        console.error(`  ⚠️  LLM trait update failed (${Date.now() - llmStart}ms): ${error}`)
+        console.error(`  ⚠️  LLM failed (${Date.now() - llmStart}ms): ${error}`)
       }
     } catch (error) {
-      console.error(`  ✗ Failed (${Date.now() - traitStart}ms): ${error}`)
+      console.error(`  ✗ Failed: ${error}`)
     }
   }
 
@@ -221,15 +206,17 @@ try {
 
   // Fetch places with geometry as WKT (PostgREST returns geometry as binary)
   const { execSync } = await import('node:child_process')
-  const placesJson =
-    execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -t -A -c "
+  const placesJson = execSync(
+    `psql "postgresql://postgres:postgres@localhost:54322/postgres" -t -A -c "
     SELECT json_agg(row_to_json(p)) FROM (
-      SELECT id, name, osm_id, lat, lng, ST_AsText(geom) as geom, embedding_id, pending_review 
+      SELECT id, name, osm_id, lat, lng, ST_AsText(geom) as geom, embedding_id, pending_review
       FROM places
     ) p;
-  "`)
-      .toString()
-      .trim()
+  "`,
+    { maxBuffer: 50 * 1024 * 1024 }
+  )
+    .toString()
+    .trim()
   const places = placesJson && placesJson !== '' ? JSON.parse(placesJson) : []
 
   let sql = `-- Generated embedding seed data
@@ -259,10 +246,10 @@ SET search_path = public, extensions;
     sql += traits
       .map((t) => {
         const embeddingId = t.embedding_id ? `'${t.embedding_id}'::uuid` : 'NULL'
-        return `  ('${escapeSqlString(t.id)}', '${escapeSqlString(t.clause)}', ${embeddingId})`
+        return `  ('${t.id}'::uuid, '${escapeSqlString(t.clause)}', ${embeddingId})`
       })
       .join(',\n')
-    sql += `\nON CONFLICT (id) DO UPDATE SET clause = EXCLUDED.clause, embedding_id = EXCLUDED.embedding_id;\n\n`
+    sql += `\nON CONFLICT (embedding_id) DO UPDATE SET clause = EXCLUDED.clause;\n\n`
   }
 
   if (places && places.length > 0) {
@@ -294,7 +281,7 @@ SET search_path = public, extensions;
     sql += `-- Place-Trait links\n`
     sql += `INSERT INTO place_traits (place_id, trait_id) VALUES\n`
     sql += placeTraits
-      .map((pt) => `  ('${pt.place_id}'::uuid, '${escapeSqlString(pt.trait_id)}')`)
+      .map((pt) => `  ('${pt.place_id}'::uuid, '${pt.trait_id}'::uuid)`)
       .join(',\n')
     sql += `\nON CONFLICT (place_id, trait_id) DO NOTHING;\n\n`
   }

@@ -12,7 +12,7 @@ SET
   extensions AS $$
 DECLARE
   v_question_type question_type;
-  v_trait_id TEXT;
+  v_trait_id UUID;
   v_geographic_region_id UUID;
   v_question_text TEXT;
   v_candidates JSONB;

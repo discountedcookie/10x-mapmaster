@@ -4,7 +4,7 @@
 -- Per docs/architecture/algorithm.md: "Selection is deterministic and algorithmic"
 CREATE OR REPLACE FUNCTION "game_logic"."get_question" ("p_session_id" UUID, "p_candidates" JSONB) returns TABLE (
   "question_type" question_type,
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "geographic_region_id" UUID,
   "question_text" TEXT,
   "question_reasoning" TEXT

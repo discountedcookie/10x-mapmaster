@@ -3,7 +3,7 @@
 -- Purpose: DRY helper for recording answers in game_answers table
 CREATE OR REPLACE FUNCTION "game_logic"."record_game_answer" (
   "p_session_id" "uuid",
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" "uuid",
   "p_answer" answer_value,
   "p_place_id" "uuid",
@@ -37,7 +37,7 @@ $$;
 
 ALTER FUNCTION "game_logic"."record_game_answer" (
   "p_session_id" "uuid",
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" "uuid",
   "p_answer" answer_value,
   "p_place_id" "uuid",
@@ -48,7 +48,7 @@ ALTER FUNCTION "game_logic"."record_game_answer" (
 
 comment ON function "game_logic"."record_game_answer" (
   "p_session_id" "uuid",
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" "uuid",
   "p_answer" answer_value,
   "p_place_id" "uuid",

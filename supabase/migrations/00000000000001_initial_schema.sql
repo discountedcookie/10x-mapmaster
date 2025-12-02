@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-02T04:09:36.740Z
+-- Generated: 2025-12-02T15:32:37.551Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 4
 
@@ -274,8 +274,9 @@ ADD CONSTRAINT "embeddings_pkey" PRIMARY KEY ("id");
 
 
 -- Indexes
--- HNSW index for fast approximate nearest neighbor search
-CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" extensions.vector_ip_ops);
+-- HNSW index for fast approximate nearest neighbor search using cosine distance
+-- Uses vector_cosine_ops to match the <=> cosine distance operator used in queries
+CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" extensions.vector_cosine_ops);
 
 
 -- Unique constraint on source_text for deduplication
@@ -385,10 +386,10 @@ Used to generate geographic questions dynamically via v_geographic_questions vie
 -- Table: traits
 -- Schema: public
 -- Description: Canonical trait definitions used to describe and filter places
--- Spec: Each trait has id, clause (text), and embedding_id
+-- Spec: Each trait has id (UUID), clause (text), and embedding_id
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."traits" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "clause" TEXT NOT NULL,
   "embedding_id" UUID,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL
@@ -409,7 +410,7 @@ ADD CONSTRAINT "traits_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCE
 
 
 -- Indexes
-CREATE INDEX if NOT EXISTS "idx_traits_embedding_id" ON "public"."traits" ("embedding_id");
+CREATE UNIQUE INDEX if NOT EXISTS "idx_traits_embedding_id" ON "public"."traits" ("embedding_id");
 
 
 -- RLS Policies
@@ -652,7 +653,7 @@ comment ON COLUMN "public"."game_sessions"."next_turn" IS 'Cached next turn for 
 CREATE TABLE IF NOT EXISTS "public"."game_answers" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "session_id" "uuid" NOT NULL,
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "geographic_region_id" "uuid",
   "answer" answer_value NOT NULL,
   "place_id" "uuid",
@@ -840,7 +841,7 @@ comment ON COLUMN "game_logic"."config"."description" IS 'Human-readable descrip
 CREATE TABLE IF NOT EXISTS "game_logic"."question_stats" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "question_type" "public"."question_type" NOT NULL,
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "geographic_region_id" "uuid",
   "times_asked" INTEGER DEFAULT 0 NOT NULL,
   "effectiveness_score" DOUBLE PRECISION DEFAULT 0.5 NOT NULL,
@@ -1098,7 +1099,7 @@ comment ON COLUMN "public"."config"."description" IS 'Human-readable description
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."place_traits" (
   "place_id" UUID NOT NULL,
-  "trait_id" TEXT NOT NULL,
+  "trait_id" UUID NOT NULL,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL
 );
 
@@ -1516,7 +1517,7 @@ Security: SECURITY DEFINER. Uses auth.uid() for ownership validation.';
 -- Spec: docs/architecture/algorithm.md#trait-matching
 CREATE OR REPLACE FUNCTION "game_logic"."adjust_candidates_for_answer" (
   p_candidates JSONB,
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_answer answer_value
 ) returns JSONB language plpgsql
 SET
@@ -1591,10 +1592,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value) owner TO postgres;
+ALTER FUNCTION "game_logic"."adjust_candidates_for_answer" (JSONB, UUID, answer_value) owner TO postgres;
 
 
-comment ON function "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value) IS 'Adjusts candidate scores using binary trait matching and multiplicative scaling.
+comment ON function "game_logic"."adjust_candidates_for_answer" (JSONB, UUID, answer_value) IS 'Adjusts candidate scores using binary trait matching and multiplicative scaling.
 
 Algorithm (per docs/architecture/algorithm.md#trait-matching):
 1. For each candidate, check if place has the trait via place_traits table (binary)
@@ -2069,7 +2070,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."select_best_question" (
   p_min_split_quality FLOAT
 ) returns TABLE (
   question_type TEXT,
-  trait_id TEXT,
+  trait_id UUID,
   geographic_region_id UUID,
   question_text TEXT,
   split_quality FLOAT
@@ -2100,7 +2101,7 @@ BEGIN
   IF v_best_geo_question.split_quality >= p_geographic_preference_threshold THEN
     RETURN QUERY SELECT 
       'geographic'::TEXT,
-      NULL::TEXT,
+      NULL::UUID,
       v_best_geo_question.geographic_region_id,
       v_best_geo_question.question_text,
       v_best_geo_question.split_quality;
@@ -2122,7 +2123,7 @@ BEGIN
   IF v_best_geo_question.geographic_region_id IS NOT NULL THEN
     RETURN QUERY SELECT 
       'geographic'::TEXT,
-      NULL::TEXT,
+      NULL::UUID,
       v_best_geo_question.geographic_region_id,
       v_best_geo_question.question_text,
       v_best_geo_question.split_quality;
@@ -2381,7 +2382,7 @@ Returns:
 CREATE OR REPLACE FUNCTION "game_logic"."apply_answer_to_session_state" (
   "p_session_id" UUID,
   "p_answer" answer_value,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID
 ) returns void language "plpgsql" security definer
 SET
@@ -2409,7 +2410,7 @@ $$;
 ALTER FUNCTION "game_logic"."apply_answer_to_session_state" (
   "p_session_id" UUID,
   "p_answer" answer_value,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID
 ) owner TO "postgres";
 
@@ -2417,7 +2418,7 @@ ALTER FUNCTION "game_logic"."apply_answer_to_session_state" (
 comment ON function "game_logic"."apply_answer_to_session_state" (
   "p_session_id" UUID,
   "p_answer" answer_value,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID
 ) IS 'Applies a user answer to the session.
 
@@ -2675,8 +2676,7 @@ BEGIN
       ELSE NULL
     END AS distance_from_bbox_center
   FROM places p
-  WHERE p.embedding_id IS NOT NULL
-    AND p.geom IS NOT NULL
+  WHERE p.geom IS NOT NULL
     -- Exclude places pending review
     AND p.pending_review = FALSE
     -- Exclude wrong guesses
@@ -2783,33 +2783,13 @@ BEGIN
       pt.place_id = ANY (p_place_ids)
       AND te.embedding IS NOT NULL
   ),
-  -- FALLBACK: For places without trait embeddings, use place embedding directly
-  -- This handles legacy seed data where traits don't have individual embeddings
-  place_fallback AS (
-    SELECT
-      p.id AS pid,
-      (1 - (pe.embedding <=> v_description_embedding))::DOUBLE PRECISION AS sim
-    FROM places p
-    JOIN embeddings pe ON pe.id = p.embedding_id
-    WHERE p.id = ANY (p_place_ids)
-      AND pe.embedding IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM trait_similarities ts WHERE ts.pid = p.id
-      )
-  ),
-  -- Combine trait-based and fallback scores
-  all_similarities AS (
-    SELECT pid, sim FROM trait_similarities
-    UNION ALL
-    SELECT pid, sim FROM place_fallback
-  ),
   exp_similarities AS (
     -- Calculate exp(sim/τ) for softmax
     SELECT
       pid,
       sim,
       exp(sim / v_temperature) AS exp_sim
-    FROM all_similarities
+    FROM trait_similarities
   ),
   softmax_weights AS (
     -- Calculate softmax weights: exp(sim/τ) / Σexp(sim/τ)
@@ -2847,9 +2827,6 @@ Algorithm:
 2. Apply softmax weighting: weight_i = exp(sim_i/τ) / Σexp(sim_j/τ)
 3. Calculate weighted average: score = Σ(weight_i × sim_i)
 4. Filter by threshold
-
-FALLBACK: For places without trait embeddings (legacy data), uses place embedding directly.
-This ensures backward compatibility with seed data that has combined place embeddings.
 
 The softmax temperature (τ) controls how much the best traits dominate:
 - τ → 0: Approaches MAX (only best trait matters)
@@ -2914,7 +2891,6 @@ BEGIN
       gf.geom,
       ss.base_description_similarity,
       gf.distance_from_bbox_center,
-      e.source_text AS description_text,
       (
         ss.base_description_similarity  -- Base similarity
         + CASE
@@ -2926,7 +2902,6 @@ BEGIN
       ) AS confidence
     FROM geographic_filtered gf
     JOIN semantic_scored ss ON ss.place_id = gf.id
-    JOIN embeddings e ON e.id = gf.embedding_id
   ),
   ranked_candidates AS (
     SELECT
@@ -2937,7 +2912,6 @@ BEGIN
       c.geom,
       c.base_description_similarity,
       c.distance_from_bbox_center,
-      c.description_text,
       c.confidence
     FROM candidates c
     ORDER BY c.confidence DESC
@@ -2953,8 +2927,7 @@ BEGIN
           'geom_wkt', ST_AsText(rc.geom),
           'description_similarity', rc.base_description_similarity::FLOAT,
           'geographic_distance', rc.distance_from_bbox_center::FLOAT,
-          'confidence', rc.confidence::FLOAT,
-          'known_traits', COALESCE(SUBSTRING(rc.description_text FOR 300), '')
+          'confidence', rc.confidence::FLOAT
         ) ORDER BY rc.confidence DESC
       ),
       '[]'::JSONB
@@ -3009,7 +2982,7 @@ Optimized: Returns JSONB directly to avoid repeated conversions.';
 -- Per docs/architecture/algorithm.md: "Selection is deterministic and algorithmic"
 CREATE OR REPLACE FUNCTION "game_logic"."get_question" ("p_session_id" UUID, "p_candidates" JSONB) returns TABLE (
   "question_type" question_type,
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "geographic_region_id" UUID,
   "question_text" TEXT,
   "question_reasoning" TEXT
@@ -3200,7 +3173,7 @@ SET
   extensions AS $$
 DECLARE
   v_question_type question_type;
-  v_trait_id TEXT;
+  v_trait_id UUID;
   v_geographic_region_id UUID;
   v_question_text TEXT;
   v_candidates JSONB;
@@ -3963,9 +3936,8 @@ DECLARE
   v_llm_response TEXT;
   v_traits_json JSONB;
   v_trait RECORD;
+  v_trait_id UUID;
   v_trait_clauses TEXT[];
-  v_combined_traits TEXT;
-  v_embedding_id UUID;
   v_trait_embedding_id UUID;
   v_max_traits INT;
   v_extratags JSONB;
@@ -4076,8 +4048,8 @@ BEGIN
   WHERE gs.place_id = p_place_id
     AND gs.was_correct = TRUE;
 
-  -- Get existing traits
-  SELECT array_agg(t.id || ': ' || t.clause)
+  -- Get existing traits (just clauses, no IDs)
+  SELECT array_agg(t.clause)
   INTO v_existing_traits
   FROM place_traits pt
   JOIN traits t ON t.id = pt.trait_id
@@ -4132,29 +4104,27 @@ BEGIN
   -- Delete existing place_traits links (traits themselves are kept for other places)
   DELETE FROM place_traits WHERE place_id = p_place_id;
 
-  -- Insert new traits
+  -- Insert new traits (array of strings)
   FOR v_trait IN
-    SELECT
-      t->>'id' AS id,
-      t->>'clause' AS clause
-    FROM jsonb_array_elements(v_traits_json) AS t
-    WHERE t->>'id' IS NOT NULL
-      AND t->>'clause' IS NOT NULL
+    SELECT t AS clause
+    FROM jsonb_array_elements_text(v_traits_json) AS t
+    WHERE length(trim(t)) > 1
+      AND length(trim(t)) <= 500
     LIMIT v_max_traits
   LOOP
-    -- Generate embedding for trait clause
-    v_trait_embedding_id := get_embedding(v_trait.clause);
+    -- Generate embedding for trait clause (use 'passage' since traits are matched against queries)
+    v_trait_embedding_id := get_embedding(v_trait.clause, 'passage');
 
-    -- Upsert trait (may be shared with other places)
+    -- Insert trait with generated UUID (deduplication happens via embedding_id)
     INSERT INTO traits (id, clause, embedding_id)
-    VALUES (v_trait.id, v_trait.clause, v_trait_embedding_id)
-    ON CONFLICT (id) DO UPDATE SET
-      clause = EXCLUDED.clause,
-      embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
+    VALUES (gen_random_uuid(), v_trait.clause, v_trait_embedding_id)
+    ON CONFLICT (embedding_id) DO UPDATE SET
+      clause = EXCLUDED.clause
+    RETURNING id INTO v_trait_id;
 
     -- Link trait to place
     INSERT INTO place_traits (place_id, trait_id)
-    VALUES (p_place_id, v_trait.id)
+    VALUES (p_place_id, v_trait_id)
     ON CONFLICT (place_id, trait_id) DO NOTHING;
 
     -- Collect for place embedding
@@ -4162,15 +4132,13 @@ BEGIN
   END LOOP;
 
   -- ============================================================================
-  -- UPDATE PLACE EMBEDDING
+  -- UPDATE PLACE STATUS
   -- ============================================================================
+  -- Note: Place embedding is NOT updated here - algorithm uses individual trait embeddings.
+  -- Place embedding only exists as fallback for legacy data without trait embeddings.
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
-    v_combined_traits := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_embedding(v_combined_traits);
-
     UPDATE places
     SET 
-      embedding_id = v_embedding_id,
       pending_review = FALSE,
       updated_at = NOW()
     WHERE id = p_place_id;
@@ -4378,7 +4346,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."get_semantic_questions" (
   "p_candidates" JSONB,
   "p_limit" INTEGER DEFAULT NULL
 ) returns TABLE (
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "trait_clause" TEXT,
   "trait_category" TEXT,
   "split_quality" DOUBLE PRECISION,
@@ -4639,7 +4607,7 @@ Also increments times_asked for each question used in the session.';
 -- Purpose: DRY helper for recording answers in game_answers table
 CREATE OR REPLACE FUNCTION "game_logic"."record_game_answer" (
   "p_session_id" "uuid",
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" "uuid",
   "p_answer" answer_value,
   "p_place_id" "uuid",
@@ -4673,7 +4641,7 @@ $$;
 
 ALTER FUNCTION "game_logic"."record_game_answer" (
   "p_session_id" "uuid",
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" "uuid",
   "p_answer" answer_value,
   "p_place_id" "uuid",
@@ -4684,7 +4652,7 @@ ALTER FUNCTION "game_logic"."record_game_answer" (
 
 comment ON function "game_logic"."record_game_answer" (
   "p_session_id" "uuid",
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" "uuid",
   "p_answer" answer_value,
   "p_place_id" "uuid",
@@ -4912,7 +4880,7 @@ Extracted from decide_next_turn for Single Responsibility Principle.';
 -- Purpose: Pure function to build question next_turn JSONB (SRP)
 CREATE OR REPLACE FUNCTION "game_logic"."build_question_turn" (
   "p_question_type" question_type,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID,
   "p_question_text" TEXT,
   "p_question_reasoning" TEXT,
@@ -4942,7 +4910,7 @@ $$;
 
 ALTER FUNCTION "game_logic"."build_question_turn" (
   "p_question_type" question_type,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID,
   "p_question_text" TEXT,
   "p_question_reasoning" TEXT,
@@ -4952,7 +4920,7 @@ ALTER FUNCTION "game_logic"."build_question_turn" (
 
 comment ON function "game_logic"."build_question_turn" (
   "p_question_type" question_type,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID,
   "p_question_text" TEXT,
   "p_question_reasoning" TEXT,
@@ -5347,7 +5315,7 @@ DECLARE
   v_trait_clauses TEXT[];
   v_combined_text TEXT;
   v_embedding_id UUID;
-  v_trait_id TEXT;
+  v_trait_id UUID;
   v_trait_clause TEXT;
   v_trait_embedding_id UUID;
 BEGIN
@@ -5367,10 +5335,10 @@ BEGIN
   -- EXTRACT TRAIT CLAUSES FOR EMBEDDING
   -- ============================================================================
   IF p_traits IS NOT NULL AND jsonb_array_length(p_traits) > 0 THEN
-    SELECT array_agg(DISTINCT t->>'clause')
+    SELECT array_agg(DISTINCT t)
     INTO v_trait_clauses
-    FROM jsonb_array_elements(p_traits) AS t
-    WHERE t->>'clause' IS NOT NULL;
+    FROM jsonb_array_elements_text(p_traits) AS t
+    WHERE t IS NOT NULL;
   END IF;
 
   -- ============================================================================
@@ -5378,7 +5346,8 @@ BEGIN
   -- ============================================================================
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
     v_combined_text := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_embedding(v_combined_text);
+    -- Use 'passage' since place traits are documents matched against user queries
+    v_embedding_id := get_embedding(v_combined_text, 'passage');
   END IF;
 
   -- ============================================================================
@@ -5405,18 +5374,20 @@ BEGIN
   -- CREATE TRAITS AND LINK TO PLACE
   -- ============================================================================
   IF p_traits IS NOT NULL AND jsonb_array_length(p_traits) > 0 THEN
-    FOR v_trait_id, v_trait_clause IN
-      SELECT DISTINCT t->>'id', t->>'clause'
-      FROM jsonb_array_elements(p_traits) AS t
-      WHERE t->>'id' IS NOT NULL AND t->>'clause' IS NOT NULL
+    FOR v_trait_clause IN
+      SELECT DISTINCT t
+      FROM jsonb_array_elements_text(p_traits) AS t
+      WHERE t IS NOT NULL
     LOOP
-      -- Generate embedding for trait clause and upsert trait
-      v_trait_embedding_id := get_embedding(v_trait_clause);
+      -- Generate embedding for trait clause (use 'passage' since traits are matched against queries)
+      v_trait_embedding_id := get_embedding(v_trait_clause, 'passage');
 
+      -- Insert trait with generated UUID (deduplication via embedding_id)
       INSERT INTO traits (id, clause, embedding_id)
-      VALUES (v_trait_id, v_trait_clause, v_trait_embedding_id)
-      ON CONFLICT (id) DO UPDATE SET
-        embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
+      VALUES (gen_random_uuid(), v_trait_clause, v_trait_embedding_id)
+      ON CONFLICT (embedding_id) DO UPDATE SET
+        clause = EXCLUDED.clause
+      RETURNING id INTO v_trait_id;
 
       -- Link trait to place
       INSERT INTO place_traits (place_id, trait_id)
@@ -5528,26 +5499,17 @@ BEGIN
 
   -- Add class as trait
   IF p_nominatim_data->>'class' IS NOT NULL THEN
-    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'class:' || lower(p_nominatim_data->>'class'),
-      'clause', initcap(p_nominatim_data->>'class')
-    ));
+    v_traits := v_traits || to_jsonb(initcap(p_nominatim_data->>'class'));
   END IF;
   
   -- Add type as trait
   IF p_nominatim_data->>'type' IS NOT NULL THEN
-    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'type:' || lower(p_nominatim_data->>'type'),
-      'clause', initcap(replace(p_nominatim_data->>'type', '_', ' '))
-    ));
+    v_traits := v_traits || to_jsonb(initcap(replace(p_nominatim_data->>'type', '_', ' ')));
   END IF;
 
   -- Add country as trait
   IF v_address->>'country' IS NOT NULL THEN
-    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'country:' || lower(replace(v_address->>'country', ' ', '_')),
-      'clause', v_address->>'country'
-    ));
+    v_traits := v_traits || to_jsonb(v_address->>'country');
   END IF;
 
   RETURN v_traits;
@@ -5660,7 +5622,10 @@ Raises exception if:
 -- Category: utilities
 -- Dependencies: See migration files for full dependency chain
 -- This file is auto-generated from migrations
-CREATE OR REPLACE FUNCTION "game_logic"."generate_embedding" ("p_text" "text") returns "extensions"."vector" language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."generate_embedding" (
+  "p_text" "text",
+  "p_input_type" "text" DEFAULT 'query'  -- 'query' for searches, 'passage' for documents/traits
+) returns "extensions"."vector" language "plpgsql" security definer
 SET
   search_path = public,
   game_logic,
@@ -5672,7 +5637,13 @@ DECLARE
   validated_text TEXT;
   embedding_vector vector(384);
   v_anon_key TEXT;
+  v_input_type TEXT;
 BEGIN
+  -- Validate input_type (must be 'query' or 'passage')
+  v_input_type := COALESCE(p_input_type, 'query');
+  IF v_input_type NOT IN ('query', 'passage') THEN
+    RAISE EXCEPTION 'Invalid input_type: %. Must be ''query'' or ''passage''', v_input_type;
+  END IF;
   -- ============================================================================
   -- pgTAP TEST SHORT-CIRCUIT
   -- ============================================================================
@@ -5729,7 +5700,7 @@ BEGIN
       extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
     ],
     'application/json',
-    jsonb_build_object('text', validated_text)::text
+    jsonb_build_object('text', validated_text, 'inputType', v_input_type)::text
   )::extensions.http_request);
 
   RAISE NOTICE 'Response status: %', v_status;
@@ -5758,12 +5729,19 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."generate_embedding" ("p_text" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."generate_embedding" ("p_text" "text", "p_input_type" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."generate_embedding" ("p_text" "text") IS 'Generates a 384-dimensional embedding vector for the given text with input validation.
+comment ON function "game_logic"."generate_embedding" ("p_text" "text", "p_input_type" "text") IS 'Generates a 384-dimensional embedding vector for the given text with input validation.
 Parameters:
 - p_text: text to embed (validated: 1-1000 chars, no control chars)
+- p_input_type: ''query'' for user searches, ''passage'' for documents/traits (default: ''query'')
+
+E5 Model Prefixes:
+- E5 models use asymmetric retrieval training
+- ''query'' inputs are prefixed with "query: " (for user descriptions being searched)
+- ''passage'' inputs are prefixed with "passage: " (for traits being matched against)
+- This asymmetric prefixing is critical for optimal matching quality
 
 Security:
 - Validates input via validate_user_input()
@@ -5776,7 +5754,7 @@ Configuration:
 - Uses current_setting(''app.supabase_anon_key'', true) with fallback to local dev anon key
 
 Process:
-1. Validates input text
+1. Validates input text and input_type
 2. Calls edge function (generate-embedding) via synchronous http extension
 3. Parses and returns vector(384)
 
@@ -5795,30 +5773,30 @@ Technical:
 -- NOT directly from the frontend, to prevent API quota abuse.
 -- Rate limiting is enforced at the entry points (start_game, etc.)
 REVOKE
-EXECUTE ON function game_logic.generate_embedding (TEXT)
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT)
 FROM
   public;
 
 
 REVOKE
-EXECUTE ON function game_logic.generate_embedding (TEXT)
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT)
 FROM
   anon;
 
 
 REVOKE
-EXECUTE ON function game_logic.generate_embedding (TEXT)
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT)
 FROM
   authenticated;
 
 
 -- Only postgres role and service_role can execute
 GRANT
-EXECUTE ON function game_logic.generate_embedding (TEXT) TO postgres;
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT) TO postgres;
 
 
 GRANT
-EXECUTE ON function game_logic.generate_embedding (TEXT) TO service_role;
+EXECUTE ON function game_logic.generate_embedding (TEXT, TEXT) TO service_role;
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/generate_question_text.sql
@@ -5828,7 +5806,7 @@ EXECUTE ON function game_logic.generate_embedding (TEXT) TO service_role;
 -- Category: utilities
 -- Purpose: Generate natural language question text using LLM via call_llm_api
 CREATE OR REPLACE FUNCTION "game_logic"."generate_question_text" (
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_region_id UUID,
   p_language_code TEXT DEFAULT 'en',
   p_user_description TEXT DEFAULT ''
@@ -5897,7 +5875,7 @@ $$;
 
 
 ALTER FUNCTION "game_logic"."generate_question_text" (
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_region_id UUID,
   p_language_code TEXT,
   p_user_description TEXT
@@ -5905,7 +5883,7 @@ ALTER FUNCTION "game_logic"."generate_question_text" (
 
 
 comment ON function "game_logic"."generate_question_text" (
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_region_id UUID,
   p_language_code TEXT,
   p_user_description TEXT
@@ -6128,7 +6106,10 @@ comment ON function "game_logic"."get_config_text" ("p_key" TEXT, "p_default" TE
 -- Function: get_embedding
 -- Category: utilities
 -- Gets existing embedding or creates a new one for the given text
-CREATE OR REPLACE FUNCTION "game_logic"."get_embedding" ("p_text" "text") returns UUID language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_embedding" (
+  "p_text" "text",
+  "p_input_type" "text" DEFAULT 'query'  -- 'query' for searches, 'passage' for documents/traits
+) returns UUID language "plpgsql" security definer
 SET
   "search_path" = public,
   game_logic,
@@ -6147,8 +6128,8 @@ BEGIN
     RETURN v_embedding_id;
   END IF;
 
-  -- Generate new embedding
-  v_embedding := generate_embedding(p_text);
+  -- Generate new embedding with the specified input type
+  v_embedding := generate_embedding(p_text, p_input_type);
 
   -- Store new embedding (use ON CONFLICT for race condition safety)
   INSERT INTO embeddings (source_text, embedding)
@@ -6161,15 +6142,22 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."get_embedding" ("p_text" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."get_embedding" ("p_text" "text", "p_input_type" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."get_embedding" ("p_text" "text") IS 'Gets existing embedding for the given text or creates a new one.
+comment ON function "game_logic"."get_embedding" ("p_text" "text", "p_input_type" "text") IS 'Gets existing embedding for the given text or creates a new one.
+
+Parameters:
+- p_text: text to embed
+- p_input_type: ''query'' for user searches, ''passage'' for documents/traits (default: ''query'')
 
 Process:
 1. Return existing embedding_id when source_text matches
-2. Otherwise call edge function to generate and store embedding
-3. Return embedding UUID';
+2. Otherwise call generate_embedding with appropriate input_type
+3. Return embedding UUID
+
+Note: The input_type affects the E5 model prefix used during embedding generation.
+Cached embeddings are keyed by source_text only, so ensure consistent input_type usage per text.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/get_max_turns.sql

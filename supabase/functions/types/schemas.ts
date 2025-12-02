@@ -5,8 +5,11 @@
 import { z } from 'npm:zod@3.25.76'
 
 // generate-embedding function
+// inputType: 'query' for user searches, 'passage' for documents/traits being matched against
+// E5 models require asymmetric prefixes for optimal matching
 export const GenerateEmbeddingRequest = z.object({
   text: z.string().min(1).max(10000),
+  inputType: z.enum(['query', 'passage']).default('query'),
 })
 export type GenerateEmbeddingRequestType = z.infer<typeof GenerateEmbeddingRequest>
 

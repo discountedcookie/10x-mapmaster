@@ -14,26 +14,17 @@ BEGIN
 
   -- Add class as trait
   IF p_nominatim_data->>'class' IS NOT NULL THEN
-    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'class:' || lower(p_nominatim_data->>'class'),
-      'clause', initcap(p_nominatim_data->>'class')
-    ));
+    v_traits := v_traits || to_jsonb(initcap(p_nominatim_data->>'class'));
   END IF;
   
   -- Add type as trait
   IF p_nominatim_data->>'type' IS NOT NULL THEN
-    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'type:' || lower(p_nominatim_data->>'type'),
-      'clause', initcap(replace(p_nominatim_data->>'type', '_', ' '))
-    ));
+    v_traits := v_traits || to_jsonb(initcap(replace(p_nominatim_data->>'type', '_', ' ')));
   END IF;
 
   -- Add country as trait
   IF v_address->>'country' IS NOT NULL THEN
-    v_traits := v_traits || jsonb_build_array(jsonb_build_object(
-      'id', 'country:' || lower(replace(v_address->>'country', ' ', '_')),
-      'clause', v_address->>'country'
-    ));
+    v_traits := v_traits || to_jsonb(v_address->>'country');
   END IF;
 
   RETURN v_traits;

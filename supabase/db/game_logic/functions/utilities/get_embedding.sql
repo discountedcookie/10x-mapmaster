@@ -1,7 +1,10 @@
 -- Function: get_embedding
 -- Category: utilities
 -- Gets existing embedding or creates a new one for the given text
-CREATE OR REPLACE FUNCTION "game_logic"."get_embedding" ("p_text" "text") returns UUID language "plpgsql" security definer
+CREATE OR REPLACE FUNCTION "game_logic"."get_embedding" (
+  "p_text" "text",
+  "p_input_type" "text" DEFAULT 'query'  -- 'query' for searches, 'passage' for documents/traits
+) returns UUID language "plpgsql" security definer
 SET
   "search_path" = public,
   game_logic,
@@ -20,8 +23,8 @@ BEGIN
     RETURN v_embedding_id;
   END IF;
 
-  -- Generate new embedding
-  v_embedding := generate_embedding(p_text);
+  -- Generate new embedding with the specified input type
+  v_embedding := generate_embedding(p_text, p_input_type);
 
   -- Store new embedding (use ON CONFLICT for race condition safety)
   INSERT INTO embeddings (source_text, embedding)
@@ -34,12 +37,19 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."get_embedding" ("p_text" "text") owner TO "postgres";
+ALTER FUNCTION "game_logic"."get_embedding" ("p_text" "text", "p_input_type" "text") owner TO "postgres";
 
 
-comment ON function "game_logic"."get_embedding" ("p_text" "text") IS 'Gets existing embedding for the given text or creates a new one.
+comment ON function "game_logic"."get_embedding" ("p_text" "text", "p_input_type" "text") IS 'Gets existing embedding for the given text or creates a new one.
+
+Parameters:
+- p_text: text to embed
+- p_input_type: ''query'' for user searches, ''passage'' for documents/traits (default: ''query'')
 
 Process:
 1. Return existing embedding_id when source_text matches
-2. Otherwise call edge function to generate and store embedding
-3. Return embedding UUID';
+2. Otherwise call generate_embedding with appropriate input_type
+3. Return embedding UUID
+
+Note: The input_type affects the E5 model prefix used during embedding generation.
+Cached embeddings are keyed by source_text only, so ensure consistent input_type usage per text.';

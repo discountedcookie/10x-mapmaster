@@ -1,10 +1,10 @@
 -- Table: traits
 -- Schema: public
 -- Description: Canonical trait definitions used to describe and filter places
--- Spec: Each trait has id, clause (text), and embedding_id
+-- Spec: Each trait has id (UUID), clause (text), and embedding_id
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."traits" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "clause" TEXT NOT NULL,
   "embedding_id" UUID,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL
@@ -25,7 +25,7 @@ ADD CONSTRAINT "traits_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCE
 
 
 -- Indexes
-CREATE INDEX if NOT EXISTS "idx_traits_embedding_id" ON "public"."traits" ("embedding_id");
+CREATE UNIQUE INDEX if NOT EXISTS "idx_traits_embedding_id" ON "public"."traits" ("embedding_id");
 
 
 -- RLS Policies

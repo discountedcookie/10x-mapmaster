@@ -3,7 +3,7 @@
 -- Purpose: Pure function to build question next_turn JSONB (SRP)
 CREATE OR REPLACE FUNCTION "game_logic"."build_question_turn" (
   "p_question_type" question_type,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID,
   "p_question_text" TEXT,
   "p_question_reasoning" TEXT,
@@ -33,7 +33,7 @@ $$;
 
 ALTER FUNCTION "game_logic"."build_question_turn" (
   "p_question_type" question_type,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID,
   "p_question_text" TEXT,
   "p_question_reasoning" TEXT,
@@ -43,7 +43,7 @@ ALTER FUNCTION "game_logic"."build_question_turn" (
 
 comment ON function "game_logic"."build_question_turn" (
   "p_question_type" question_type,
-  "p_trait_id" TEXT,
+  "p_trait_id" UUID,
   "p_geographic_region_id" UUID,
   "p_question_text" TEXT,
   "p_question_reasoning" TEXT,

@@ -21,8 +21,9 @@ ADD CONSTRAINT "embeddings_pkey" PRIMARY KEY ("id");
 
 
 -- Indexes
--- HNSW index for fast approximate nearest neighbor search
-CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" extensions.vector_ip_ops);
+-- HNSW index for fast approximate nearest neighbor search using cosine distance
+-- Uses vector_cosine_ops to match the <=> cosine distance operator used in queries
+CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" extensions.vector_cosine_ops);
 
 
 -- Unique constraint on source_text for deduplication

@@ -49,33 +49,13 @@ BEGIN
       pt.place_id = ANY (p_place_ids)
       AND te.embedding IS NOT NULL
   ),
-  -- FALLBACK: For places without trait embeddings, use place embedding directly
-  -- This handles legacy seed data where traits don't have individual embeddings
-  place_fallback AS (
-    SELECT
-      p.id AS pid,
-      (1 - (pe.embedding <=> v_description_embedding))::DOUBLE PRECISION AS sim
-    FROM places p
-    JOIN embeddings pe ON pe.id = p.embedding_id
-    WHERE p.id = ANY (p_place_ids)
-      AND pe.embedding IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM trait_similarities ts WHERE ts.pid = p.id
-      )
-  ),
-  -- Combine trait-based and fallback scores
-  all_similarities AS (
-    SELECT pid, sim FROM trait_similarities
-    UNION ALL
-    SELECT pid, sim FROM place_fallback
-  ),
   exp_similarities AS (
     -- Calculate exp(sim/τ) for softmax
     SELECT
       pid,
       sim,
       exp(sim / v_temperature) AS exp_sim
-    FROM all_similarities
+    FROM trait_similarities
   ),
   softmax_weights AS (
     -- Calculate softmax weights: exp(sim/τ) / Σexp(sim/τ)
@@ -113,9 +93,6 @@ Algorithm:
 2. Apply softmax weighting: weight_i = exp(sim_i/τ) / Σexp(sim_j/τ)
 3. Calculate weighted average: score = Σ(weight_i × sim_i)
 4. Filter by threshold
-
-FALLBACK: For places without trait embeddings (legacy data), uses place embedding directly.
-This ensures backward compatibility with seed data that has combined place embeddings.
 
 The softmax temperature (τ) controls how much the best traits dominate:
 - τ → 0: Approaches MAX (only best trait matters)

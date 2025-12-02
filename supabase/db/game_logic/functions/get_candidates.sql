@@ -40,7 +40,6 @@ BEGIN
       gf.geom,
       ss.base_description_similarity,
       gf.distance_from_bbox_center,
-      e.source_text AS description_text,
       (
         ss.base_description_similarity  -- Base similarity
         + CASE
@@ -52,7 +51,6 @@ BEGIN
       ) AS confidence
     FROM geographic_filtered gf
     JOIN semantic_scored ss ON ss.place_id = gf.id
-    JOIN embeddings e ON e.id = gf.embedding_id
   ),
   ranked_candidates AS (
     SELECT
@@ -63,7 +61,6 @@ BEGIN
       c.geom,
       c.base_description_similarity,
       c.distance_from_bbox_center,
-      c.description_text,
       c.confidence
     FROM candidates c
     ORDER BY c.confidence DESC
@@ -79,8 +76,7 @@ BEGIN
           'geom_wkt', ST_AsText(rc.geom),
           'description_similarity', rc.base_description_similarity::FLOAT,
           'geographic_distance', rc.distance_from_bbox_center::FLOAT,
-          'confidence', rc.confidence::FLOAT,
-          'known_traits', COALESCE(SUBSTRING(rc.description_text FOR 300), '')
+          'confidence', rc.confidence::FLOAT
         ) ORDER BY rc.confidence DESC
       ),
       '[]'::JSONB

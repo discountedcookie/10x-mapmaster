@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS "public"."game_answers" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "session_id" "uuid" NOT NULL,
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "geographic_region_id" "uuid",
   "answer" answer_value NOT NULL,
   "place_id" "uuid",

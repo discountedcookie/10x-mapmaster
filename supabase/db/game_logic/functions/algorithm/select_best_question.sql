@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION "game_logic"."select_best_question" (
   p_min_split_quality FLOAT
 ) returns TABLE (
   question_type TEXT,
-  trait_id TEXT,
+  trait_id UUID,
   geographic_region_id UUID,
   question_text TEXT,
   split_quality FLOAT
@@ -42,7 +42,7 @@ BEGIN
   IF v_best_geo_question.split_quality >= p_geographic_preference_threshold THEN
     RETURN QUERY SELECT 
       'geographic'::TEXT,
-      NULL::TEXT,
+      NULL::UUID,
       v_best_geo_question.geographic_region_id,
       v_best_geo_question.question_text,
       v_best_geo_question.split_quality;
@@ -64,7 +64,7 @@ BEGIN
   IF v_best_geo_question.geographic_region_id IS NOT NULL THEN
     RETURN QUERY SELECT 
       'geographic'::TEXT,
-      NULL::TEXT,
+      NULL::UUID,
       v_best_geo_question.geographic_region_id,
       v_best_geo_question.question_text,
       v_best_geo_question.split_quality;

@@ -2,7 +2,7 @@
 -- Category: utilities
 -- Purpose: Generate natural language question text using LLM via call_llm_api
 CREATE OR REPLACE FUNCTION "game_logic"."generate_question_text" (
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_region_id UUID,
   p_language_code TEXT DEFAULT 'en',
   p_user_description TEXT DEFAULT ''
@@ -71,7 +71,7 @@ $$;
 
 
 ALTER FUNCTION "game_logic"."generate_question_text" (
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_region_id UUID,
   p_language_code TEXT,
   p_user_description TEXT
@@ -79,7 +79,7 @@ ALTER FUNCTION "game_logic"."generate_question_text" (
 
 
 comment ON function "game_logic"."generate_question_text" (
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_region_id UUID,
   p_language_code TEXT,
   p_user_description TEXT

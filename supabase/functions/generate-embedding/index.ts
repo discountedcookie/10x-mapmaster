@@ -1,17 +1,15 @@
-import { Ollama } from 'npm:ollama@0.5.9'
 import { GenerateEmbeddingRequest } from '../types/schemas.ts'
 
 console.log('✓ Module loading started')
 
-// Spec: 384d embeddings (gte-small compatible)
-// Development: Ollama with all-minilm (384d)
-// Production: Supabase gte-small (384d)
-const EMBEDDING_PROVIDER = Deno.env.get('EMBEDDING_PROVIDER') || 'ollama'
-const OLLAMA_HOST = Deno.env.get('OLLAMA_HOST') || 'http://host.docker.internal:11434'
-const OLLAMA_MODEL = Deno.env.get('OLLAMA_EMBEDDING_MODEL') || 'all-minilm'
+// Hugging Face all-MiniLM-L6-v2 (384d)
+// Symmetric model - no prefix needed, best English discrimination
+const HF_TOKEN = Deno.env.get('HF_TOKEN') || ''
+const HF_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'
+const HF_API_URL = `https://router.huggingface.co/hf-inference/models/${HF_MODEL}/pipeline/feature-extraction`
 const EXPECTED_DIMENSIONS = 384
 
-console.log(`✓ Constants initialized (provider: ${EMBEDDING_PROVIDER}, model: ${OLLAMA_MODEL})`)
+console.log(`✓ Constants initialized (model: ${HF_MODEL})`)
 
 Deno.serve(async (request: Request) => {
   console.log('✓ Handler invoked')
@@ -23,6 +21,10 @@ Deno.serve(async (request: Request) => {
         status: 405,
         headers: { 'Content-Type': 'application/json' },
       })
+    }
+
+    if (!HF_TOKEN) {
+      throw new Error('HF_TOKEN environment variable is required')
     }
 
     console.log('✓ About to parse request body')
@@ -50,30 +52,46 @@ Deno.serve(async (request: Request) => {
       )
     }
 
-    const { text } = validated
+    const { text, inputType } = validated
     console.log(`✓ Text received: "${text.slice(0, 30)}..."`)
+    console.log(`✓ Input type: ${inputType}`)
     console.log(`Generating ${EXPECTED_DIMENSIONS}d embedding for text: "${text.slice(0, 50)}..."`)
 
-    console.log('✓ About to call Ollama API via ollama-js library')
-    const ollama = new Ollama({ host: OLLAMA_HOST })
+    // GTE is symmetric - no prefix needed
+    const prefixedText = text.trim()
 
-    const response = await ollama.embeddings({
-      model: OLLAMA_MODEL,
-      prompt: text.trim(),
+    console.log('✓ About to call Hugging Face API')
+    const response = await fetch(HF_API_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: prefixedText,
+      }),
     })
 
-    console.log(`✓ Ollama API responded successfully`)
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Hugging Face API error (${response.status}): ${errorText}`)
+    }
 
-    const embedding = response.embedding
+    const result = await response.json()
+    console.log(`✓ Hugging Face API responded successfully`)
+
+    // HF returns array directly for single input
+    const embedding = Array.isArray(result) ? result : result.embeddings?.[0]
 
     if (!embedding || !Array.isArray(embedding)) {
-      throw new Error('Invalid response from Ollama API: missing or invalid embedding')
+      throw new Error(
+        `Invalid response from Hugging Face API: ${JSON.stringify(result).slice(0, 200)}`
+      )
     }
 
     if (embedding.length !== EXPECTED_DIMENSIONS) {
       throw new Error(
-        `Invalid embedding dimensions: expected ${EXPECTED_DIMENSIONS}, got ${embedding.length}. ` +
-          `Ensure OLLAMA_EMBEDDING_MODEL is set to a 384d model (e.g., all-minilm)`
+        `Invalid embedding dimensions: expected ${EXPECTED_DIMENSIONS}, got ${embedding.length}`
       )
     }
 

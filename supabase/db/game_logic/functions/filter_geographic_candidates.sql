@@ -60,8 +60,7 @@ BEGIN
       ELSE NULL
     END AS distance_from_bbox_center
   FROM places p
-  WHERE p.embedding_id IS NOT NULL
-    AND p.geom IS NOT NULL
+  WHERE p.geom IS NOT NULL
     -- Exclude places pending review
     AND p.pending_review = FALSE
     -- Exclude wrong guesses

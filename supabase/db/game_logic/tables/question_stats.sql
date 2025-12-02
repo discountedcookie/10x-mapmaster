@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS "game_logic"."question_stats" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "question_type" "public"."question_type" NOT NULL,
-  "trait_id" TEXT,
+  "trait_id" UUID,
   "geographic_region_id" "uuid",
   "times_asked" INTEGER DEFAULT 0 NOT NULL,
   "effectiveness_score" DOUBLE PRECISION DEFAULT 0.5 NOT NULL,

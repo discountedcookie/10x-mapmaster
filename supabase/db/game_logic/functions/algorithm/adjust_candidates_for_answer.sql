@@ -5,7 +5,7 @@
 -- Spec: docs/architecture/algorithm.md#trait-matching
 CREATE OR REPLACE FUNCTION "game_logic"."adjust_candidates_for_answer" (
   p_candidates JSONB,
-  p_trait_id TEXT,
+  p_trait_id UUID,
   p_answer answer_value
 ) returns JSONB language plpgsql
 SET
@@ -80,10 +80,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value) owner TO postgres;
+ALTER FUNCTION "game_logic"."adjust_candidates_for_answer" (JSONB, UUID, answer_value) owner TO postgres;
 
 
-comment ON function "game_logic"."adjust_candidates_for_answer" (JSONB, TEXT, answer_value) IS 'Adjusts candidate scores using binary trait matching and multiplicative scaling.
+comment ON function "game_logic"."adjust_candidates_for_answer" (JSONB, UUID, answer_value) IS 'Adjusts candidate scores using binary trait matching and multiplicative scaling.
 
 Algorithm (per docs/architecture/algorithm.md#trait-matching):
 1. For each candidate, check if place has the trait via place_traits table (binary)

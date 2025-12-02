@@ -8,6 +8,10 @@
 
 Read `.opencode/rules/architecture.md` for detailed constraints.
 
+## Agent Behavior
+
+Behavior, honesty, and session-context rules are defined in `.opencode/rules/behavior.md`. All agents must follow those rules.
+
 ## Key Directories
 
 ```
@@ -53,7 +57,8 @@ Key points:
 
 ## Rules (Always-On)
 
-| Rule                              | Purpose                         |
-| --------------------------------- | ------------------------------- |
-| `.opencode/rules/architecture.md` | Database-first constraints      |
-| `.opencode/rules/core.md`         | Honesty policy, response format |
+| Rule                              | Purpose                        |
+| --------------------------------- | ------------------------------ |
+| `.opencode/rules/architecture.md` | Database-first constraints     |
+| `.opencode/rules/core.md`         | Baseline rules                 |
+| `.opencode/rules/behavior.md`     | Honesty + context + discipline |

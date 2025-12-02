@@ -18,9 +18,8 @@ DECLARE
   v_llm_response TEXT;
   v_traits_json JSONB;
   v_trait RECORD;
+  v_trait_id UUID;
   v_trait_clauses TEXT[];
-  v_combined_traits TEXT;
-  v_embedding_id UUID;
   v_trait_embedding_id UUID;
   v_max_traits INT;
   v_extratags JSONB;
@@ -131,8 +130,8 @@ BEGIN
   WHERE gs.place_id = p_place_id
     AND gs.was_correct = TRUE;
 
-  -- Get existing traits
-  SELECT array_agg(t.id || ': ' || t.clause)
+  -- Get existing traits (just clauses, no IDs)
+  SELECT array_agg(t.clause)
   INTO v_existing_traits
   FROM place_traits pt
   JOIN traits t ON t.id = pt.trait_id
@@ -187,29 +186,27 @@ BEGIN
   -- Delete existing place_traits links (traits themselves are kept for other places)
   DELETE FROM place_traits WHERE place_id = p_place_id;
 
-  -- Insert new traits
+  -- Insert new traits (array of strings)
   FOR v_trait IN
-    SELECT
-      t->>'id' AS id,
-      t->>'clause' AS clause
-    FROM jsonb_array_elements(v_traits_json) AS t
-    WHERE t->>'id' IS NOT NULL
-      AND t->>'clause' IS NOT NULL
+    SELECT t AS clause
+    FROM jsonb_array_elements_text(v_traits_json) AS t
+    WHERE length(trim(t)) > 1
+      AND length(trim(t)) <= 500
     LIMIT v_max_traits
   LOOP
-    -- Generate embedding for trait clause
-    v_trait_embedding_id := get_embedding(v_trait.clause);
+    -- Generate embedding for trait clause (use 'passage' since traits are matched against queries)
+    v_trait_embedding_id := get_embedding(v_trait.clause, 'passage');
 
-    -- Upsert trait (may be shared with other places)
+    -- Insert trait with generated UUID (deduplication happens via embedding_id)
     INSERT INTO traits (id, clause, embedding_id)
-    VALUES (v_trait.id, v_trait.clause, v_trait_embedding_id)
-    ON CONFLICT (id) DO UPDATE SET
-      clause = EXCLUDED.clause,
-      embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
+    VALUES (gen_random_uuid(), v_trait.clause, v_trait_embedding_id)
+    ON CONFLICT (embedding_id) DO UPDATE SET
+      clause = EXCLUDED.clause
+    RETURNING id INTO v_trait_id;
 
     -- Link trait to place
     INSERT INTO place_traits (place_id, trait_id)
-    VALUES (p_place_id, v_trait.id)
+    VALUES (p_place_id, v_trait_id)
     ON CONFLICT (place_id, trait_id) DO NOTHING;
 
     -- Collect for place embedding
@@ -217,15 +214,13 @@ BEGIN
   END LOOP;
 
   -- ============================================================================
-  -- UPDATE PLACE EMBEDDING
+  -- UPDATE PLACE STATUS
   -- ============================================================================
+  -- Note: Place embedding is NOT updated here - algorithm uses individual trait embeddings.
+  -- Place embedding only exists as fallback for legacy data without trait embeddings.
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
-    v_combined_traits := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_embedding(v_combined_traits);
-
     UPDATE places
     SET 
-      embedding_id = v_embedding_id,
       pending_review = FALSE,
       updated_at = NOW()
     WHERE id = p_place_id;

@@ -20,7 +20,7 @@ DECLARE
   v_trait_clauses TEXT[];
   v_combined_text TEXT;
   v_embedding_id UUID;
-  v_trait_id TEXT;
+  v_trait_id UUID;
   v_trait_clause TEXT;
   v_trait_embedding_id UUID;
 BEGIN
@@ -40,10 +40,10 @@ BEGIN
   -- EXTRACT TRAIT CLAUSES FOR EMBEDDING
   -- ============================================================================
   IF p_traits IS NOT NULL AND jsonb_array_length(p_traits) > 0 THEN
-    SELECT array_agg(DISTINCT t->>'clause')
+    SELECT array_agg(DISTINCT t)
     INTO v_trait_clauses
-    FROM jsonb_array_elements(p_traits) AS t
-    WHERE t->>'clause' IS NOT NULL;
+    FROM jsonb_array_elements_text(p_traits) AS t
+    WHERE t IS NOT NULL;
   END IF;
 
   -- ============================================================================
@@ -51,7 +51,8 @@ BEGIN
   -- ============================================================================
   IF v_trait_clauses IS NOT NULL AND array_length(v_trait_clauses, 1) > 0 THEN
     v_combined_text := array_to_string(v_trait_clauses, '. ');
-    v_embedding_id := get_embedding(v_combined_text);
+    -- Use 'passage' since place traits are documents matched against user queries
+    v_embedding_id := get_embedding(v_combined_text, 'passage');
   END IF;
 
   -- ============================================================================
@@ -78,18 +79,20 @@ BEGIN
   -- CREATE TRAITS AND LINK TO PLACE
   -- ============================================================================
   IF p_traits IS NOT NULL AND jsonb_array_length(p_traits) > 0 THEN
-    FOR v_trait_id, v_trait_clause IN
-      SELECT DISTINCT t->>'id', t->>'clause'
-      FROM jsonb_array_elements(p_traits) AS t
-      WHERE t->>'id' IS NOT NULL AND t->>'clause' IS NOT NULL
+    FOR v_trait_clause IN
+      SELECT DISTINCT t
+      FROM jsonb_array_elements_text(p_traits) AS t
+      WHERE t IS NOT NULL
     LOOP
-      -- Generate embedding for trait clause and upsert trait
-      v_trait_embedding_id := get_embedding(v_trait_clause);
+      -- Generate embedding for trait clause (use 'passage' since traits are matched against queries)
+      v_trait_embedding_id := get_embedding(v_trait_clause, 'passage');
 
+      -- Insert trait with generated UUID (deduplication via embedding_id)
       INSERT INTO traits (id, clause, embedding_id)
-      VALUES (v_trait_id, v_trait_clause, v_trait_embedding_id)
-      ON CONFLICT (id) DO UPDATE SET
-        embedding_id = COALESCE(traits.embedding_id, EXCLUDED.embedding_id);
+      VALUES (gen_random_uuid(), v_trait_clause, v_trait_embedding_id)
+      ON CONFLICT (embedding_id) DO UPDATE SET
+        clause = EXCLUDED.clause
+      RETURNING id INTO v_trait_id;
 
       -- Link trait to place
       INSERT INTO place_traits (place_id, trait_id)

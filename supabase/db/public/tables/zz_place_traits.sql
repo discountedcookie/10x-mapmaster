@@ -4,7 +4,7 @@
 -- Table Definition
 CREATE TABLE IF NOT EXISTS "public"."place_traits" (
   "place_id" UUID NOT NULL,
-  "trait_id" TEXT NOT NULL,
+  "trait_id" UUID NOT NULL,
   "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL
 );
 
