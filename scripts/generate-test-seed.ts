@@ -21,9 +21,13 @@ type TestDescription = {
   test_file: string
 }
 
-const placesData: PlaceInput[] = JSON.parse(
+const allPlacesData: PlaceInput[] = JSON.parse(
   readFileSync(path.join(process.cwd(), 'scripts', 'seed-data', 'places.json'), 'utf8')
 )
+
+// Limit places to avoid rate limits during development (set to 0 for all)
+const PLACE_LIMIT = process.env.PLACE_LIMIT !== undefined ? Number(process.env.PLACE_LIMIT) : 1
+const placesData = PLACE_LIMIT > 0 ? allPlacesData.slice(0, PLACE_LIMIT) : allPlacesData
 
 const testDescriptions: TestDescription[] = JSON.parse(
   readFileSync(path.join(process.cwd(), 'scripts', 'seed-data', 'test-descriptions.json'), 'utf8')
@@ -59,80 +63,25 @@ function formatEmbedding(embedding: number[] | string): string {
 
 // Create temporary public wrappers for game_logic functions
 async function createWrappers() {
-  const { error } = await supabase.rpc('query', {
-    sql: `
-      CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
-      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
-        SELECT game_logic.fetch_nominatim_place(p_osm_id);
-      $$;
-      
-      CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
-      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
-        SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data);
-      $$;
-      
-      CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
-      LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
-        SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated);
-      $$;
-      
-        CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$
-          SELECT game_logic.get_embedding(p_text);
-        $$;
-    `,
-  })
-
-  if (error) {
-    // Try direct SQL execution via fetch
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-      },
-      body: JSON.stringify({
-        sql: `
-        CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.fetch_nominatim_place(p_osm_id); $$;
-        
-        CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data); $$;
-        
-        CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); $$;
-        
-        CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS $$ SELECT game_logic.get_embedding(p_text); $$;
-      `,
-      }),
-    })
-
-    if (!response.ok) {
-      // Last resort: use psql
-      const { execSync } = await import('node:child_process')
-      execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "
-        CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.fetch_nominatim_place(p_osm_id); \\$\\$;
-        
-        CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data); \\$\\$;
-        
-        CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); \\$\\$;
-        
-        CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
-        LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_embedding(p_text); \\$\\$;
-      "`)
-    }
-  }
-
-  // Notify PostgREST to reload schema cache
   const { execSync } = await import('node:child_process')
-  execSync(
-    `psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "NOTIFY pgrst, 'reload schema';"`
-  )
+  execSync(`psql "postgresql://postgres:postgres@localhost:54322/postgres" -c "
+    CREATE OR REPLACE FUNCTION public.fetch_nominatim_place(p_osm_id TEXT) RETURNS JSONB 
+    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.fetch_nominatim_place(p_osm_id); \\$\\$;
+    
+    CREATE OR REPLACE FUNCTION public.extract_traits_from_nominatim(p_nominatim_data JSONB) RETURNS JSONB 
+    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.extract_traits_from_nominatim(p_nominatim_data); \\$\\$;
+    
+    CREATE OR REPLACE FUNCTION public.create_place_with_traits(p_osm_id TEXT, p_nominatim_data JSONB, p_traits JSONB, p_is_curated BOOLEAN DEFAULT TRUE) RETURNS UUID 
+    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.create_place_with_traits(p_osm_id, p_nominatim_data, p_traits, p_is_curated); \\$\\$;
+    
+    CREATE OR REPLACE FUNCTION public.get_embedding(p_text TEXT) RETURNS UUID 
+    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.get_embedding(p_text); \\$\\$;
+    
+    CREATE OR REPLACE FUNCTION public.update_place_traits(p_place_id UUID) RETURNS VOID 
+    LANGUAGE sql SECURITY DEFINER SET search_path = public, game_logic AS \\$\\$ SELECT game_logic.update_place_traits(p_place_id); \\$\\$;
+    
+    NOTIFY pgrst, 'reload schema';
+  "`)
 
   // Give PostgREST time to reload
   await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -146,29 +95,38 @@ async function dropWrappers() {
       DROP FUNCTION IF EXISTS public.extract_traits_from_nominatim(JSONB);
       DROP FUNCTION IF EXISTS public.create_place_with_traits(TEXT, JSONB, JSONB, BOOLEAN);
       DROP FUNCTION IF EXISTS public.get_embedding(TEXT);
+      DROP FUNCTION IF EXISTS public.update_place_traits(UUID);
     "`)
   } catch {
     // Ignore errors
   }
 }
 
-async function callRpc(name: string, parameters: Record<string, unknown>) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-    },
-    body: JSON.stringify(parameters),
-  })
+async function callRpc(name: string, parameters: Record<string, unknown>, timeoutMs = 120000) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`RPC ${name} failed: ${error}`)
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+      },
+      body: JSON.stringify(parameters),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`RPC ${name} failed: ${error}`)
+    }
+
+    return await response.json()
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  return await response.json()
 }
 
 // Remove old seed file to ensure clean generation
@@ -199,16 +157,20 @@ try {
     console.log(`[${index + 1}/${placesData.length}] ${place.osm_id}`)
     await waitForRateLimit()
 
+    let traitStart = 0
     try {
       // 1. Fetch from Nominatim
       const nominatimData = await callRpc('fetch_nominatim_place', { p_osm_id: place.osm_id })
       console.log(`  ✓ ${nominatimData.display_name}`)
 
       // 2. Extract traits
+      traitStart = Date.now()
       const traits = await callRpc('extract_traits_from_nominatim', {
         p_nominatim_data: nominatimData,
       })
-      console.log(`  🏷️  ${Array.isArray(traits) ? traits.length : 0} traits`)
+      console.log(
+        `  🏷️  ${Array.isArray(traits) ? traits.length : 0} traits (${Date.now() - traitStart}ms)`
+      )
 
       // 3. Create place with traits (this also generates embedding)
       const placeId = await callRpc('create_place_with_traits', {
@@ -219,8 +181,22 @@ try {
       })
       createdPlaceIds.push(placeId)
       console.log(`  📍 Created place: ${placeId}`)
+
+      // 4. Call LLM to generate rich traits
+      const llmStart = Date.now()
+      try {
+        await callRpc('update_place_traits', { p_place_id: placeId })
+        // Count updated traits
+        const { data: updatedTraits } = await supabase
+          .from('place_traits')
+          .select('trait_id')
+          .eq('place_id', placeId)
+        console.log(`  🤖 LLM traits: ${updatedTraits?.length || 0} (${Date.now() - llmStart}ms)`)
+      } catch (error) {
+        console.error(`  ⚠️  LLM trait update failed (${Date.now() - llmStart}ms): ${error}`)
+      }
     } catch (error) {
-      console.error(`  ✗ Failed: ${error}`)
+      console.error(`  ✗ Failed (${Date.now() - traitStart}ms): ${error}`)
     }
   }
 

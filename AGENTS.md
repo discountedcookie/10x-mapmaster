@@ -1,25 +1,3 @@
-<!-- OPENSPEC:START -->
-
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
-
 # 10x-Mapmaster
 
 **Geographic guessing game with semantic embeddings and learning.**
@@ -28,7 +6,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 **Database-first.** ALL business logic lives in PostgreSQL. Frontend is presentation only.
 
-See `.opencode/rules/architecture.md` for detailed constraints.
+Read `.opencode/rules/architecture.md` for detailed constraints.
 
 ## Key Directories
 
@@ -37,34 +15,45 @@ src/                    # Vue 3 frontend (presentation only)
 supabase/db/            # Database source files (ALL business logic)
 supabase/functions/     # Edge functions (LLM, embeddings)
 openspec/               # Specifications and change proposals
+.opencode/skills/       # Workflow skills (load when relevant)
 ```
 
-## Before Invoking Subagents
+## Skills System
 
-Read `.opencode/rules/subagents.md` to understand:
+This project uses skills for workflow automation. Skills are in `.opencode/skills/`.
 
-- What each subagent knows and doesn't know
-- What tools it has access to
-- How to scope tasks effectively
+**Load relevant skills based on your task:**
+
+| Task                           | Load Skill                            |
+| ------------------------------ | ------------------------------------- |
+| New feature or behavior change | `openspec-check` → `openspec-propose` |
+| Implementing approved change   | `openspec-apply` + `test-tdd`         |
+| Bug or test failure            | `systematic-debugging`                |
+| After implementation           | `code-review`                         |
+| Working with subagents         | `subagent-workflow`                   |
+| Vague or complex request       | `brainstorming`                       |
+
+Skills auto-load based on their descriptions. Check `using-skills` skill if unsure.
 
 ## Session Start
 
 1. Check `openspec list` for active changes
 2. Check `openspec list --specs` for existing capabilities
-3. If task relates to a spec, read it first
+3. Load relevant skills based on task type
 
-## External File Loading
+## Subagents
 
-When you encounter a file reference (e.g., `@.opencode/rules/architecture.md`), use the Read tool to load it on a need-to-know basis.
+Before invoking subagents, load the `subagent-workflow` skill.
 
-- Do NOT preemptively load all references - use lazy loading based on actual need
-- When loaded, treat content as mandatory instructions that override defaults
-- Follow references recursively when needed
+Key points:
 
-## Rule References
+- Track session_ids for recalls
+- Scope tasks specifically
+- Verify output before proceeding
 
-| When                               | Load                             |
-| ---------------------------------- | -------------------------------- |
-| Implementing features, fixing bugs | @.opencode/rules/architecture.md |
-| Before invoking any subagent       | @.opencode/rules/subagents.md    |
-| Planning or proposals              | @openspec/AGENTS.md              |
+## Rules (Always-On)
+
+| Rule                              | Purpose                         |
+| --------------------------------- | ------------------------------- |
+| `.opencode/rules/architecture.md` | Database-first constraints      |
+| `.opencode/rules/core.md`         | Honesty policy, response format |

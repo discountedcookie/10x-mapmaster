@@ -1,6 +1,6 @@
 -- Trigger Function: on_session_approval_regenerate_traits
 -- Schema: game_logic
--- Purpose: Triggers trait regeneration when a session is approved
+-- Purpose: Triggers trait update when a session is approved
 -- Fires when game_sessions.pending_review changes from TRUE to FALSE
 CREATE OR REPLACE FUNCTION "game_logic"."on_session_approval_regenerate_traits" () returns trigger language plpgsql security definer
 SET
@@ -9,9 +9,9 @@ SET
 BEGIN
   -- Only fire when pending_review changes from TRUE to FALSE
   IF OLD.pending_review = TRUE AND NEW.pending_review = FALSE THEN
-    -- Only regenerate if session has a linked place
+    -- Only update traits if session has a linked place
     IF NEW.place_id IS NOT NULL THEN
-      PERFORM game_logic.regenerate_place_traits(NEW.place_id);
+      PERFORM game_logic.update_place_traits(NEW.place_id);
     END IF;
   END IF;
 
@@ -24,4 +24,4 @@ ALTER FUNCTION "game_logic"."on_session_approval_regenerate_traits" () owner TO 
 
 
 comment ON function "game_logic"."on_session_approval_regenerate_traits" () IS 'Trigger function that fires when game_sessions.pending_review changes from TRUE to FALSE.
-Calls regenerate_place_traits() to update the place traits based on all approved sessions.';
+Calls update_place_traits() to refresh place traits based on all available data.';

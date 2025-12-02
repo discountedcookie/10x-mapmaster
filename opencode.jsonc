@@ -1,8 +1,9 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md", "openspec/AGENTS.md"],
+  "instructions": ["AGENTS.md"],
+  "plugin": ["opencode-skills"],
 
-  // Models: z.ai coding plan (main) + OpenCode Zen (fallback)
+  // Models
   "model": "anthropic/claude-opus-4-5",
   "small_model": "anthropic/claude-haiku-4-5",
 
@@ -11,10 +12,27 @@
     "session_child_cycle_reverse": "<leader>[",
   },
 
-  // Built-in agents
+  // Built-in agents with skill access
   "agent": {
-    "build": { "disable": false },
-    "plan": { "disable": false },
+    "build": {
+      "disable": false,
+      // Has access to all skills (global default)
+    },
+    "plan": {
+      "disable": false,
+      "tools": {
+        "skills_*": false,
+        // Planning skills only - no execution
+        "skills_using_skills": true,
+        "skills_brainstorming": true,
+        "skills_openspec_check": true,
+        "skills_openspec_propose": true,
+        "skills_task_planning": true,
+        "skills_systematic_debugging": true,
+        "skills_code_review": true,
+        "skills_subagent_workflow": true,
+      },
+    },
     "general": { "disable": true },
   },
 
@@ -63,5 +81,6 @@
     "chrome-devtools_*": false,
     "exa_*": true,
     "sequential-thinking_*": true,
+    "skills_*": true,
   },
 }

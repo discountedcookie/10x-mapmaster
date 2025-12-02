@@ -108,10 +108,10 @@ BEGIN
   WHERE id = p_session_id;
 
   -- ============================================================================
-  -- IF REGISTERED USER, TRIGGER TRAIT REGENERATION
+  -- IF REGISTERED USER, UPDATE TRAITS
   -- ============================================================================
   IF NOT v_pending_review THEN
-    PERFORM game_logic.regenerate_place_traits(v_place_id);
+    PERFORM game_logic.update_place_traits(v_place_id);
   END IF;
 
   RETURN;

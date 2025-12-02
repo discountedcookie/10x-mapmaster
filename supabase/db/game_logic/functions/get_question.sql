@@ -18,6 +18,7 @@ DECLARE
   v_min_split_quality FLOAT;
   v_use_llm_questions BOOLEAN;
   v_language_code TEXT;
+  v_user_description TEXT;
   v_generated_text TEXT;
 BEGIN
   -- Get configuration values
@@ -25,8 +26,8 @@ BEGIN
   v_min_split_quality := get_config_float('questions.min_split_quality', 0.3);
   v_use_llm_questions := get_config('questions.use_llm_generation')::text = 'true';
   
-  -- Get language from session
-  SELECT language_code INTO v_language_code
+  -- Get language and description from session
+  SELECT language_code, description INTO v_language_code, v_user_description
   FROM game_sessions
   WHERE id = p_session_id;
   v_language_code := COALESCE(v_language_code, 'en');
@@ -54,7 +55,8 @@ BEGIN
     v_generated_text := generate_question_text(
       v_result.trait_id,
       v_result.geographic_region_id,
-      v_language_code
+      v_language_code,
+      v_user_description
     );
     
     IF v_generated_text IS NULL OR v_generated_text = '' THEN

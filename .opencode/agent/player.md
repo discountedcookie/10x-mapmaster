@@ -25,6 +25,8 @@ tools:
   webfetch: false
   exa_*: false
   sequential-thinking_*: false
+  # No skills - pure observation
+  skills_*: false
 ---
 
 # Player

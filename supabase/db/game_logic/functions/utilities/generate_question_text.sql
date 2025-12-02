@@ -4,7 +4,8 @@
 CREATE OR REPLACE FUNCTION "game_logic"."generate_question_text" (
   p_trait_id TEXT,
   p_region_id UUID,
-  p_language_code TEXT DEFAULT 'en'
+  p_language_code TEXT DEFAULT 'en',
+  p_user_description TEXT DEFAULT ''
 ) returns TEXT language plpgsql security definer
 SET
   search_path = public,
@@ -29,7 +30,9 @@ BEGIN
     END IF;
     
     v_prompt_template := get_config_text('llm.question.trait_prompt');
-    v_prompt := replace(v_prompt_template, '{{trait_clause}}', v_trait_clause);
+    v_prompt := replace(v_prompt_template, '{trait_clause}', v_trait_clause);
+    v_prompt := replace(v_prompt, '{language_code}', p_language_code);
+    v_prompt := replace(v_prompt, '{user_description}', COALESCE(p_user_description, ''));
     
   ELSIF p_region_id IS NOT NULL THEN
     SELECT name INTO v_region_name
@@ -41,7 +44,9 @@ BEGIN
     END IF;
     
     v_prompt_template := get_config_text('llm.question.region_prompt');
-    v_prompt := replace(v_prompt_template, '{{region_name}}', v_region_name);
+    v_prompt := replace(v_prompt_template, '{region_name}', v_region_name);
+    v_prompt := replace(v_prompt, '{language_code}', p_language_code);
+    v_prompt := replace(v_prompt, '{user_description}', COALESCE(p_user_description, ''));
     
   ELSE
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
@@ -68,29 +73,22 @@ $$;
 ALTER FUNCTION "game_logic"."generate_question_text" (
   p_trait_id TEXT,
   p_region_id UUID,
-  p_language_code TEXT
+  p_language_code TEXT,
+  p_user_description TEXT
 ) owner TO "postgres";
 
 
 comment ON function "game_logic"."generate_question_text" (
   p_trait_id TEXT,
   p_region_id UUID,
-  p_language_code TEXT
-) IS 'Generate natural language question text using LLM via edge function.
+  p_language_code TEXT,
+  p_user_description TEXT
+) IS 'Generate natural language question text using LLM.
 
 Parameters:
 - p_trait_id: Trait ID for semantic questions (optional)
 - p_region_id: Geographic region ID for geographic questions (optional)
-- p_language_code: Language code (default: en)
+- p_language_code: Language code for the question output
+- p_user_description: Original user description for context
 
-Process:
-1. Get trait clause or region name from database
-2. Build appropriate prompt for LLM
-3. Call call-llm edge function via call_llm_api (uses llm.question.* config)
-4. Extract question text from response
-
-Errors:
-- Raises exception if trait/region not found
-- Raises exception if LLM call fails (no fallback)
-
-Returns: Natural language question text ending with "?"';
+Returns: Natural language question text in the requested language.';

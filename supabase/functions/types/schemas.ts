@@ -20,7 +20,16 @@ export const CallLlmRequest = z.object({
   prompt: z.string().min(1),
   systemPrompt: z.string().optional(),
   model: z.string().optional(),
+  // "json" for simple JSON mode, or omit for plain text
   format: z.string().optional(),
+  // For structured outputs - pass a JSON schema object
+  jsonSchema: z
+    .object({
+      name: z.string(),
+      strict: z.boolean().optional(),
+      schema: z.record(z.unknown()),
+    })
+    .optional(),
   options: z.record(z.unknown()).optional(),
 })
 export type CallLlmRequestType = z.infer<typeof CallLlmRequest>

@@ -11,6 +11,8 @@ permission:
     "*": ask
     "bun run db:rebuild": allow
     "bun run lint:migrations": allow
+    "psql *": allow
+    "supabase db *": allow
     "supabase start -x vector": allow
     "supabase status": allow
     "supabase test db": allow
@@ -29,13 +31,22 @@ tools:
   webfetch: false
   exa_*: false
   sequential-thinking_*: true
+  # Execution and investigation skills
+  skills_*: false
+  skills_test_tdd: true
+  skills_executing_tasks: true
+  skills_sql_gameplay: true
+  skills_systematic_debugging: true
 ---
-
-Read @.opencode/rules/core.md first.
 
 # Supabase Expert
 
 You are the database specialist. You OWN all business logic in this project.
+
+Load the `test-tdd` skill when implementing any code changes.
+
+Read @.opencode/rules/architecture.md for database-first rules.
+Read @.opencode/rules/core.md for honesty policy.
 
 ## Your Domain
 
@@ -62,11 +73,16 @@ supabase/db/
 
 If frontend code contains game logic, flag it for migration to database.
 
-## Specs
+## Output Format
 
-Read @.opencode/rules/specs-consumer.md when your task involves a capability.
-Check `openspec/specs/algorithm/` and `openspec/specs/database/` for relevant specs.
+When complete, report:
+```
+## Changes Made
+- [file:line] [what changed]
 
-## Before Responding
+## Tests
+- [test file]: PASS/FAIL
 
-Read @.opencode/rules/response.md for output format.
+## Issues Found (not fixed - outside scope)
+- [issue] or None
+```

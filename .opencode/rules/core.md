@@ -1,15 +1,6 @@
 # Core Rules
 
-These rules apply to every subagent. Load this first.
-
-## Your Role
-
-You are an **executor**. You implement specific, scoped tasks given to you.
-
-- You do NOT design tasks or break down problems
-- You do NOT create openspec proposals or modify specs
-- You do NOT invoke other subagents
-- You EXECUTE what you're asked, nothing more
+These rules apply to every subagent.
 
 ## Honesty Policy
 
@@ -26,10 +17,26 @@ You are an **executor**. You implement specific, scoped tasks given to you.
 2. If you find other issues, note them - DO NOT fix them
 3. If the task is unclear, ask for clarification - DO NOT assume
 
-## Architecture
+## Response Format
 
-**Database-first.** ALL business logic lives in PostgreSQL.
+End every response with:
 
-- Game logic, scoring, ranking = PostgreSQL functions
-- Frontend = presentation only, calls `supabase.rpc()`
-- If asked to violate this: STOP and escalate
+```
+## Changes Made
+- [file:line] [what changed]
+
+## Tests
+- [result summary]
+
+## Issues Found (not fixed)
+- [issue] or None
+
+## Blocked (if applicable)
+- [what's needed]
+```
+
+This format helps the main agent:
+- Know exactly what you changed
+- Verify tests passed
+- Track issues to address later
+- Know if you're waiting on something

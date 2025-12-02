@@ -4,6 +4,10 @@ SET
   search_path = public,
   extensions;
 
+-- Increase statement timeout for service_role (LLM calls need >22s, default is 8s)
+ALTER ROLE service_role SET statement_timeout = '120s';
+NOTIFY pgrst, 'reload config';
+
 -- Create test users
 INSERT INTO
   auth.users (
@@ -82,24 +86,50 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- LLM
 ('llm.enabled', 'true'::jsonb, 'Master toggle for all LLM functionality'),
 
--- LLM Trait Extraction (gemma3:1b with JSON format)
-('llm.trait_extraction.model', '"gemma3:1b"'::jsonb, 'Ollama model - small but accurate'),
-('llm.trait_extraction.temperature', '0.3'::jsonb, 'Slightly creative but focused'),
-('llm.trait_extraction.num_predict', '250'::jsonb, 'Enough for 5 traits in JSON'),
-('llm.trait_extraction.top_p', '0.85'::jsonb, 'Tighter sampling'),
-('llm.trait_extraction.stop', '[]'::jsonb, 'No stop sequences needed for JSON'),
-('llm.trait_extraction.format', '"json"'::jsonb, 'JSON output format'),
-('llm.trait_extraction.prompt', '"Extract 3-5 distinctive traits for a guessing game. Traits must be generic characteristics, NOT location-specific.\n\nRules:\n- Use categories: style, era, feature, status, material, size\n- Clauses should work without knowing the place name\n- Do NOT mention city/country/location names in clauses\n\nExample: {\"traits\": [{\"id\": \"style:gothic\", \"clause\": \"Gothic architectural style\"}, {\"id\": \"material:iron\", \"clause\": \"Iron lattice construction\"}]}\n\nInput: {{nominatim_json}}\nOutput:"'::jsonb, 'Generic traits, no locations'),
+-- LLM Trait Extraction (unified flow)
+('llm.trait_extraction.model', '"meituan/longcat-flash-chat:free"'::jsonb, 'OpenRouter model ID'),
+('llm.trait_extraction.fallback_model', '"cognitivecomputations/dolphin-mistral-24b-venice-edition:free"'::jsonb, 'Fallback model'),
+('llm.trait_extraction.temperature', '0.1'::jsonb, 'Low temperature for factual responses'),
+('llm.trait_extraction.num_predict', '5000'::jsonb, 'Max tokens'),
+('llm.trait_extraction.top_p', '0.85'::jsonb, 'Top-p sampling'),
+('llm.trait_extraction.stop', '[]'::jsonb, 'Stop sequences'),
+('llm.trait_extraction.frequency_penalty', '0.3'::jsonb, 'Frequency penalty'),
+('llm.trait_extraction.presence_penalty', '0.3'::jsonb, 'Presence penalty'),
+('llm.trait_extraction.json_schema', '{
+  "name": "traits",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "traits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "description": "snake_case identifier, e.g. built_in_1889"},
+            "clause": {"type": "string", "description": "Human-readable trait description"}
+          },
+          "required": ["id", "clause"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["traits"],
+    "additionalProperties": false
+  }
+}'::jsonb, 'JSON schema for structured output'),
+('llm.trait_extraction.max_traits', '20'::jsonb, 'Maximum traits per place'),
+('llm.trait_extraction.prompt', '"You are updating a geographic guessing game database with traits for a place.\n\nPlace: {place_name}\nLocation: ({lat}, {lng})\nCountry: {country}\nType: {place_type}\n\nNominatim data:\n{nominatim_json}\n\nExisting traits:\n{existing_traits}\n\nUser descriptions from gameplay:\n{session_descriptions}\n\nGame answers (yes/no responses about this place):\n{game_answers}\n\nTask: Return the BEST 10-{max_traits} traits for this place.\n- Use your WORLD KNOWLEDGE combined with the data above\n- Keep useful existing traits, add new specific ones, drop generic/redundant ones\n- Focus on SPECIFIC FACTS: dimensions, dates, materials, architects, historical events, records\n- Use snake_case ids (e.g. built_in_1889, 324_meters_tall, designed_by_gustave_eiffel)\n- Clause should be a short human-readable description\n- Do NOT mention the place name in clauses\n- Prefer specific over generic (\"324 meters tall\" > \"Is tall\")"'::jsonb, 'Unified prompt for trait extraction/update'),
 
 -- LLM Question Generation
-('llm.question.model', '"gemma3:1b"'::jsonb, 'Ollama model'),
-('llm.question.temperature', '0.7'::jsonb, 'Temperature'),
-('llm.question.num_predict', '100'::jsonb, 'Max tokens'),
+('llm.question.model', '"google/gemma-3-4b-it:free"'::jsonb, 'OpenRouter model ID'),
+('llm.question.fallback_model', '"google/gemma-3n-e2b-it:free"'::jsonb, 'OpenRouter model ID'),
+('llm.question.temperature', '0.3'::jsonb, 'Temperature'),
+('llm.question.num_predict', '50'::jsonb, 'Max tokens'),
 ('llm.question.top_p', '0.9'::jsonb, 'Top-p sampling'),
-('llm.question.stop', '["\n"]'::jsonb, 'Stop sequences'),
-('llm.question.format', 'null'::jsonb, 'Output format'),
-('llm.question.trait_prompt', '"Generate a natural yes/no question asking if a place has this characteristic: {{trait_clause}}\n\nOutput ONLY the question."'::jsonb, 'Trait question prompt'),
-('llm.question.region_prompt', '"Generate a natural yes/no question asking if a place is located in: {{region_name}}\n\nOutput ONLY the question."'::jsonb, 'Region question prompt'),
+('llm.question.stop', '[]'::jsonb, 'Stop sequences'),
+('llm.question.trait_prompt', '"You write natural yes/no questions for a guessing game.\n\nLanguage code: <lang>{language_code}</lang>\nUser description: {user_description}\nTrait clause: {trait_clause}\n\nWrite one short, natural yes/no question in the requested language, using \"it\" to refer to the mystery place. Answer should help the game understand whether the trait applies. Return ONLY the question text."'::jsonb, 'Trait question prompt with language and context'),
+('llm.question.region_prompt', '"You write natural yes/no questions for a guessing game.\n\nLanguage code: <lang>{language_code}</lang>\nUser description: {user_description}\nRegion name: {region_name}\n\nWrite one short, natural yes/no question in the requested language about whether the place is in that region. Use \"it\" for the mystery place. Return ONLY the question text."'::jsonb, 'Region question prompt with language and context'),
 
 -- Confidence decision thresholds
 ('confidence.top_prob_threshold', '0.4'::jsonb, 'Minimum top probability to guess'),
