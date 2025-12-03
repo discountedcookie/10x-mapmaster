@@ -17,10 +17,9 @@
 
 - **Vue 3** with Composition API
 - **Pinia** - State management
-- **MapLibre GL JS** - Interactive map (globe projection)
-- **deck.gl** - 3D extruded polygon markers
+- **MapLibre GL JS** - Interactive map (globe projection, native layers for markers)
 - **shadcn-vue** - Component library
-- **Tolgee** - i18n translation management
+- **vue-i18n** - Internationalization with ICU MessageFormat
 
 ### External Services
 
@@ -93,3 +92,32 @@
 - **Nominatim API** - Place search and enrichment (rate limited, be respectful)
 - **CARTO Basemaps** - Map tiles (free tier)
 - **Natural Earth** - Geographic region data
+
+## OpenSpec Change Management
+
+### When to Archive a Change
+
+Archive a change when ANY of these apply:
+
+1. **Complete** - All tasks done, specs merged into main specs
+2. **Superseded** - A newer change replaces this approach
+3. **Abandoned** - Technology decision changed or feature deprioritized
+4. **Implemented Differently** - Code evolved past the spec; spec no longer reflects reality
+
+### Archive Process
+
+1. Update `tasks.md` to reflect actual completion state
+2. Run `openspec archive <change-name>` to merge specs and move to archive
+3. Use `--skip-specs` only for infrastructure/docs changes that don't add capabilities
+4. For cancelled changes, add a `CANCELLED.md` explaining why
+
+### Handling Partial Completion
+
+- If core functionality is done but polish/tests are deferred, archive with tasks marked as "DEFERRED"
+- If tasks were falsely marked complete, reset them before archiving or continuing work
+- Never leave a change with misrepresented task status
+
+### Change Naming
+
+- Use descriptive kebab-case names: `add-feature-name`, `fix-bug-description`
+- Prefix with number for sequencing if part of a series: `01-auth-basics`, `02-session-handling`
