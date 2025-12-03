@@ -1,7 +1,7 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-02T15:32:37.551Z
+-- Generated: 2025-12-03T03:19:59.322Z
 -- Mode: DEV (clean rebuild)
--- Schema: 1, Tables: 13, Functions: 59, Triggers: 1, Views: 4
+-- Schema: 1, Tables: 13, Functions: 63, Triggers: 1, Views: 4
 
 -- ============================================================================
 -- EXTENSIONS AND TYPES
@@ -84,10 +84,29 @@ SELECT
   );
 
 
+-- Backup processor for orphaned trait extraction jobs (every 60 seconds)
+SELECT
+  cron.schedule (
+    'process-orphaned-trait-jobs',
+    '* * * * *', -- Every minute
+    'SELECT game_logic.process_orphaned_trait_jobs();'
+  );
+
+
 -- HTTP requests for LLM API calls
 CREATE EXTENSION if NOT EXISTS "pg_net"
 WITH
   schema "extensions";
+
+
+-- Message queue for async job processing
+-- Note: pgmq creates its own schema automatically
+CREATE EXTENSION if NOT EXISTS "pgmq";
+
+
+-- Initialize trait extraction queue
+-- Used for async trait extraction after game completion
+SELECT pgmq.create('trait_extraction');
 
 
 -- Alternative HTTP extension for compatibility
@@ -1766,6 +1785,104 @@ Parameters:
 - p_temperature: Softmax temperature (default 1.0)
 
 Returns: JSONB array with added "probability" field, sorted by probability DESC';
+
+-- --------------------------------------------------------------------------
+-- game_logic/functions/algorithm/calculate_dynamic_threshold.sql
+-- --------------------------------------------------------------------------
+
+-- Function: calculate_dynamic_threshold
+-- Category: algorithm
+-- Purpose: Calculate dynamic guess threshold based on turn, candidate count, and margin
+-- Spec: openspec/changes/add-smart-confidence-thresholds/specs/algorithm/spec.md
+CREATE OR REPLACE FUNCTION "game_logic"."calculate_dynamic_threshold" (
+  p_current_turn INT,
+  p_max_turns INT,
+  p_candidate_count INT,
+  p_margin FLOAT
+) returns FLOAT language plpgsql immutable
+SET
+  search_path = public,
+  game_logic AS $$
+DECLARE
+  v_threshold_max FLOAT;
+  v_threshold_min FLOAT;
+  v_threshold_floor FLOAT;
+  v_threshold_ceiling FLOAT;
+  v_candidate_low_threshold INT;
+  v_candidate_bonus FLOAT;
+  v_margin_high_threshold FLOAT;
+  v_margin_bonus FLOAT;
+  v_base_threshold FLOAT;
+  v_progress FLOAT;
+  v_result FLOAT;
+BEGIN
+  -- Read all configuration knobs
+  v_threshold_max := get_config_float('confidence.guess_threshold_max', 0.90);
+  v_threshold_min := get_config_float('confidence.guess_threshold_min', 0.60);
+  v_threshold_floor := get_config_float('confidence.threshold_floor', 0.50);
+  v_threshold_ceiling := get_config_float('confidence.threshold_ceiling', 0.95);
+  v_candidate_low_threshold := get_config_int('confidence.candidate_low_threshold', 3);
+  v_candidate_bonus := get_config_float('confidence.candidate_bonus', 0.10);
+  v_margin_high_threshold := get_config_float('confidence.margin_high_threshold', 0.25);
+  v_margin_bonus := get_config_float('confidence.margin_bonus', 0.10);
+  
+  -- Calculate progress through game: 0.0 at turn 0, 1.0 at max_turns
+  IF p_max_turns <= 0 THEN
+    v_progress := 1.0;  -- Safety: treat invalid max_turns as final turn
+  ELSE
+    v_progress := LEAST(1.0, p_current_turn::FLOAT / p_max_turns::FLOAT);
+  END IF;
+  
+  -- Linear interpolation: start with threshold_max, decrease to threshold_min
+  -- base = max - (max - min) * progress
+  v_base_threshold := v_threshold_max - (v_threshold_max - v_threshold_min) * v_progress;
+  
+  -- Apply candidate bonus if few candidates remain
+  IF p_candidate_count <= v_candidate_low_threshold THEN
+    v_base_threshold := v_base_threshold - v_candidate_bonus;
+  END IF;
+  
+  -- Apply margin bonus if gap between top two is large
+  IF p_margin >= v_margin_high_threshold THEN
+    v_base_threshold := v_base_threshold - v_margin_bonus;
+  END IF;
+  
+  -- Clamp between floor and ceiling
+  v_result := GREATEST(v_threshold_floor, LEAST(v_threshold_ceiling, v_base_threshold));
+  
+  RETURN v_result;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."calculate_dynamic_threshold" (INT, INT, INT, FLOAT) owner TO postgres;
+
+
+comment ON function "game_logic"."calculate_dynamic_threshold" (INT, INT, INT, FLOAT) IS 'Calculates dynamic guess threshold based on game progress and board state.
+
+Input parameters:
+- p_current_turn: Current turn number (0-indexed)
+- p_max_turns: Maximum turns in game
+- p_candidate_count: Number of remaining candidates
+- p_margin: Margin between top two candidates (top_prob - second_prob)
+
+Algorithm:
+1. Base threshold interpolates linearly from guess_threshold_max (turn 0) to guess_threshold_min (final turn)
+2. Apply candidate_bonus if candidate_count <= candidate_low_threshold
+3. Apply margin_bonus if margin >= margin_high_threshold
+4. Clamp result between threshold_floor and threshold_ceiling
+
+Configuration keys (with defaults):
+- confidence.guess_threshold_max (0.90)
+- confidence.guess_threshold_min (0.60)
+- confidence.threshold_floor (0.50)
+- confidence.threshold_ceiling (0.95)
+- confidence.candidate_low_threshold (3)
+- confidence.candidate_bonus (0.10)
+- confidence.margin_high_threshold (0.25)
+- confidence.margin_bonus (0.10)
+
+Returns: FLOAT threshold value (clamped between floor and ceiling)';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/calculate_split_quality.sql
@@ -4679,7 +4796,7 @@ BEGIN
   IF OLD.pending_review = TRUE AND NEW.pending_review = FALSE THEN
     -- Only update traits if session has a linked place
     IF NEW.place_id IS NOT NULL THEN
-      PERFORM game_logic.update_place_traits(NEW.place_id);
+      PERFORM game_logic.enqueue_trait_extraction(NEW.place_id);
     END IF;
   END IF;
 
@@ -4837,6 +4954,58 @@ ALTER FUNCTION "game_logic"."approve_pending_session" () owner TO "postgres";
 
 comment ON function "game_logic"."approve_pending_session" () IS 'Trigger function for processing approved place submissions.
 When places.pending_review changes from TRUE to FALSE, the place is marked as approved.';
+
+-- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/archive_trait_queue_by_place.sql
+-- --------------------------------------------------------------------------
+
+-- Function: archive_trait_queue_by_place
+-- Category: utilities
+-- Purpose: Archive trait extraction queue messages for a given place_id
+-- Called by edge function after successful trait extraction
+CREATE OR REPLACE FUNCTION "game_logic"."archive_trait_queue_by_place" (
+  p_place_id UUID
+) RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, game_logic, extensions, pgmq
+AS $$
+DECLARE
+  v_archived INTEGER := 0;
+  v_message RECORD;
+BEGIN
+  -- Read all messages for this place_id and archive them
+  -- Using a short visibility timeout since we're archiving immediately
+  FOR v_message IN
+    SELECT msg_id, message 
+    FROM pgmq.read('trait_extraction', 1, 100)
+    WHERE message->>'place_id' = p_place_id::text
+  LOOP
+    PERFORM pgmq.archive('trait_extraction', v_message.msg_id);
+    v_archived := v_archived + 1;
+  END LOOP;
+  
+  RETURN v_archived;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."archive_trait_queue_by_place" (UUID) OWNER TO "postgres";
+
+
+-- Grant execute to service_role for edge function access
+GRANT EXECUTE ON FUNCTION "game_logic"."archive_trait_queue_by_place" (UUID) TO service_role;
+
+
+COMMENT ON FUNCTION "game_logic"."archive_trait_queue_by_place" (UUID) IS 'Archive trait extraction queue messages for a given place_id.
+
+Called by the process-trait-extraction edge function after successful processing.
+Archives (not deletes) messages to maintain history for debugging.
+
+Parameters:
+- p_place_id: UUID of the place whose messages should be archived
+
+Returns: Number of messages archived.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/build_guess_turn.sql
@@ -5421,6 +5590,122 @@ Process:
 Returns: UUID of created place';
 
 -- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/enqueue_trait_extraction.sql
+-- --------------------------------------------------------------------------
+
+-- Function: enqueue_trait_extraction
+-- Category: utilities
+-- Purpose: Enqueue a trait extraction job via pgmq + pg_net fire-and-forget
+CREATE OR REPLACE FUNCTION "game_logic"."enqueue_trait_extraction" (
+  p_place_id UUID
+) returns void language plpgsql security definer
+SET
+  search_path = public,
+  game_logic,
+  extensions,
+  pgmq AS $$
+DECLARE
+  v_url TEXT;
+  v_auth_token TEXT;
+  v_headers JSONB;
+  v_body JSONB;
+  v_message_id BIGINT;
+BEGIN
+  -- ============================================================================
+  -- INPUT VALIDATION
+  -- ============================================================================
+  IF p_place_id IS NULL THEN
+    RAISE EXCEPTION 'Place ID cannot be null';
+  END IF;
+
+  -- ============================================================================
+  -- ENQUEUE TO PGMQ (for durability)
+  -- ============================================================================
+  -- Message stays in queue until explicitly deleted after successful processing
+  SELECT pgmq.send(
+    'trait_extraction',
+    jsonb_build_object(
+      'place_id', p_place_id,
+      'enqueued_at', now()
+    )
+  ) INTO v_message_id;
+
+  -- ============================================================================
+  -- FIRE PG_NET REQUEST (fire-and-forget for immediate processing)
+  -- ============================================================================
+  -- Build Edge Function URL
+  v_url := COALESCE(
+    NULLIF(current_setting('app.supabase_url', true), ''),
+    game_logic.get_config_text('runtime.supabase_url')
+  );
+  
+  IF v_url IS NULL THEN
+    RAISE WARNING 'Missing configuration: app.supabase_url or runtime.supabase_url. Trait extraction will be skipped.';
+    RETURN;
+  END IF;
+  
+  v_url := v_url || '/functions/v1/process-trait-extraction';
+  
+  -- Get service role key for authentication
+  v_auth_token := COALESCE(
+    NULLIF(current_setting('app.service_role_key', true), ''),
+    game_logic.get_config_text('runtime.supabase_service_role_key')
+  );
+  
+  IF v_auth_token IS NULL OR v_auth_token = '' THEN
+    RAISE WARNING 'Missing configuration: app.service_role_key or runtime.supabase_service_role_key. Trait extraction will be skipped.';
+    RETURN;
+  END IF;
+  
+  -- Build request headers
+  v_headers := jsonb_build_object(
+    'Authorization', 'Bearer ' || v_auth_token,
+    'Content-Type', 'application/json'
+  );
+  
+  -- Build request body for generic async RPC invoker
+  v_body := jsonb_build_object(
+    'function_name', 'update_place_traits',
+    'params', jsonb_build_object('p_place_id', p_place_id)
+  );
+  
+  -- Fire HTTP request (fire-and-forget, no response collection)
+  -- Signature: net.http_post(url, body, params, headers, timeout_milliseconds)
+  -- Using 30s timeout to allow for Nominatim + LLM + embeddings calls
+  PERFORM net.http_post(
+    v_url,           -- url
+    v_body,          -- body (jsonb)
+    '{}'::jsonb,     -- params (empty)
+    v_headers,       -- headers
+    30000            -- timeout_milliseconds (30 seconds)
+  );
+
+EXCEPTION
+  WHEN others THEN
+    -- Log error but don't fail - async processing is best-effort
+    RAISE WARNING 'enqueue_trait_extraction failed for place %: %', p_place_id, SQLERRM;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."enqueue_trait_extraction" (UUID) owner TO "postgres";
+
+
+comment ON function "game_logic"."enqueue_trait_extraction" (UUID) IS 'Enqueue a trait extraction job for async processing.
+
+Two-phase async pattern:
+1. pgmq.send() - Durable queue for guaranteed delivery
+2. pg_net.http_post() - Fire-and-forget for immediate processing
+
+The pgmq message provides durability - if the edge function fails,
+pg_cron backup processor will pick up orphaned messages.
+
+Parameters:
+- p_place_id: UUID of place to extract traits for
+
+Returns immediately - trait extraction happens asynchronously.';
+
+-- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/enrich_place_on_approval.sql
 -- --------------------------------------------------------------------------
 
@@ -5460,8 +5745,8 @@ SET
 BEGIN
   -- Only fire when was_correct becomes TRUE
   IF NEW.was_correct = TRUE AND (OLD.was_correct IS NULL OR OLD.was_correct = FALSE) THEN
-    -- Update traits using all available context (nominatim, sessions, game answers)
-    PERFORM update_place_traits(NEW.place_id);
+    -- Enqueue trait extraction asynchronously (pg_net fire-and-forget)
+    PERFORM enqueue_trait_extraction(NEW.place_id);
   END IF;
 
   RETURN NEW;
@@ -6310,6 +6595,82 @@ SET
     SELECT 1 FROM pg_extension WHERE extname = p_extname
   );
 $$;
+
+-- --------------------------------------------------------------------------
+-- game_logic/functions/utilities/process_orphaned_trait_jobs.sql
+-- --------------------------------------------------------------------------
+
+-- Function: process_orphaned_trait_jobs
+-- Category: utilities
+-- Purpose: Backup processor for orphaned trait extraction queue messages
+-- Called by pg_cron every 60 seconds to process messages that weren't handled by the primary async path
+CREATE OR REPLACE FUNCTION "game_logic"."process_orphaned_trait_jobs" ()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, game_logic, extensions, pgmq
+AS $$
+DECLARE
+  v_message RECORD;
+  v_processed INTEGER := 0;
+  v_place_id UUID;
+BEGIN
+  -- Read up to 5 messages with 300 second visibility timeout
+  -- Using 5 minutes to prevent race condition with 60-second cron interval
+  -- Messages become visible again if not processed within timeout
+  FOR v_message IN
+    SELECT * FROM pgmq.read('trait_extraction', 300, 5)
+  LOOP
+    BEGIN
+      -- Extract place_id from message
+      v_place_id := (v_message.message->>'place_id')::UUID;
+      
+      IF v_place_id IS NOT NULL THEN
+        -- Process the trait extraction
+        PERFORM game_logic.update_place_traits(v_place_id);
+        
+        -- Archive the message (keeps history)
+        PERFORM pgmq.archive('trait_extraction', v_message.msg_id);
+        
+        v_processed := v_processed + 1;
+        
+        RAISE LOG 'process_orphaned_trait_jobs: Processed place_id %, msg_id %', 
+          v_place_id, v_message.msg_id;
+      ELSE
+        -- Invalid message, delete it
+        PERFORM pgmq.delete('trait_extraction', v_message.msg_id);
+        RAISE WARNING 'process_orphaned_trait_jobs: Invalid message deleted, msg_id %', 
+          v_message.msg_id;
+      END IF;
+      
+    EXCEPTION WHEN OTHERS THEN
+      -- Log error but continue processing other messages
+      -- Message will become visible again after timeout for retry
+      RAISE WARNING 'process_orphaned_trait_jobs: Failed to process msg_id %, error: %', 
+        v_message.msg_id, SQLERRM;
+    END;
+  END LOOP;
+  
+  RETURN v_processed;
+END;
+$$;
+
+
+ALTER FUNCTION "game_logic"."process_orphaned_trait_jobs" () OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "game_logic"."process_orphaned_trait_jobs" () IS 'Backup processor for orphaned trait extraction jobs.
+
+Called by pg_cron every 60 seconds to handle messages that:
+1. Failed immediate processing via pg_net
+2. Were enqueued but edge function was unavailable
+3. Need retry after previous failure
+
+Reads up to 5 messages per run with 60s visibility timeout.
+Successfully processed messages are archived for history.
+Failed messages remain in queue for retry.
+
+Returns: Number of messages successfully processed.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/row_security_is_enabled.sql

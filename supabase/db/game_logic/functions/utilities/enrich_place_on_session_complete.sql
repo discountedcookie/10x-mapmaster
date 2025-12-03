@@ -8,8 +8,8 @@ SET
 BEGIN
   -- Only fire when was_correct becomes TRUE
   IF NEW.was_correct = TRUE AND (OLD.was_correct IS NULL OR OLD.was_correct = FALSE) THEN
-    -- Update traits using all available context (nominatim, sessions, game answers)
-    PERFORM update_place_traits(NEW.place_id);
+    -- Enqueue trait extraction asynchronously (pg_net fire-and-forget)
+    PERFORM enqueue_trait_extraction(NEW.place_id);
   END IF;
 
   RETURN NEW;

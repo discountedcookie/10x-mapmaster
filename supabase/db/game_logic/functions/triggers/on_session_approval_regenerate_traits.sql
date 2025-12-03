@@ -11,7 +11,7 @@ BEGIN
   IF OLD.pending_review = TRUE AND NEW.pending_review = FALSE THEN
     -- Only update traits if session has a linked place
     IF NEW.place_id IS NOT NULL THEN
-      PERFORM game_logic.update_place_traits(NEW.place_id);
+      PERFORM game_logic.enqueue_trait_extraction(NEW.place_id);
     END IF;
   END IF;
 

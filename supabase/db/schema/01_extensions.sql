@@ -71,10 +71,29 @@ SELECT
   );
 
 
+-- Backup processor for orphaned trait extraction jobs (every 60 seconds)
+SELECT
+  cron.schedule (
+    'process-orphaned-trait-jobs',
+    '* * * * *', -- Every minute
+    'SELECT game_logic.process_orphaned_trait_jobs();'
+  );
+
+
 -- HTTP requests for LLM API calls
 CREATE EXTENSION if NOT EXISTS "pg_net"
 WITH
   schema "extensions";
+
+
+-- Message queue for async job processing
+-- Note: pgmq creates its own schema automatically
+CREATE EXTENSION if NOT EXISTS "pgmq";
+
+
+-- Initialize trait extraction queue
+-- Used for async trait extraction after game completion
+SELECT pgmq.create('trait_extraction');
 
 
 -- Alternative HTTP extension for compatibility
