@@ -66,13 +66,17 @@
       "find": "deny",
       "ls": "deny",
       // allow
-      "bun": "allow",
+      "bun run": "allow",
       "git": "allow",
+      "grep": "allow",
       "head": "allow",
+      "mkdir": "allow",
       "openspec": "allow",
       "psql": "allow",
+      "rg": "allow",
       "supabase": "allow",
       "tail": "allow",
+      "wc": "allow",
     },
   },
 
