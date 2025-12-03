@@ -249,9 +249,9 @@ VALUES
 
 ## Vector Configuration
 
-All embeddings use **1024 dimensions** (current implementation):
+All embeddings use **384 dimensions** (all-MiniLM-L6-v2 model):
 
-- `embeddings.embedding` - vector(1024) with HNSW index
+- `embeddings.embedding` - vector(384) with HNSW index
 - Indexed with `vector_cosine_ops` for similarity search
 - Deduplicated by SHA256 hash for storage efficiency
 

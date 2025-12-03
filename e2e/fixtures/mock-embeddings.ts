@@ -4,15 +4,15 @@ import crypto from 'node:crypto'
 /**
  * Generate a deterministic mock embedding for testing.
  * Same input always produces same output for test reproducibility.
- * Returns a 1024-dimensional vector (matching mxbai-embed-large model).
+ * Returns a 384-dimensional vector (matching all-MiniLM-L6-v2 model).
  */
 export function generateMockEmbedding(text: string): number[] {
   // Create a deterministic seed from the input text
   const hash = crypto.createHash('sha256').update(text).digest()
 
-  // Generate 1024-dimensional vector using the hash as seed
+  // Generate 384-dimensional vector using the hash as seed
   const embedding: number[] = []
-  for (let index = 0; index < 1024; index++) {
+  for (let index = 0; index < 384; index++) {
     // Use different bytes of the hash to seed random-like values
     const byteIndex = index % 32
     const byte = hash[byteIndex]
