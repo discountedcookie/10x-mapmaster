@@ -32,7 +32,6 @@ BEGIN
     v_prompt_template := get_config_text('llm.question.trait_prompt');
     v_prompt := replace(v_prompt_template, '{trait_clause}', v_trait_clause);
     v_prompt := replace(v_prompt, '{language_code}', p_language_code);
-    v_prompt := replace(v_prompt, '{user_description}', COALESCE(p_user_description, ''));
     
   ELSIF p_region_id IS NOT NULL THEN
     SELECT name INTO v_region_name
@@ -46,7 +45,6 @@ BEGIN
     v_prompt_template := get_config_text('llm.question.region_prompt');
     v_prompt := replace(v_prompt_template, '{region_name}', v_region_name);
     v_prompt := replace(v_prompt, '{language_code}', p_language_code);
-    v_prompt := replace(v_prompt, '{user_description}', COALESCE(p_user_description, ''));
     
   ELSE
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
