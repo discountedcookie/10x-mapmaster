@@ -72,7 +72,7 @@ All geometries use **SRID 4326** (WGS84):
 
 ## RLS Key Features
 
-- **Anonymous Support**: All policies support NULL user_id
+- **UUID-Based Ownership**: All users (including anonymous) have auth.uid(); policies use user_id = auth.uid()
 - **Service Role**: Can bypass RLS for admin operations
 - **Cascade**: Deleting sessions cascades to answers
 - **Idempotent**: DROP IF EXISTS before CREATE POLICY
