@@ -73,8 +73,7 @@ FROM
   game_sessions gs
   LEFT JOIN places wp ON gs.place_id = wp.id
 WHERE
-  gs.user_id = auth.uid ()
-  OR gs.user_id IS NULL;
+  gs.user_id = auth.uid ();
 
 
 ALTER VIEW "public"."game_session_state" owner TO "postgres";

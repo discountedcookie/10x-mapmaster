@@ -73,7 +73,6 @@ FROM
   game_sessions gs
 WHERE
   gs.user_id = auth.uid ()
-  OR gs.user_id IS NULL
 GROUP BY
   gs.user_id;
 

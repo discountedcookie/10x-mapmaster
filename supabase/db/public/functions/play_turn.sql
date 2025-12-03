@@ -47,7 +47,7 @@ BEGIN
   END IF;
 
   -- Ownership check (service_role may bypass)
-  IF auth.role() <> 'service_role' AND (v_session_record.user_id IS NULL OR v_session_record.user_id != auth.uid()) THEN
+  IF auth.role() <> 'service_role' AND v_session_record.user_id != auth.uid() THEN
     RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
 
