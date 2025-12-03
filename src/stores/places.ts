@@ -1,11 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
-import {
-  searchPlaces as searchNominatim,
-  extractDescriptors,
-  type NominatimPlace,
-} from '@/lib/places'
+import { searchPlaces as searchNominatim, type NominatimPlace } from '@/lib/places'
 import type { Tables } from '@/types/database'
 
 export type Place = Tables<'places_with_geometry'>
@@ -81,15 +77,6 @@ export const usePlacesStore = defineStore('places', () => {
     fetchPromise = undefined
   }
 
-  /**
-   * Unsubscribe from realtime updates
-   * Called by useRealtimePlaces composable
-   */
-  function unsubscribeRealtime() {
-    // Realtime subscription is now managed by useRealtimePlaces composable
-    // This function is kept for backward compatibility with HomeView.vue
-  }
-
   return {
     // State
     places,
@@ -101,8 +88,6 @@ export const usePlacesStore = defineStore('places', () => {
     // Actions
     fetchAllPlaces,
     searchPlaces,
-    extractDescriptors: (place: NominatimPlace) => extractDescriptors(place),
-    unsubscribeRealtime,
     reset,
   }
 })

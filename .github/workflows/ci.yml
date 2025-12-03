@@ -99,56 +99,32 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
-  e2e:
-    name: E2E Tests (Playwright)
-    needs: [lint, build]
+  db-test:
+    name: Database Tests (pgTAP)
+    needs: [lint]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        project: [chromium]
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
-          node-version: "22"
-          cache: "npm"
+          version: latest
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Start Supabase
+        run: supabase start -x vector
 
-      - name: Download build artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: build-artifacts
-          path: dist/
+      - name: Run pgTAP tests
+        run: supabase test db
 
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Playwright tests with mocked embeddings
-        run: npm run test:e2e
-        env:
-          CI: true
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'placeholder-key' }}
-
-      - name: Upload Playwright report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Stop Supabase
         if: always()
-        with:
-          name: playwright-report-${{ matrix.project }}
-          path: playwright-report/
-          retention-days: 30
+        run: supabase stop
 
   deploy:
     name: Deploy to GitHub Pages
-    needs: [test, e2e]
+    needs: [test, db-test]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:

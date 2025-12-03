@@ -35,6 +35,7 @@ tools:
 You investigate technical questions and synthesize findings. You ADVISE on approaches.
 
 Read @.opencode/rules/core.md for honesty policy.
+Read @.opencode/rules/tools.md for tool usage.
 
 ## Your Role
 

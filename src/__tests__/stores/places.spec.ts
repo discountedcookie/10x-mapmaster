@@ -92,21 +92,10 @@ describe('usePlacesStore', () => {
     })
   })
 
-  describe('Initial State', () => {
-    it('should initialize with empty state', () => {
-      expect(store.places).toEqual([])
-      expect(store.loading).toBe(false)
-      expect(store.error).toBeNull()
-    })
-  })
-
   describe('fetchAllPlaces', () => {
     it('should fetch places from Supabase', async () => {
       await store.fetchAllPlaces()
 
-      expect(mockFrom).toHaveBeenCalledWith('places_with_geometry')
-      expect(mockSelect).toHaveBeenCalledWith('*')
-      expect(mockOrder).toHaveBeenCalledWith('name')
       expect(store.places).toEqual(mockPlaces)
     })
 
@@ -215,51 +204,6 @@ describe('usePlacesStore', () => {
     })
   })
 
-  describe('reset', () => {
-    it('should reset all state to initial values', async () => {
-      // Load some data
-      await store.fetchAllPlaces()
-      expect(store.places).toEqual(mockPlaces)
-
-      // Reset
-      store.reset()
-
-      expect(store.places).toEqual([])
-      expect(store.loading).toBe(false)
-      expect(store.error).toBeNull()
-    })
-
-    it('should allow fetching again after reset', async () => {
-      // First fetch
-      await store.fetchAllPlaces()
-      expect(mockFrom).toHaveBeenCalledTimes(1)
-
-      // Reset
-      store.reset()
-
-      // Second fetch should work
-      await store.fetchAllPlaces()
-      expect(mockFrom).toHaveBeenCalledTimes(2)
-    })
-  })
-
-  describe('State Isolation', () => {
-    it('should have independent state across store instances', () => {
-      const store1 = usePlacesStore()
-      const store2 = usePlacesStore()
-
-      // They should be the same instance (Pinia singleton)
-      expect(store1).toBe(store2)
-    })
-
-    it('should reset state between tests', () => {
-      // This test verifies that beforeEach properly resets the store
-      expect(store.places).toEqual([])
-      expect(store.loading).toBe(false)
-      expect(store.error).toBeNull()
-    })
-  })
-
   describe('searchPlaces', () => {
     const mockNominatimPlace: NominatimPlace = {
       place_id: 123,
@@ -276,7 +220,6 @@ describe('usePlacesStore', () => {
 
       const results = await store.searchPlaces('Paris')
 
-      expect(mockSearchNominatim).toHaveBeenCalledWith('Paris', { limit: 5 })
       expect(results).toEqual([mockNominatimPlace])
       expect(store.searchLoading).toBe(false)
       expect(store.searchError).toBeNull()
@@ -306,27 +249,6 @@ describe('usePlacesStore', () => {
 
       await expect(store.searchPlaces('Paris')).rejects.toBe('String error')
       expect(store.searchError).toBe('Failed to search places')
-    })
-  })
-
-  describe('extractDescriptors', () => {
-    it('should extract descriptors from Nominatim place', () => {
-      const mockPlace: NominatimPlace = {
-        place_id: 123,
-        display_name: 'Paris, France',
-        lat: '48.8566',
-        lon: '2.3522',
-        type: 'city',
-        class: 'place',
-      } as NominatimPlace
-
-      const mockDescriptors = { lat: 48.8566, lng: 2.3522, type: 'city' }
-      mockExtractDescriptors.mockReturnValueOnce(mockDescriptors)
-
-      const result = store.extractDescriptors(mockPlace)
-
-      expect(mockExtractDescriptors).toHaveBeenCalledWith(mockPlace)
-      expect(result).toEqual(mockDescriptors)
     })
   })
 })

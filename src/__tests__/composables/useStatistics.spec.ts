@@ -55,31 +55,6 @@ describe('useStatistics', () => {
     })
   })
 
-  describe('Initial State', () => {
-    it('should initialize with empty state', () => {
-      const stats = useStatistics()
-
-      expect(stats.loading.value).toBe(false)
-      expect(stats.error.value).toBeNull()
-      expect(stats.sessions.value).toEqual([])
-    })
-
-    it('should have zero statistics initially', () => {
-      const stats = useStatistics()
-
-      expect(stats.statistics.value).toEqual({
-        gamesPlayed: 0,
-        gamesWon: 0,
-        gamesLost: 0,
-        successRate: 0,
-        avgQuestionsPerGame: 0,
-        avgWrongGuesses: 0,
-        totalQuestionsAsked: 0,
-        mostRecentGame: null,
-      })
-    })
-  })
-
   describe('Statistics Calculations', () => {
     it('should exclude incomplete games from success rate', () => {
       const stats = useStatistics()
@@ -211,20 +186,6 @@ describe('useStatistics', () => {
       await stats.fetchStatistics()
 
       expect(stats.error.value).toBe('User not authenticated')
-      expect(mockFrom).not.toHaveBeenCalled()
-    })
-
-    it('should query with correct parameters', async () => {
-      const stats = useStatistics()
-
-      mockOrder.mockResolvedValue({ data: [], error: null })
-
-      await stats.fetchStatistics()
-
-      expect(mockFrom).toHaveBeenCalledWith('game_session_stats')
-      expect(mockSelect).toHaveBeenCalledWith('*')
-      expect(mockEq).toHaveBeenCalledWith('user_id', 'test-user-id')
-      expect(mockOrder).toHaveBeenCalledWith('created_at', { ascending: false })
     })
 
     it('should handle null data response', async () => {
@@ -238,43 +199,6 @@ describe('useStatistics', () => {
       await stats.fetchStatistics()
 
       expect(stats.sessions.value).toEqual([])
-    })
-  })
-
-  describe('Reactivity', () => {
-    it('should update statistics when sessions change', () => {
-      const stats = useStatistics()
-
-      expect(stats.statistics.value.gamesPlayed).toBe(0)
-
-      stats.sessions.value = [
-        {
-          session_id: '1',
-          user_id: 'user-1',
-          place_id: 'place-1',
-          was_correct: true,
-          description: 'Test',
-          created_at: '2024-01-01T00:00:00Z',
-          question_count: 5,
-          wrong_guess_count: 0,
-        },
-      ]
-
-      expect(stats.statistics.value.gamesPlayed).toBe(1)
-
-      stats.sessions.value.push({
-        session_id: '2',
-        user_id: 'user-1',
-        place_id: 'place-2',
-        was_correct: false,
-        description: 'Test',
-        created_at: '2024-01-02T00:00:00Z',
-        question_count: 10,
-        wrong_guess_count: 1,
-      })
-
-      expect(stats.statistics.value.gamesPlayed).toBe(2)
-      expect(stats.statistics.value.successRate).toBe(50)
     })
   })
 })

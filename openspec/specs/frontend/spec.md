@@ -3,9 +3,7 @@
 ## Purpose
 
 Specifies the Vue 3 frontend shell, routing, map visualization, and UI components. The frontend is presentation-only - it displays data from database views and calls RPC functions, never implementing game logic.
-
 ## Requirements
-
 ### Requirement: Frontend Shell and Routing
 
 The system SHALL provide a layout and routes for the application shell without embedding game logic.
@@ -180,3 +178,42 @@ The system SHALL auto-rotate the globe on the home page when idle.
 
 - **WHEN** a game starts
 - **THEN** rotation stops and camera transitions to game view
+
+### Requirement: Unit Test Coverage and Stability
+
+The system SHALL provide unit tests for core frontend behavior that remain aligned with the specified UI and store behavior.
+
+#### Scenario: Gameplay UI tests
+
+- **WHEN** running unit tests for the gameplay UI and related stores
+- **THEN** tests reflect the specified behavior (e.g., correct store imports, expected labels/text, map integration points) and pass when the implementation conforms to the spec.
+
+#### Scenario: i18n tests
+
+- **WHEN** running i18n unit tests
+- **THEN** expectations match the localized strings and locale codes defined by the frontend specification.
+
+#### Scenario: Map integration tests
+
+- **WHEN** running tests that depend on map components
+- **THEN** they use stable mocks for map libraries so that tests verify frontend behavior without depending on external rendering details.
+
+### Requirement: Store Error Nullability Convention
+
+The system SHALL use a consistent nullability convention for error state in frontend stores and composables.
+
+#### Scenario: Error state type
+
+- **WHEN** defining error refs in stores or composables
+- **THEN** they use null as the "no error" value (e.g., Ref<string | null>) rather than undefined.
+
+#### Scenario: Error reset behavior
+
+- **WHEN** a previously errored operation later succeeds
+- **THEN** the corresponding error state is reset to null.
+
+#### Scenario: Test expectations
+
+- **WHEN** running unit tests for stores and composables with error state
+- **THEN** tests expect null for empty error state and match the standardized nullability convention.
+

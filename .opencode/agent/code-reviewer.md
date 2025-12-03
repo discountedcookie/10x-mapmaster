@@ -40,6 +40,7 @@ Load the `code-review` skill for the full review methodology.
 
 Read @.opencode/rules/architecture.md for database-first rules.
 Read @.opencode/rules/core.md for honesty policy.
+Read @.opencode/rules/tools.md for tool usage.
 
 ## Quick Reference
 

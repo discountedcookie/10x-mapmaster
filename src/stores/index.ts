@@ -9,6 +9,3 @@ export { useGameSearchStore } from './gameSearch'
 export { useAuthStore } from './auth'
 export { usePlacesStore } from './places'
 export { useMapLayersStore } from './mapLayers'
-
-// Re-export types for backward compatibility
-export type { PlaceWithScore, ChatMessage, GameState, GameSessionStatus } from '@/types/game'

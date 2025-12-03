@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines the database schema, authentication model, RLS policies, configuration tables, and data types. This is the foundation for the database-first architecture where all business logic resides.
-
 ## Requirements
-
 ### Requirement: Auth Model and Security Posture
 
 The system SHALL define and enforce an auth model covering anonymous, registered, and service roles, and prescribe SECURITY DEFINER and RLS guardrails.
@@ -13,18 +11,12 @@ The system SHALL define and enforce an auth model covering anonymous, registered
 #### Scenario: Auth personas
 
 - **WHEN** the database evaluates access
-- **THEN** it recognizes anonymous users (auth.uid() set via Supabase anon auth), registered users (auth.uid() set via sign-in), and service_role with elevated privileges
-- **AND** all users—anonymous and registered—have a valid UUID from auth.uid(); there is no supported NULL auth.uid() access path
-
-#### Scenario: SECURITY DEFINER guardrails
-
-- **WHEN** a SECURITY DEFINER function requires user context
-- **THEN** it checks auth.uid() IS NOT NULL and sets an explicit search_path
+- **THEN** it recognizes anonymous users and registered users as having non-null UUID auth.uid() values, and service_role with elevated privileges.
 
 #### Scenario: RLS posture
 
 - **WHEN** applying RLS
-- **THEN** user-owned tables restrict by auth.uid(); public data is read-open; private tables are blocked except to service_role
+- **THEN** user-owned tables restrict by auth.uid(); public data is read-open; private tables are blocked except to service_role, without relying on user_id IS NULL branches.
 
 ### Requirement: Schemas and Extensions
 
@@ -182,21 +174,15 @@ The system SHALL store answers with exactly one of trait_id, geographic_region_i
 
 The system SHALL enforce row-level security for game_sessions and game_answers based on ownership.
 
-#### Scenario: Registered ownership
+#### Scenario: UUID-based ownership
 
-- **WHEN** a registered user accesses sessions/answers
-- **THEN** they can only see and modify rows where game_sessions.user_id = auth.uid()
+- **WHEN** any user (anonymous or registered) accesses sessions/answers
+- **THEN** they can only see and modify rows where game_sessions.user_id = auth.uid().
 
-#### Scenario: Anonymous ownership
+#### Scenario: Service role access
 
-- **WHEN** an anonymous user accesses sessions/answers
-- **THEN** they can only see and modify rows where game_sessions.user_id = auth.uid()
-- **AND** anonymous users have a valid UUID from Supabase anon auth, not a NULL user_id
-
-#### Scenario: Service role
-
-- **WHEN** service_role accesses
-- **THEN** it can manage all rows for maintenance and internal operations
+- **WHEN** service_role accesses sessions/answers
+- **THEN** it can manage all rows for maintenance and internal operations.
 
 ### Requirement: Learning Trigger on Approval
 
@@ -310,3 +296,48 @@ The game completion trigger SHALL NOT block on trait extraction.
 - **THEN** the trigger calls `enqueue_trait_extraction(place_id)`
 - **AND** returns immediately without HTTP calls
 - **AND** the game state is committed before extraction runs
+
+### Requirement: submit_place Database Behavior
+
+The system SHALL implement submit_place as a database function that enforces ownership, session state, and enrichment side effects.
+
+#### Scenario: Inputs and outputs
+
+- **WHEN** the submit_place function is called
+- **THEN** it accepts a session identifier and an osm_id, and returns either a success payload or a standardized error_response
+
+#### Scenario: Side effects on success
+
+- **WHEN** submit_place succeeds
+- **THEN** a place row is created or updated, the session is linked to the place, pending_review and was_correct fields are set appropriately, and any learning triggers required by the database spec are invoked
+
+#### Scenario: No side effects on error
+
+- **WHEN** submit_place returns an error_response
+- **THEN** it does not create or update place rows and does not change existing session state
+
+### Requirement: Test Organization
+
+Database tests SHALL be organized by domain, mirroring the `supabase/db/` directory structure.
+
+#### Scenario: Test file naming convention
+
+- **WHEN** creating a new database test file
+- **THEN** the file name SHALL follow the pattern `test_{category}_{domain}.sql`
+- **AND** `{category}` SHALL be one of: `tables`, `views`, `functions`, `schema`
+- **AND** `{domain}` SHALL match the corresponding source file or directory name
+
+#### Scenario: Test file contents
+
+- **WHEN** a domain test file is created
+- **THEN** it SHALL contain all tests for that domain including:
+  - Schema validation (table/columns exist, correct types)
+  - RLS policy tests (if applicable)
+  - Behavioral tests (if applicable)
+
+#### Scenario: Test discoverability
+
+- **WHEN** a developer needs to find tests for a specific domain
+- **THEN** they SHALL locate the test file by matching the domain name
+- **AND** alphabetical sorting SHALL group files by category (tables, views, functions)
+

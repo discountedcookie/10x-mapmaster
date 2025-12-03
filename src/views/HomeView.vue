@@ -102,7 +102,6 @@ onUnmounted(() => {
     resumeTimeoutId = undefined
   }
   rotation.stop()
-  placesStore.unsubscribeRealtime()
 })
 
 // Handle start game

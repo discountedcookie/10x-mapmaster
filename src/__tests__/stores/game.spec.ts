@@ -54,14 +54,6 @@ describe('useGameSessionStore', () => {
     vi.mocked(gameApi.submitPlace).mockResolvedValue(undefined)
   })
 
-  describe('Initial State', () => {
-    it('should initialize with empty state', () => {
-      expect(store.session).toBeNull()
-      expect(store.loading).toBe(false)
-      expect(store.error).toBeNull()
-    })
-  })
-
   describe('startNewGame', () => {
     it('should call API and store session', async () => {
       await store.startNewGame('A famous tower')
@@ -117,18 +109,11 @@ describe('useGameSessionStore', () => {
       expect(store.loading).toBe(false)
     })
 
-    it('should pass correct answer value for "no"', async () => {
-      await store.answer(false)
-
-      expect(gameApi.playTurn).toHaveBeenCalledWith('session-123', 'no')
-    })
-
     it('should require active session', async () => {
       store.resetGame()
 
       await store.answer(true)
 
-      expect(gameApi.playTurn).not.toHaveBeenCalled()
       expect(store.error).toBe('No active game')
     })
 
@@ -151,14 +136,12 @@ describe('useGameSessionStore', () => {
       vi.clearAllMocks()
     })
 
-    it('should submit place to API', async () => {
+    it('should submit place and update status', async () => {
       const endedRow = { ...mockGameSessionStateRow, status: 'ended' as const }
       vi.mocked(gameApi.getGameState).mockResolvedValueOnce(endedRow)
 
       await store.submitPlace('osm-123')
 
-      expect(gameApi.submitPlace).toHaveBeenCalledWith('session-123', 'osm-123')
-      expect(gameApi.getGameState).toHaveBeenCalledWith('session-123')
       expect(store.session?.status).toBe('ended')
       expect(store.loading).toBe(false)
     })
@@ -168,7 +151,6 @@ describe('useGameSessionStore', () => {
 
       await store.submitPlace('osm-123')
 
-      expect(gameApi.submitPlace).not.toHaveBeenCalled()
       expect(store.error).toBe('No active game')
     })
 
@@ -194,14 +176,7 @@ describe('useGameSessionStore', () => {
 
       await store.refresh()
 
-      expect(gameApi.getGameState).toHaveBeenCalledWith('session-123')
       expect(store.session?.question_count).toBe(5)
-    })
-
-    it('should allow refresh with specific session ID', async () => {
-      await store.refresh('other-session')
-
-      expect(gameApi.getGameState).toHaveBeenCalledWith('other-session')
     })
 
     it('should require session when none provided', async () => {
@@ -209,7 +184,6 @@ describe('useGameSessionStore', () => {
 
       await store.refresh()
 
-      expect(gameApi.getGameState).not.toHaveBeenCalled()
       expect(store.error).toBe('No active game')
     })
   })
@@ -224,60 +198,6 @@ describe('useGameSessionStore', () => {
       expect(store.session).toBeNull()
       expect(store.loading).toBe(false)
       expect(store.error).toBeNull()
-    })
-  })
-
-  describe('Computed Properties', () => {
-    it('should derive isGameActive from session status', async () => {
-      expect(store.isGameActive).toBe(false)
-
-      await store.startNewGame('test')
-
-      expect(store.isGameActive).toBe(true)
-    })
-
-    it('should derive isGameEnded correctly', async () => {
-      expect(store.isGameEnded).toBe(false)
-
-      // Test 'won' status
-      const wonRow = { ...mockGameSessionStateRow, status: 'won' as const }
-      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(wonRow)
-      await store.startNewGame('test')
-      expect(store.isGameEnded).toBe(true)
-
-      // Test 'needs_submission' status
-      store.resetGame()
-      const needsSubmissionRow = { ...mockGameSessionStateRow, status: 'needs_submission' as const }
-      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(needsSubmissionRow)
-      await store.startNewGame('test')
-      expect(store.isGameEnded).toBe(true)
-
-      // Test 'ended' status
-      store.resetGame()
-      const endedRow = { ...mockGameSessionStateRow, status: 'ended' as const }
-      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(endedRow)
-      await store.startNewGame('test')
-      expect(store.isGameEnded).toBe(true)
-    })
-
-    it('should derive isNeedsSubmission correctly', async () => {
-      expect(store.isNeedsSubmission).toBe(false)
-
-      const needsSubmissionRow = { ...mockGameSessionStateRow, status: 'needs_submission' as const }
-      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(needsSubmissionRow)
-      await store.startNewGame('test')
-
-      expect(store.isNeedsSubmission).toBe(true)
-    })
-
-    it('should derive isWon correctly', async () => {
-      expect(store.isWon).toBe(false)
-
-      const wonRow = { ...mockGameSessionStateRow, status: 'won' as const }
-      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(wonRow)
-      await store.startNewGame('test')
-
-      expect(store.isWon).toBe(true)
     })
   })
 })

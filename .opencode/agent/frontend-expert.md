@@ -43,6 +43,7 @@ Load the `test-tdd` skill when implementing any code changes.
 
 Read @.opencode/rules/architecture.md for database-first rules.
 Read @.opencode/rules/core.md for honesty policy.
+Read @.opencode/rules/tools.md for tool usage.
 
 ## Your Domain
 

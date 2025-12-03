@@ -34,14 +34,3 @@ export function isVisibleOnGlobe(
     Math.sin(lat1) * Math.sin(lat2) + Math.cos(lat1) * Math.cos(lat2) * Math.cos(dLng)
   return cosAngle > -0.1
 }
-
-/**
- * Composable for globe visibility filtering
- *
- * @returns Object with isVisibleOnGlobe function
- */
-export function useGlobeVisibility() {
-  return {
-    isVisibleOnGlobe,
-  }
-}

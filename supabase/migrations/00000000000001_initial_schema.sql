@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-03T05:57:42.607Z
+-- Generated: 2025-12-03T06:35:08.944Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 13, Functions: 63, Triggers: 1, Views: 4
 
