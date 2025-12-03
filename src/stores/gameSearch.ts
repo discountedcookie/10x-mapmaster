@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 import { useGameSessionStore } from './gameSession'
 
 export const useGameSearchStore = defineStore('gameSearch', () => {
+  // Cross-store reference (at setup level, not inside computed)
+  const sessionStore = useGameSessionStore()
+
   // State
   const searchResultPlaces = ref<
     Array<{
@@ -21,7 +24,6 @@ export const useGameSearchStore = defineStore('gameSearch', () => {
 
   // Computed - depends on session status
   const isSubmissionPending = computed(() => {
-    const sessionStore = useGameSessionStore()
     return sessionStore.isNeedsSubmission && submittedPlace.value !== null
   })
 

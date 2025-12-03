@@ -43,7 +43,7 @@ vi.mock('@/lib/places', () => {
 })
 
 const { mockSelect, mockOrder, mockFrom } = (await import('@/lib/supabase')) as any
-const { mockSearchNominatim, mockExtractDescriptors } = (await import('@/lib/places')) as any
+const { mockSearchNominatim } = (await import('@/lib/places')) as any
 
 describe('usePlacesStore', () => {
   let store: ReturnType<typeof usePlacesStore>
@@ -201,6 +201,194 @@ describe('usePlacesStore', () => {
       await store.fetchAllPlaces()
 
       expect(store.loading).toBe(false)
+    })
+  })
+
+  describe('addPlace', () => {
+    it('should add a place to the store', () => {
+      const newPlace: Place = {
+        id: 'place-3',
+        name: 'Berlin',
+        lat: 52.52,
+        lng: 13.405,
+        times_encountered: 5,
+        descriptors: { type: 'city' },
+      }
+
+      store.addPlace(newPlace)
+
+      expect(store.places).toContainEqual(newPlace)
+    })
+
+    it('should maintain sort order by name when adding', () => {
+      // Pre-populate with some places
+      store.places = [
+        {
+          id: 'place-1',
+          name: 'Berlin',
+          lat: 52.52,
+          lng: 13.405,
+          times_encountered: 5,
+          descriptors: {},
+        },
+        {
+          id: 'place-2',
+          name: 'Paris',
+          lat: 48.8566,
+          lng: 2.3522,
+          times_encountered: 10,
+          descriptors: {},
+        },
+      ]
+
+      const newPlace: Place = {
+        id: 'place-3',
+        name: 'London',
+        lat: 51.5074,
+        lng: -0.1278,
+        times_encountered: 8,
+        descriptors: { type: 'city' },
+      }
+
+      store.addPlace(newPlace)
+
+      expect(store.places.map((p) => p.name)).toEqual(['Berlin', 'London', 'Paris'])
+    })
+  })
+
+  describe('updatePlace', () => {
+    it('should update an existing place', () => {
+      store.places = [
+        {
+          id: 'place-1',
+          name: 'Berlin',
+          lat: 52.52,
+          lng: 13.405,
+          times_encountered: 5,
+          descriptors: {},
+        },
+      ]
+
+      const updatedPlace: Place = {
+        id: 'place-1',
+        name: 'Berlin Updated',
+        lat: 52.53,
+        lng: 13.41,
+        times_encountered: 10,
+        descriptors: { type: 'capital' },
+      }
+
+      store.updatePlace('place-1', updatedPlace)
+
+      expect(store.places[0]).toEqual(updatedPlace)
+    })
+
+    it('should do nothing if place not found', () => {
+      store.places = [
+        {
+          id: 'place-1',
+          name: 'Berlin',
+          lat: 52.52,
+          lng: 13.405,
+          times_encountered: 5,
+          descriptors: {},
+        },
+      ]
+
+      const updatedPlace: Place = {
+        id: 'place-2',
+        name: 'Paris',
+        lat: 48.8566,
+        lng: 2.3522,
+        times_encountered: 10,
+        descriptors: {},
+      }
+
+      store.updatePlace('place-2', updatedPlace)
+
+      expect(store.places).toHaveLength(1)
+      expect(store.places[0].id).toBe('place-1')
+    })
+
+    it('should maintain sort order by name when updating', () => {
+      store.places = [
+        {
+          id: 'place-1',
+          name: 'Berlin',
+          lat: 52.52,
+          lng: 13.405,
+          times_encountered: 5,
+          descriptors: {},
+        },
+        {
+          id: 'place-2',
+          name: 'Paris',
+          lat: 48.8566,
+          lng: 2.3522,
+          times_encountered: 10,
+          descriptors: {},
+        },
+      ]
+
+      // Update Berlin to Zurich - should move to end
+      const updatedPlace: Place = {
+        id: 'place-1',
+        name: 'Zurich',
+        lat: 47.3769,
+        lng: 8.5417,
+        times_encountered: 5,
+        descriptors: {},
+      }
+
+      store.updatePlace('place-1', updatedPlace)
+
+      expect(store.places.map((p) => p.name)).toEqual(['Paris', 'Zurich'])
+    })
+  })
+
+  describe('removePlace', () => {
+    it('should remove an existing place by id', () => {
+      store.places = [
+        {
+          id: 'place-1',
+          name: 'Berlin',
+          lat: 52.52,
+          lng: 13.405,
+          times_encountered: 5,
+          descriptors: {},
+        },
+        {
+          id: 'place-2',
+          name: 'Paris',
+          lat: 48.8566,
+          lng: 2.3522,
+          times_encountered: 10,
+          descriptors: {},
+        },
+      ]
+
+      store.removePlace('place-1')
+
+      expect(store.places).toHaveLength(1)
+      expect(store.places[0].id).toBe('place-2')
+    })
+
+    it('should do nothing if place not found', () => {
+      store.places = [
+        {
+          id: 'place-1',
+          name: 'Berlin',
+          lat: 52.52,
+          lng: 13.405,
+          times_encountered: 5,
+          descriptors: {},
+        },
+      ]
+
+      store.removePlace('place-999')
+
+      expect(store.places).toHaveLength(1)
+      expect(store.places[0].id).toBe('place-1')
     })
   })
 
