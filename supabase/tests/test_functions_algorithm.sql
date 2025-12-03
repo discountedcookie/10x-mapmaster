@@ -194,21 +194,25 @@ SELECT
   );
 
 
--- Test 19: High confidence at start returns TRUE (when meets dynamic threshold)
+-- Test 19: High confidence returns TRUE with default thresholds
+-- Probabilities [0.85, 0.1, 0.05]: top_prob=0.85, margin=0.75, entropy~0.5
+-- All pass default thresholds (0.4, 0.15, 0.7)
 SELECT
   IS (
-    should_guess (ARRAY[0.85, 0.1, 0.05], 0, 5, 3),
+    should_guess (ARRAY[0.85, 0.1, 0.05]),
     TRUE,
-    'High confidence (0.85) returns TRUE at turn 0 with 3 candidates'
+    'High confidence (0.85) returns TRUE with default thresholds'
   );
 
 
--- Test 20: Lower confidence at final turn also returns TRUE (lower threshold)
+-- Test 20: Moderate confidence returns TRUE with relaxed thresholds
+-- Probabilities [0.65, 0.25, 0.1]: top_prob=0.65, margin=0.40, entropy~0.8
+-- Passes with relaxed thresholds (0.5, 0.3, 0.9)
 SELECT
   IS (
-    should_guess (ARRAY[0.65, 0.25, 0.1], 5, 5, 10),
+    should_guess (ARRAY[0.65, 0.25, 0.1], 0.5, 0.3, 0.9),
     TRUE,
-    'Moderate confidence (0.65) returns TRUE at final turn with many candidates'
+    'Moderate confidence (0.65) returns TRUE with relaxed thresholds'
   );
 
 
