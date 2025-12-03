@@ -3,7 +3,9 @@
 ## Purpose
 
 Specifies the Vue 3 frontend shell, routing, map visualization, and UI components. The frontend is presentation-only - it displays data from database views and calls RPC functions, never implementing game logic.
+
 ## Requirements
+
 ### Requirement: Frontend Shell and Routing
 
 The system SHALL provide a layout and routes for the application shell without embedding game logic.
@@ -73,7 +75,7 @@ The system SHALL visualize candidates and regions on the globe with appropriate 
 #### Scenario: Candidate visualization
 
 - **WHEN** candidates exist
-- **THEN** they render as deck.gl layers with confidence-aware styling
+- **THEN** they render as MapLibre native layers (GeoJSON source with circle/fill layers) with confidence-aware styling
 
 #### Scenario: Geographic feedback
 
@@ -141,6 +143,25 @@ The system SHALL present stats views and user settings without embedding game lo
 - **WHEN** interacting with settings and stats
 - **THEN** controls are accessible (keyboard/ARIA/reduced motion)
 
+### Requirement: Localization Configuration
+
+The system SHALL configure vue-i18n with ICU MessageFormat and consistent locale codes.
+
+#### Scenario: Locale identifiers
+
+- **WHEN** the frontend selects or displays a locale
+- **THEN** it uses short codes `en`, `es`, `pl` and maps browser locales like `en-US` to `en`
+
+#### Scenario: ICU MessageFormat
+
+- **WHEN** rendering translated text
+- **THEN** vue-i18n uses a custom message compiler with `intl-messageformat` for ICU pluralization and select statements
+
+#### Scenario: Type-safe messages
+
+- **WHEN** compiling the frontend
+- **THEN** vue-i18n types align with the message schema and the build passes without i18n-related type errors
+
 ### Requirement: Map Auto-Rotation
 
 The system SHALL auto-rotate the globe on the home page when idle.
@@ -159,4 +180,3 @@ The system SHALL auto-rotate the globe on the home page when idle.
 
 - **WHEN** a game starts
 - **THEN** rotation stops and camera transitions to game view
-
