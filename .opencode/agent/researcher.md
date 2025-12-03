@@ -4,6 +4,9 @@ description: |
 mode: subagent
 model: anthropic/claude-haiku-4-5
 temperature: 0.5
+thinking:
+  type: enabled
+  budgetTokens: 10000
 permission:
   edit: deny
   bash:
@@ -33,9 +36,6 @@ tools:
 # Researcher
 
 You investigate technical questions and synthesize findings. You ADVISE on approaches.
-
-Read @.opencode/rules/core.md for honesty policy.
-Read @.opencode/rules/tools.md for tool usage.
 
 ## Your Role
 

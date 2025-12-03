@@ -15,11 +15,21 @@
   // Built-in agents with skill access
   "agent": {
     "build": {
-      "disable": false,
-      // Has access to all skills (global default)
+      "disabled": false,
+      "tools": {
+        "skills_*": true,
+      },
+      "thinking": {
+        "type": "enabled",
+        "budgetTokens": 16000,
+      },
     },
     "plan": {
       "disable": false,
+      "thinking": {
+        "type": "enabled",
+        "budgetTokens": 16000,
+      },
       "tools": {
         "skills_*": false,
         // Planning skills only - no execution
@@ -48,6 +58,24 @@
     "exa": {
       "type": "remote",
       "url": "https://mcp.exa.ai/mcp",
+    },
+
+    // Postgres
+    "postgres": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "DATABASE_URI",
+        "crystaldba/postgres-mcp",
+        "--access-mode=unrestricted",
+      ],
+      "environment": {
+        "DATABASE_URI": "postgresql://postgres:postgres@host.docker.internal:54322/postgres",
+      },
     },
 
     // Complex reasoning
@@ -85,6 +113,6 @@
     "chrome-devtools_*": false,
     "exa_*": true,
     "sequential-thinking_*": true,
-    "skills_*": true,
+    "skills_*": false,
   },
 }

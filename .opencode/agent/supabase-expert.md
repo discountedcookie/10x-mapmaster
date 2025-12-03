@@ -4,6 +4,9 @@ description: |
 mode: subagent
 model: anthropic/claude-haiku-4-5
 temperature: 0.2
+thinking:
+  type: enabled
+  budgetTokens: 10000
 permission:
   edit: allow
   write: allow
@@ -28,14 +31,16 @@ tools:
   task: false
   todoread: false
   todowrite: false
-  webfetch: false
-  exa_*: false
+  exa_*: true
+  webfetch: true
   sequential-thinking_*: true
+  # postgres-mcp for database introspection
+  postgres_*: true
   # Execution and investigation skills
   skills_*: false
-  skills_test_tdd: true
+  skills_testing: true
   skills_executing_tasks: true
-  skills_sql_gameplay: true
+  skills_gameplay_sql: true
   skills_systematic_debugging: true
 ---
 
@@ -43,11 +48,19 @@ tools:
 
 You are the database specialist. You OWN all business logic in this project.
 
-Load the `test-tdd` skill when implementing any code changes.
+## Database Tools
 
-Read @.opencode/rules/architecture.md for database-first rules.
-Read @.opencode/rules/core.md for honesty policy.
-Read @.opencode/rules/tools.md for tool usage.
+You have two ways to interact with the database:
+
+**postgres-mcp (preferred)** - Use for:
+- Schema introspection (`postgres_list_schemas`, `postgres_list_objects`, `postgres_get_object_details`)
+- Quick queries (`postgres_execute_sql`)
+- Query analysis (`postgres_explain_query`)
+- Health checks (`postgres_analyze_db_health`)
+
+**psql (fallback)** - Use only when:
+- postgres-mcp doesn't support something specific
+- You need interactive features or complex scripting
 
 ## Your Domain
 

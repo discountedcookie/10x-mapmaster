@@ -6,14 +6,6 @@
 
 **Database-first.** ALL business logic lives in PostgreSQL. Frontend is presentation only.
 
-Read `.opencode/rules/architecture.md` for detailed constraints.
-
-## Agent Behavior
-
-Behavior, honesty, and session-context rules are defined in `.opencode/rules/behavior.md`. All agents must follow those rules.
-
-## Key Directories
-
 ```
 src/                    # Vue 3 frontend (presentation only)
 supabase/db/            # Database source files (ALL business logic)
@@ -22,43 +14,44 @@ openspec/               # Specifications and change proposals
 .opencode/skills/       # Workflow skills (load when relevant)
 ```
 
-## Skills System
+## Tool Usage
 
-This project uses skills for workflow automation. Skills are in `.opencode/skills/`.
+You have dedicated tools for file operations. Use them:
 
-**Load relevant skills based on your task:**
+| Task                  | Tool   | NOT bash             |
+| --------------------- | ------ | -------------------- |
+| Read file contents    | `Read` | ~~cat, head, tail~~  |
+| List directory        | `List` | ~~ls, find -type d~~ |
+| Find files by pattern | `Glob` | ~~find, ls~~         |
+| Search file contents  | `Grep` | ~~grep, rg~~         |
 
-| Task                           | Load Skill                            |
-| ------------------------------ | ------------------------------------- |
-| New feature or behavior change | `openspec-check` → `openspec-propose` |
-| Implementing approved change   | `openspec-apply` + `test-tdd`         |
-| Bug or test failure            | `systematic-debugging`                |
-| After implementation           | `code-review`                         |
-| Working with subagents         | `subagent-workflow`                   |
-| Vague or complex request       | `brainstorming`                       |
+Bash commands `cat`, `ls`, `find`, `grep` are DENIED and will fail.
 
-Skills auto-load based on their descriptions. Check `using-skills` skill if unsure.
+Bash is permitted ONLY for: `bun run`, `supabase`, `psql`, `git`, `openspec`, and output filtering (`head`, `tail`, `wc` when piping).
+
+## Honesty Policy
+
+- Never invent facts. Say "I don't know" when uncertain.
+- Never claim success without evidence. Verify with tool output.
+- Never hide errors. Surface them immediately.
+- Correct yourself immediately if you realize a mistake.
+- Distinguish between "verified" and "assumed" information.
+
+## Task Discipline
+
+- Complete current task before starting new ones.
+- Mark todos done immediately after completion, not in batches.
+- If blocked, say why and propose alternatives.
+
+## Skills
+
+Skills are available as tools. Each skill has a description explaining when to use it. Load skills when their description matches your situation - they contain proven workflows that help you work systematically.
 
 ## Session Start
 
 1. Check `openspec list` for active changes
 2. Check `openspec list --specs` for existing capabilities
-3. Load relevant skills based on task type
 
 ## Subagents
 
-Before invoking subagents, load the `subagent-workflow` skill.
-
-Key points:
-
-- Track session_ids for recalls
-- Scope tasks specifically
-- Verify output before proceeding
-
-## Rules (Always-On)
-
-| Rule                              | Purpose                        |
-| --------------------------------- | ------------------------------ |
-| `.opencode/rules/architecture.md` | Database-first constraints     |
-| `.opencode/rules/core.md`         | Baseline rules                 |
-| `.opencode/rules/behavior.md`     | Honesty + context + discipline |
+When dispatching work to subagents, load `subagent-workflow` first. It covers session management, task scoping, and output verification.
