@@ -120,13 +120,18 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('llm.question.num_predict', '50'::jsonb, 'Max tokens'),
 ('llm.question.top_p', '0.9'::jsonb, 'Top-p sampling'),
 ('llm.question.stop', '[]'::jsonb, 'Stop sequences'),
-('llm.question.trait_prompt', '"You write natural yes/no questions for a guessing game.\n\nLanguage code: <lang>{language_code}</lang>\nUser description: {user_description}\nTrait clause: {trait_clause}\n\nWrite one short, natural yes/no question in the requested language, using \"it\" to refer to the mystery place. Answer should help the game understand whether the trait applies. Return ONLY the question text."'::jsonb, 'Trait question prompt with language and context'),
-('llm.question.region_prompt', '"You write natural yes/no questions for a guessing game.\n\nLanguage code: <lang>{language_code}</lang>\nUser description: {user_description}\nRegion name: {region_name}\n\nWrite one short, natural yes/no question in the requested language about whether the place is in that region. Use \"it\" for the mystery place. Return ONLY the question text."'::jsonb, 'Region question prompt with language and context'),
+('llm.question.trait_prompt', '"You write natural yes/no questions for a guessing game.\n\nLanguage code: <lang>{language_code}</lang>\nTrait clause: {trait_clause}\n\nWrite one short, natural yes/no question about whether this trait applies to \"it\".\n- Use only the information in the trait clause.\n- Use \"it\" to refer to the mystery place.\n- Do not mention or guess the name of any specific place, city, country, or landmark.\n- Do not turn the user description or trait into a direct guess.\nReturn ONLY the question text."'::jsonb, 'Trait question prompt focusing on trait clause only'),
+('llm.question.region_prompt', '"You write natural yes/no questions for a guessing game.\n\nLanguage code: <lang>{language_code}</lang>\nRegion name: {region_name}\n\nWrite one short, natural yes/no question about whether \"it\" is in that region. Use \"it\" for the mystery place and mention the region name naturally. Return ONLY the question text."'::jsonb, 'Region question prompt without user description'),
 
--- Confidence decision thresholds
-('confidence.top_prob_threshold', '0.4'::jsonb, 'Minimum top probability to guess'),
-('confidence.margin_threshold', '0.15'::jsonb, 'Minimum margin (gap between top two) to guess'),
-('confidence.entropy_threshold', '0.7'::jsonb, 'Maximum normalized entropy to guess (lower = more certain)'),
+-- Confidence decision thresholds (dynamic system)
+('confidence.guess_threshold_max', '0.90'::jsonb, 'Maximum threshold at turn 0 (conservative)'),
+('confidence.guess_threshold_min', '0.60'::jsonb, 'Minimum threshold at final turn (aggressive)'),
+('confidence.threshold_floor', '0.50'::jsonb, 'Absolute minimum threshold after all adjustments'),
+('confidence.threshold_ceiling', '0.95'::jsonb, 'Absolute maximum threshold after all adjustments'),
+('confidence.candidate_low_threshold', '3'::jsonb, 'Number of candidates below which bonus applies'),
+('confidence.candidate_bonus', '0.10'::jsonb, 'Reduction in threshold when few candidates remain'),
+('confidence.margin_high_threshold', '0.25'::jsonb, 'Margin between top two candidates triggering bonus'),
+('confidence.margin_bonus', '0.10'::jsonb, 'Reduction in threshold when margin is high'),
 
 -- Scoring configuration
 ('scoring.temperature', '1.0'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
