@@ -22,7 +22,7 @@ interface CandidateLike {
   name: string
   lat: number
   lng: number
-  confidence?: number | null
+  probability?: number | null
   description_similarity?: number | null
   affirmed_trait_similarity?: number | null
   denied_trait_similarity?: number | null
@@ -54,7 +54,7 @@ export function useGameMap() {
           name: place.name,
           lat: place.lat,
           lng: place.lng,
-          confidence: 1,
+          probability: 1,
           description_similarity: 1,
           affirmed_trait_similarity: null,
           denied_trait_similarity: null,
@@ -71,7 +71,7 @@ export function useGameMap() {
           name: searchStore.submittedPlace.name,
           lat: searchStore.submittedPlace.lat,
           lng: searchStore.submittedPlace.lng,
-          confidence: 1,
+          probability: 1,
           description_similarity: 1,
           affirmed_trait_similarity: null,
           denied_trait_similarity: null,
@@ -87,7 +87,7 @@ export function useGameMap() {
         name: p.name,
         lat: p.lat,
         lng: p.lng,
-        confidence: 0.5,
+        probability: 0.5,
         description_similarity: 0.5,
         affirmed_trait_similarity: null,
         denied_trait_similarity: null,

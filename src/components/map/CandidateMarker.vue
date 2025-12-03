@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 
 interface Properties {
   name: string
-  confidence: number // 0-1
+  probability: number // 0-1
   zoom: number
   highlighted?: boolean // True when hovering in the search panel
 }
@@ -19,16 +19,15 @@ const opacity = computed(() => {
   return 1
 })
 
-// Confidence percentage
-const confidencePercent = computed(() => Math.round(properties.confidence * 100))
+// Probability percentage
+const probabilityPercent = computed(() => Math.round(properties.probability * 100))
 
-// Border color based on confidence (grey → primary blue)
-const normalizedConfidence = computed(() => Math.max(0, (properties.confidence - 0.5) * 2))
+// Border color based on probability (grey → primary blue)
 const borderColor = computed(() => {
   if (properties.highlighted) {
     return 'hsl(220, 90%, 50%)' // Bright blue when highlighted
   }
-  const saturation = normalizedConfidence.value * 80
+  const saturation = properties.probability * 80
   return `hsl(220, ${saturation}%, 55%)`
 })
 
@@ -44,6 +43,6 @@ const transform = computed(() => (properties.highlighted ? 'scale(1.15)' : 'scal
     :style="{ opacity, borderColor, transform }"
   >
     {{ name }}
-    <span class="ml-1 text-muted-foreground text-[10px]">{{ confidencePercent }}%</span>
+    <span class="ml-1 text-muted-foreground text-[10px]">{{ probabilityPercent }}%</span>
   </Badge>
 </template>

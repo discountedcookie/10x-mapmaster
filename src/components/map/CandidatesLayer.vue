@@ -44,9 +44,6 @@ const candidatesGeoJson = computed(() => {
     features: candidates.map((candidate, index) => {
       const rank = index + 1
 
-      // Normalize confidence: 50% → 0, 100% → 1
-      const normalized = Math.max(0, (candidate.confidence - 0.5) * 2)
-
       // Size based on rank
       let radius: number
       if (rank === 1) radius = 12
@@ -61,14 +58,14 @@ const candidatesGeoJson = computed(() => {
         properties: {
           id: candidate.id,
           name: candidate.name,
-          confidence: candidate.confidence,
+          probability: candidate.probability,
           rank,
           radius,
-          // Saturation and opacity based on confidence
-          saturation: normalized * 100,
-          opacity: 0.3 + normalized * 0.7, // Min 30% opacity so markers are always visible
-          // Sort key for z-index: higher confidence = higher z-index, highlighted gets priority
-          sortKey: isHighlighted ? 10_000 : Math.round(candidate.confidence * 1000),
+          // Saturation and opacity based on probability (already 0-1)
+          saturation: candidate.probability * 100,
+          opacity: 0.3 + candidate.probability * 0.7, // Min 30% opacity so markers are always visible
+          // Sort key for z-index: higher probability = higher z-index, highlighted gets priority
+          sortKey: isHighlighted ? 10_000 : Math.round(candidate.probability * 1000),
           // Highlight state for styling
           highlighted: isHighlighted ? 1 : 0,
         },
@@ -84,13 +81,13 @@ const candidatesGeoJson = computed(() => {
 // Simple, clean marker style - shadcn inspired
 const markerPaint = computed((): CircleLayerSpecification['paint'] => ({
   'circle-radius': ['get', 'radius'],
-  // Use primary blue (hsl 220) with saturation based on confidence
+  // Use primary blue (hsl 220) with saturation based on probability
   'circle-color': [
     'interpolate',
     ['linear'],
     ['get', 'saturation'],
     0,
-    'hsl(220, 0%, 70%)', // Grey at 0% (50% confidence)
+    'hsl(220, 0%, 70%)', // Grey at 0% probability
     50,
     'hsl(220, 50%, 60%)', // Muted blue
     100,
@@ -104,13 +101,13 @@ const markerPaint = computed((): CircleLayerSpecification['paint'] => ({
 
 // Layout properties for circle layer (includes sort-key for z-ordering)
 const markerLayout = computed((): CircleLayerSpecification['layout'] => ({
-  // Sort by confidence so higher confidence markers render on top
+  // Sort by probability so higher probability markers render on top
   'circle-sort-key': ['get', 'sortKey'],
 }))
 
-// Sort candidates by confidence (ascending) so higher confidence renders LAST (on top in DOM)
+// Sort candidates by probability (ascending) so higher probability renders LAST (on top in DOM)
 const sortedCandidatesForLabels = computed(() => {
-  return visibleCandidates.value.toSorted((a, b) => a.confidence - b.confidence)
+  return visibleCandidates.value.toSorted((a, b) => a.probability - b.probability)
 })
 
 // Setup zoom tracking when map loads
@@ -143,7 +140,7 @@ onUnmounted(() => {
     />
   </MglGeoJsonSource>
 
-  <!-- HTML markers with Badge labels (sorted by confidence, low→high so high renders on top) -->
+  <!-- HTML markers with Badge labels (sorted by probability, low→high so high renders on top) -->
   <template v-if="currentZoom >= 2">
     <MglMarker
       v-for="candidate in sortedCandidatesForLabels"
@@ -155,7 +152,7 @@ onUnmounted(() => {
       <template #marker>
         <CandidateMarker
           :name="candidate.name"
-          :confidence="candidate.confidence"
+          :probability="candidate.probability"
           :zoom="currentZoom"
           :highlighted="highlightedId === candidate.id"
         />

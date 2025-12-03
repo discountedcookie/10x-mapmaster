@@ -14,7 +14,7 @@ export interface PlaceWithScore {
   name: string
   lat: number
   lng: number
-  confidence: number
+  probability: number
   description_similarity: number
   affirmed_trait_similarity: number | null
   denied_trait_similarity: number | null
@@ -31,7 +31,7 @@ export interface ChatMessage {
   metadata?: {
     questionId?: string
     placeId?: string
-    confidence?: number
+    probability?: number
   }
 }
 
@@ -41,7 +41,7 @@ export interface GameState {
   description: string
   messages: ChatMessage[]
   candidates: PlaceWithScore[]
-  confidence: number
+  probability: number
   threshold: number
   semanticConstraint: string
   questionCount: number

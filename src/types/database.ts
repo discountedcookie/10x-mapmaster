@@ -385,7 +385,7 @@ export type Database = {
           clause: string
           created_at?: string
           embedding_id?: string | null
-          id: string
+          id?: string
         }
         Update: {
           clause?: string
