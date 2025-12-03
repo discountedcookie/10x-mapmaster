@@ -21,6 +21,6 @@
 
 ## 4. Verify
 
-- [ ] 4.1 Run `bun run build` - check for code splitting in output
-- [ ] 4.2 Test navigation to protected routes
-- [ ] 4.3 Test navigation during auth initialization
+- [x] 4.1 Run `bun run build` - check for code splitting in output
+- [x] 4.2 Test navigation to protected routes
+- [x] 4.3 Test navigation during auth initialization
