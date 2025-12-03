@@ -29,7 +29,7 @@ SELECT
 
 
 SELECT
-  plan (3);
+  plan (4);
 
 
 -- Test: Basic game flow with realistic descriptions
@@ -97,6 +97,29 @@ SELECT
         )
     ) IS NOT NULL,
     'Session embeddings are created'
+  );
+
+
+-- Test 4: Candidates in next_turn have normalized probabilities summing to 100%
+SELECT
+  ok (
+    (
+      SELECT
+        abs(
+          SUM((elem->>'probability')::FLOAT) - 1.0
+        ) < 0.001
+      FROM
+        game_sessions gs,
+        jsonb_array_elements(gs.next_turn->'candidates') elem
+      WHERE
+        gs.id = (
+          SELECT
+            session_id
+          FROM
+            game1
+        )
+    ),
+    'Candidate probabilities sum to 1.0 (100%)'
   );
 
 

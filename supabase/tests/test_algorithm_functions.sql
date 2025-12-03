@@ -12,7 +12,7 @@ SET
 
 
 SELECT
-  plan (20);
+  plan (25);
 
 
 -- Test: softmax_probabilities function
@@ -118,64 +118,102 @@ SELECT
   );
 
 
--- Test: should_guess function
--- Test 10: Single candidate returns TRUE (only one option = should guess)
+-- Test: calculate_dynamic_threshold function
+-- Test 10: At turn 0 with many candidates, returns high threshold (conservative)
+SELECT
+  ok (
+    calculate_dynamic_threshold(0, 5, 10, 0.1) > 0.85,
+    'Turn 0 with many candidates returns high threshold'
+  );
+
+
+-- Test 11: At final turn with many candidates, returns lower threshold (aggressive)
+SELECT
+  ok (
+    calculate_dynamic_threshold(5, 5, 10, 0.1) < 0.65,
+    'Final turn with many candidates returns lower threshold'
+  );
+
+
+-- Test 12: With few candidates (<=3), applies candidate bonus
+SELECT
+  ok (
+    calculate_dynamic_threshold(2, 5, 3, 0.1) < calculate_dynamic_threshold(2, 5, 10, 0.1),
+    'Few candidates reduces threshold (candidate bonus applied)'
+  );
+
+
+-- Test 13: With high margin (>=0.25), applies margin bonus
+SELECT
+  ok (
+    calculate_dynamic_threshold(2, 5, 10, 0.30) < calculate_dynamic_threshold(2, 5, 10, 0.10),
+    'High margin reduces threshold (margin bonus applied)'
+  );
+
+
+-- Test 14: Both bonuses stack additively
+SELECT
+  ok (
+    calculate_dynamic_threshold(2, 5, 3, 0.30) < calculate_dynamic_threshold(2, 5, 3, 0.10),
+    'Bonuses stack additively'
+  );
+
+
+-- Test 15: Result is clamped between floor and ceiling
+SELECT
+  ok (
+    calculate_dynamic_threshold(0, 5, 100, 0.1) <= 0.95,
+    'Threshold clamped to ceiling (0.95)'
+  );
+
+
+-- Test 16: Result is clamped between floor and ceiling
+SELECT
+  ok (
+    calculate_dynamic_threshold(5, 5, 1, 0.50) >= 0.50,
+    'Threshold clamped to floor (0.50)'
+  );
+
+
+-- Test: should_guess function (updated for dynamic threshold)
+-- Test 17: Single candidate returns TRUE (only one option = should guess)
 SELECT
   IS (
-    should_guess (ARRAY[1.0]),
+    should_guess (ARRAY[1.0], 0, 5, 1),
     TRUE,
     'Single candidate returns TRUE (must guess)'
   );
 
 
--- Test 11: Empty array returns FALSE (no candidates = cannot guess)
+-- Test 18: Empty array returns FALSE (no candidates = cannot guess)
 SELECT
   IS (
-    should_guess (ARRAY[]::FLOAT[]),
+    should_guess (ARRAY[]::FLOAT[], 0, 5, 0),
     FALSE,
     'Empty array returns FALSE (no candidates)'
   );
 
 
--- Test 12: Uniform distribution returns FALSE (too uncertain)
+-- Test 19: High confidence at start returns TRUE (when meets dynamic threshold)
 SELECT
   IS (
-    should_guess (ARRAY[0.25, 0.25, 0.25, 0.25]),
-    FALSE,
-    'Uniform distribution returns FALSE (too uncertain)'
-  );
-
-
--- Test 13: High confidence returns TRUE
-SELECT
-  IS (
-    should_guess (ARRAY[0.8, 0.1, 0.1]),
+    should_guess (ARRAY[0.85, 0.1, 0.05], 0, 5, 3),
     TRUE,
-    'High confidence (0.8) returns TRUE'
+    'High confidence (0.85) returns TRUE at turn 0 with 3 candidates'
   );
 
 
--- Test 14: Low confidence returns FALSE
+-- Test 20: Lower confidence at final turn also returns TRUE (lower threshold)
 SELECT
   IS (
-    should_guess (ARRAY[0.3, 0.25, 0.25, 0.2]),
-    FALSE,
-    'Low confidence (0.3) returns FALSE'
-  );
-
-
--- Test 15: Custom thresholds - relaxed entropy allows guess
--- Probs [0.5, 0.3, 0.2] have entropy 0.94, so need entropy_threshold > 0.94
-SELECT
-  IS (
-    should_guess (ARRAY[0.5, 0.3, 0.2], 0.4, 0.15, 0.95),
+    should_guess (ARRAY[0.65, 0.25, 0.1], 5, 5, 10),
     TRUE,
-    'Custom thresholds (relaxed entropy) allow guess'
+    'Moderate confidence (0.65) returns TRUE at final turn with many candidates'
   );
 
 
 -- Test: calculate_split_quality function
--- Test 16: 50% match gives highest quality (perfect split)
+-- Test 21: 50% match gives highest quality (perfect split)
 SELECT
   ok (
     calculate_split_quality (5, 10) > 0.9,
@@ -183,24 +221,24 @@ SELECT
   );
 
 
--- Test 17: 0% match gives low quality (no information gain)
+-- Test 22: 0% match gives low quality (no information gain)
 SELECT
   ok (
     calculate_split_quality (0, 10) < 0.6,
-    '0% match gives low split quality'
+    '0% match gives low quality'
   );
 
 
--- Test 18: 100% match gives low quality (no information gain)
+-- Test 23: 100% match gives low quality (no information gain)
 SELECT
   ok (
     calculate_split_quality (10, 10) < 0.6,
-    '100% match gives low split quality'
+    '100% match gives low quality'
   );
 
 
 -- Test: adjust_score function
--- Test 19: Not sure answer returns original score unchanged
+-- Test 24: Not sure answer returns original score unchanged
 SELECT
   ok (
     abs(
@@ -210,7 +248,7 @@ SELECT
   );
 
 
--- Test 20: Yes + strong match increases score
+-- Test 25: Yes + strong match increases score
 SELECT
   ok (
     adjust_score (0.5, 0.8, 'STRONG', 'yes') > 0.5,
