@@ -20,5 +20,5 @@
 ## 4. Verify
 
 - [x] 4.1 Run `bun run test:unit` to verify store tests pass
-- [ ] 4.2 Test realtime updates in browser with Vue devtools
-- [ ] 4.3 Verify devtools shows action names for mutations
+- [x] 4.2 Test realtime updates in browser with Vue devtools
+- [x] 4.3 Verify devtools shows action names for mutations
