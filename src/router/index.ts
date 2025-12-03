@@ -52,9 +52,7 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
   // Wait for auth to be initialized before checking authentication
-  while (authStore.loading) {
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
+  await authStore.whenReady()
 
   // Check if route requires authentication
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

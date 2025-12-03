@@ -7,8 +7,8 @@
 
 ## 2. Fix Router Guard
 
-- [ ] 2.1 Replace while-loop with `await authStore.whenReady()`
-- [ ] 2.2 Remove the 50ms setTimeout polling pattern
+- [x] 2.1 Replace while-loop with `await authStore.whenReady()`
+- [x] 2.2 Remove the 50ms setTimeout polling pattern
 
 ## 3. Add Lazy Loading
 
