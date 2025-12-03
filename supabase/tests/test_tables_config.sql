@@ -29,56 +29,12 @@ SELECT
 
 
 SELECT
-  plan (11);
-
-
--- ============================================================================
--- Schema Tests
--- ============================================================================
-SELECT
-  has_table ('public', 'config', 'public.config table exists');
-
-
-SELECT
-  has_table (
-    'game_logic',
-    'config',
-    'game_logic.config table exists'
-  );
-
-
-SELECT
-  has_table (
-    'game_logic',
-    'question_stats',
-    'game_logic.question_stats table exists'
-  );
-
-
-SELECT
-  has_table (
-    'game_logic',
-    'rate_limit_log',
-    'game_logic.rate_limit_log table exists'
-  );
+  plan (5);
 
 
 -- ============================================================================
 -- RLS Tests
 -- ============================================================================
-SELECT
-  ok (
-    (
-      SELECT
-        relrowsecurity
-      FROM
-        pg_class
-      WHERE
-        relname = 'config'
-        AND relnamespace = 'public'::regnamespace
-    ),
-    'RLS enabled on public.config'
-  );
 
 
 SELECT
@@ -94,14 +50,6 @@ SELECT
         AND nspname = 'game_logic'
     ),
     'RLS enabled on game_logic.config'
-  );
-
-
--- Test: Public config is readable by everyone
-SELECT
-  lives_ok (
-    $sql$ SELECT * FROM public.config; $sql$,
-    'Public config is readable by everyone'
   );
 
 

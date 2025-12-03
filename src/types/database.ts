@@ -34,72 +34,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      app_settings: {
-        Row: {
-          description: string | null
-          key: string
-          updated_at: string
-          value: string
-        }
-        Insert: {
-          description?: string | null
-          key: string
-          updated_at?: string
-          value: string
-        }
-        Update: {
-          description?: string | null
-          key?: string
-          updated_at?: string
-          value?: string
-        }
-        Relationships: []
-      }
-      config: {
-        Row: {
-          description: string | null
-          key: string
-          updated_at: string
-          value: Json
-        }
-        Insert: {
-          description?: string | null
-          key: string
-          updated_at?: string
-          value: Json
-        }
-        Update: {
-          description?: string | null
-          key?: string
-          updated_at?: string
-          value?: Json
-        }
-        Relationships: []
-      }
-      embeddings: {
-        Row: {
-          created_at: string
-          embedding: string
-          id: string
-          source_text: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          embedding: string
-          id?: string
-          source_text: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          embedding?: string
-          id?: string
-          source_text?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       game_answers: {
         Row: {
           answer: Database["public"]["Enums"]["answer_value"]
@@ -135,13 +69,6 @@ export type Database = {
           trait_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "game_answers_geographic_region_id_fkey"
-            columns: ["geographic_region_id"]
-            isOneToOne: false
-            referencedRelation: "geographic_regions"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "game_answers_place_id_fkey"
             columns: ["place_id"]
@@ -224,13 +151,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "game_sessions_embedding_id_fkey"
-            columns: ["embedding_id"]
-            isOneToOne: false
-            referencedRelation: "embeddings"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "game_sessions_place_id_fkey"
             columns: ["place_id"]
             isOneToOne: false
@@ -242,44 +162,6 @@ export type Database = {
             columns: ["place_id"]
             isOneToOne: false
             referencedRelation: "places_with_geometry"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      geographic_regions: {
-        Row: {
-          continent_id: string | null
-          created_at: string
-          geom: unknown
-          id: string
-          iso_code: string | null
-          level: string
-          name: string
-        }
-        Insert: {
-          continent_id?: string | null
-          created_at?: string
-          geom: unknown
-          id?: string
-          iso_code?: string | null
-          level: string
-          name: string
-        }
-        Update: {
-          continent_id?: string | null
-          created_at?: string
-          geom?: unknown
-          id?: string
-          iso_code?: string | null
-          level?: string
-          name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "geographic_regions_continent_id_fkey"
-            columns: ["continent_id"]
-            isOneToOne: false
-            referencedRelation: "geographic_regions"
             referencedColumns: ["id"]
           },
         ]
@@ -364,15 +246,7 @@ export type Database = {
           times_encountered?: number
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "places_embedding_id_fkey"
-            columns: ["embedding_id"]
-            isOneToOne: false
-            referencedRelation: "embeddings"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       traits: {
         Row: {
@@ -393,15 +267,7 @@ export type Database = {
           embedding_id?: string | null
           id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "traits_embedding_id_fkey"
-            columns: ["embedding_id"]
-            isOneToOne: false
-            referencedRelation: "embeddings"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

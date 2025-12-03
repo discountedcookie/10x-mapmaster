@@ -2,9 +2,9 @@
 
 ## 1. Drop Unused Tables
 
-- [ ] 1.1 Delete `supabase/db/public/tables/app_settings.sql`
-- [ ] 1.2 Delete `supabase/db/public/tables/config.sql`
-- [ ] 1.3 Delete `supabase/db/game_logic/tables/question_stats.sql`
+- [x] 1.1 Delete `supabase/db/public/tables/app_settings.sql`
+- [x] 1.2 Delete `supabase/db/public/tables/config.sql`
+- [x] 1.3 Delete `supabase/db/game_logic/tables/question_stats.sql`
 
 ## 2. Move Tables to game_logic Schema
 
@@ -25,29 +25,29 @@
 
 ## 4. Drop Unused Algorithm Functions
 
-- [ ] 4.1 Delete `supabase/db/game_logic/functions/algorithm/adjust_score.sql`
-- [ ] 4.2 Delete `supabase/db/game_logic/functions/algorithm/calculate_split_quality.sql`
-- [ ] 4.3 Delete `supabase/db/game_logic/functions/algorithm/filter_by_geography.sql`
-- [ ] 4.4 Delete `supabase/db/game_logic/functions/algorithm/trait_match_strength.sql`
+- [x] 4.1 Delete `supabase/db/game_logic/functions/algorithm/adjust_score.sql`
+- [x] 4.2 Delete `supabase/db/game_logic/functions/algorithm/calculate_split_quality.sql`
+- [x] 4.3 Delete `supabase/db/game_logic/functions/algorithm/filter_by_geography.sql`
+- [x] 4.4 Delete `supabase/db/game_logic/functions/algorithm/trait_match_strength.sql`
 
 ## 5. Drop Unused Places Functions
 
-- [ ] 5.1 Delete `supabase/db/game_logic/functions/places/approve_pending_place.sql`
-- [ ] 5.2 Delete `supabase/db/game_logic/functions/places/match_places.sql`
+- [x] 5.1 Delete `supabase/db/game_logic/functions/places/approve_pending_place.sql`
+- [x] 5.2 Delete `supabase/db/game_logic/functions/places/match_places.sql`
 
 ## 6. Drop Unused Utilities Functions
 
-- [ ] 6.1 Delete `supabase/db/game_logic/functions/utilities/approve_pending_session.sql`
-- [ ] 6.2 Delete `supabase/db/game_logic/functions/utilities/enrich_place_on_approval.sql`
-- [ ] 6.3 Delete `supabase/db/game_logic/functions/utilities/geo_region_for.sql`
-- [ ] 6.4 Delete `supabase/db/game_logic/functions/utilities/http_call_edge_function.sql`
-- [ ] 6.5 Delete `supabase/db/game_logic/functions/utilities/update_embedding.sql`
-- [ ] 6.6 Delete `supabase/db/game_logic/functions/utilities/update_place_embedding.sql`
+- [x] 6.1 Delete `supabase/db/game_logic/functions/utilities/approve_pending_session.sql`
+- [x] 6.2 Delete `supabase/db/game_logic/functions/utilities/enrich_place_on_approval.sql`
+- [x] 6.3 Delete `supabase/db/game_logic/functions/utilities/geo_region_for.sql`
+- [x] 6.4 Delete `supabase/db/game_logic/functions/utilities/http_call_edge_function.sql`
+- [x] 6.5 Delete `supabase/db/game_logic/functions/utilities/update_embedding.sql`
+- [x] 6.6 Delete `supabase/db/game_logic/functions/utilities/update_place_embedding.sql`
 
 ## 7. Drop Unused Questions/Maintenance Functions
 
-- [ ] 7.1 Delete `supabase/db/game_logic/functions/questions/update_question_effectiveness_batch.sql`
-- [ ] 7.2 Delete `supabase/db/game_logic/functions/maintenance/maintenance_weekly.sql`
+- [x] 7.1 Delete `supabase/db/game_logic/functions/questions/update_question_effectiveness_batch.sql`
+- [x] 7.2 Delete `supabase/db/game_logic/functions/maintenance/maintenance_weekly.sql` (done in cleanup-dead-code)
 
 ## 8. Update Functions Referencing Moved Tables
 

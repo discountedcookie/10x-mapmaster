@@ -33,7 +33,7 @@ ADD CONSTRAINT "places_osm_id_key" UNIQUE ("osm_id");
 
 -- Foreign Key
 ALTER TABLE ONLY "public"."places"
-ADD CONSTRAINT "places_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "places_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "game_logic"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes

@@ -21,7 +21,7 @@ ADD CONSTRAINT "traits_pkey" PRIMARY KEY ("id");
 
 -- Foreign Key
 ALTER TABLE ONLY "public"."traits"
-ADD CONSTRAINT "traits_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "traits_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "game_logic"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes

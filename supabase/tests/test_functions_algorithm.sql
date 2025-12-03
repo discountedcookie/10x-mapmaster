@@ -12,7 +12,7 @@ SET
 
 
 SELECT
-  plan (25);
+  plan (20);
 
 
 -- Test: softmax_probabilities function
@@ -213,50 +213,6 @@ SELECT
     should_guess (ARRAY[0.65, 0.25, 0.1], 0.5, 0.3, 0.9),
     TRUE,
     'Moderate confidence (0.65) returns TRUE with relaxed thresholds'
-  );
-
-
--- Test: calculate_split_quality function
--- Test 21: 50% match gives highest quality (perfect split)
-SELECT
-  ok (
-    calculate_split_quality (5, 10) > 0.9,
-    '50% match gives high split quality (perfect split)'
-  );
-
-
--- Test 22: 0% match gives low quality (no information gain)
-SELECT
-  ok (
-    calculate_split_quality (0, 10) < 0.6,
-    '0% match gives low quality'
-  );
-
-
--- Test 23: 100% match gives low quality (no information gain)
-SELECT
-  ok (
-    calculate_split_quality (10, 10) < 0.6,
-    '100% match gives low quality'
-  );
-
-
--- Test: adjust_score function
--- Test 24: Not sure answer returns original score unchanged
-SELECT
-  ok (
-    abs(
-      adjust_score (0.5, 0.8, 'STRONG', 'not_sure') - 0.5
-    ) < 0.01,
-    'Not sure answer returns original score'
-  );
-
-
--- Test 25: Yes + strong match increases score
-SELECT
-  ok (
-    adjust_score (0.5, 0.8, 'STRONG', 'yes') > 0.5,
-    'Yes + strong match increases score'
   );
 
 

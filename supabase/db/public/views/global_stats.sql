@@ -148,7 +148,7 @@ SELECT
     SELECT
       count(*)
     FROM
-      embeddings
+      game_logic.embeddings
   ) AS total_embeddings
 FROM
   game_sessions gs;

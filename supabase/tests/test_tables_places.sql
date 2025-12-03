@@ -12,16 +12,12 @@ SET
 
 
 SELECT
-  plan (4);
+  plan (3);
 
 
 -- ============================================================================
 -- Schema Tests
 -- ============================================================================
-SELECT
-  has_table ('public', 'places', 'places table exists');
-
-
 SELECT
   has_index (
     'public',

@@ -12,23 +12,15 @@ SET
 
 
 SELECT
-  plan (4);
+  plan (3);
 
 
 -- ============================================================================
 -- Schema Tests
 -- ============================================================================
 SELECT
-  has_table (
-    'public',
-    'geographic_regions',
-    'geographic_regions table exists'
-  );
-
-
-SELECT
   has_index (
-    'public',
+    'game_logic',
     'geographic_regions',
     'idx_geographic_regions_geom',
     'GiST index exists on geographic_regions.geom'
@@ -47,7 +39,7 @@ SELECT
         pg_class
       WHERE
         relname = 'geographic_regions'
-        AND relnamespace = 'public'::regnamespace
+        AND relnamespace = 'game_logic'::regnamespace
     ),
     'RLS enabled on geographic_regions'
   );
@@ -56,7 +48,7 @@ SELECT
 -- Test: Geographic regions are publicly readable
 SELECT
   lives_ok (
-    $sql$ SELECT COUNT(*) FROM geographic_regions; $sql$,
+    $sql$ SELECT COUNT(*) FROM game_logic.geographic_regions; $sql$,
     'Geographic regions are publicly readable'
   );
 

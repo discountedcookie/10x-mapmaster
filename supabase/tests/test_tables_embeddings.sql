@@ -12,19 +12,15 @@ SET
 
 
 SELECT
-  plan (4);
+  plan (3);
 
 
 -- ============================================================================
 -- Schema Tests
 -- ============================================================================
 SELECT
-  has_table ('public', 'embeddings', 'embeddings table exists');
-
-
-SELECT
   has_index (
-    'public',
+    'game_logic',
     'embeddings',
     'idx_embeddings_hnsw',
     'HNSW index exists on embeddings'
@@ -43,7 +39,7 @@ SELECT
         pg_class
       WHERE
         relname = 'embeddings'
-        AND relnamespace = 'public'::regnamespace
+        AND relnamespace = 'game_logic'::regnamespace
     ),
     'RLS enabled on embeddings'
   );
@@ -68,7 +64,7 @@ SELECT
 
 SELECT
   throws_ok (
-    $sql$ SELECT COUNT(*) FROM embeddings; $sql$,
+    $sql$ SELECT COUNT(*) FROM game_logic.embeddings; $sql$,
     '42501',
     'permission denied for table embeddings',
     'Embeddings are restricted to service_role'

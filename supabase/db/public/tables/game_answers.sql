@@ -44,7 +44,7 @@ ADD CONSTRAINT "game_answers_trait_id_fkey" FOREIGN key ("trait_id") REFERENCES 
 
 
 ALTER TABLE ONLY "public"."game_answers"
-ADD CONSTRAINT "game_answers_geographic_region_id_fkey" FOREIGN key ("geographic_region_id") REFERENCES "public"."geographic_regions" ("id") ON DELETE CASCADE;
+ADD CONSTRAINT "game_answers_geographic_region_id_fkey" FOREIGN key ("geographic_region_id") REFERENCES "game_logic"."geographic_regions" ("id") ON DELETE CASCADE;
 
 
 -- Indexes

@@ -49,26 +49,25 @@ BEGIN
       ST_GeomFromText((c->>'geom_wkt')::text, 4326) as geom
     FROM jsonb_array_elements(p_candidates) c
   ),
-  region_splits AS (
-    -- Calculate how each region splits the candidates
-    SELECT
-      gr.id,
-      gr.name,
-      gr.level,
-      COALESCE(qs.effectiveness_score, 0.5) as effectiveness_score,
-      COALESCE(qs.times_asked, 0) as times_asked,
-      -- Count candidates that intersect with region (YES answers)
-      COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom)) as yes_count,
-      -- Count candidates that don't intersect with region (NO answers)
-      COUNT(*) FILTER (WHERE NOT ST_Intersects(cg.geom, gr.geom)) as no_count,
-      -- Information gain: 1.0 = perfect 50/50 split, 0.0 = all yes or all no
-      CASE 
-        WHEN COUNT(*) = 0 THEN 0.0
-        ELSE 1.0 - ABS(0.5 - (COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom))::float / COUNT(*)))
-      END as information_gain
-    FROM geographic_regions gr
-    CROSS JOIN candidate_geoms cg
-    LEFT JOIN game_logic.question_stats qs ON qs.geographic_region_id = gr.id
+   region_splits AS (
+     -- Calculate how each region splits the candidates
+     SELECT
+       gr.id,
+       gr.name,
+       gr.level,
+       0.5::DOUBLE PRECISION as effectiveness_score,
+       0::INTEGER as times_asked,
+       -- Count candidates that intersect with region (YES answers)
+       COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom)) as yes_count,
+       -- Count candidates that don't intersect with region (NO answers)
+       COUNT(*) FILTER (WHERE NOT ST_Intersects(cg.geom, gr.geom)) as no_count,
+       -- Information gain: 1.0 = perfect 50/50 split, 0.0 = all yes or all no
+       CASE 
+         WHEN COUNT(*) = 0 THEN 0.0
+         ELSE 1.0 - ABS(0.5 - (COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom))::float / COUNT(*)))
+       END as information_gain
+     FROM geographic_regions gr
+     CROSS JOIN candidate_geoms cg
     WHERE
       -- Don't ask same region twice
       gr.id NOT IN (
@@ -91,7 +90,7 @@ BEGIN
           WHERE ST_Intersects(confirmed_geom, gr.geom)
         )
       )
-    GROUP BY gr.id, gr.name, gr.level, qs.effectiveness_score, qs.times_asked
+     GROUP BY gr.id, gr.name, gr.level
     HAVING 
       -- CRITICAL: Only return regions that actually SPLIT the candidates
       COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom)) > 0  -- Some YES

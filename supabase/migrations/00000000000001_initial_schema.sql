@@ -1,7 +1,7 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-03T13:34:48.823Z
+-- Generated: 2025-12-03T14:04:22.301Z
 -- Mode: DEV (clean rebuild)
--- Schema: 1, Tables: 13, Functions: 60, Triggers: 1, Views: 4
+-- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4
 
 -- ============================================================================
 -- EXTENSIONS AND TYPES
@@ -267,15 +267,15 @@ service_role;
 -- ============================================================================
 
 -- --------------------------------------------------------------------------
--- public/tables/embeddings.sql
+-- game_logic/tables/embeddings.sql
 -- --------------------------------------------------------------------------
 
 -- Table: embeddings
--- Schema: public
+-- Schema: game_logic
 -- Description: Stores text embeddings separately from entities for efficient querying
 -- Spec: 384d vector per spec/overview.md and openspec/specs/database/spec.md
 -- Table Definition
-CREATE TABLE IF NOT EXISTS "public"."embeddings" (
+CREATE TABLE IF NOT EXISTS "game_logic"."embeddings" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "source_text" "text" NOT NULL,
   "embedding" "extensions"."vector" (384) NOT NULL,
@@ -284,41 +284,41 @@ CREATE TABLE IF NOT EXISTS "public"."embeddings" (
 );
 
 
-ALTER TABLE "public"."embeddings" owner TO "postgres";
+ALTER TABLE "game_logic"."embeddings" owner TO "postgres";
 
 
 -- Primary Key
-ALTER TABLE ONLY "public"."embeddings"
+ALTER TABLE ONLY "game_logic"."embeddings"
 ADD CONSTRAINT "embeddings_pkey" PRIMARY KEY ("id");
 
 
 -- Indexes
 -- HNSW index for fast approximate nearest neighbor search using cosine distance
 -- Uses vector_cosine_ops to match the <=> cosine distance operator used in queries
-CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "public"."embeddings" USING hnsw ("embedding" extensions.vector_cosine_ops);
+CREATE INDEX if NOT EXISTS "idx_embeddings_hnsw" ON "game_logic"."embeddings" USING hnsw ("embedding" extensions.vector_cosine_ops);
 
 
 -- Unique constraint on source_text for deduplication
-CREATE UNIQUE INDEX if NOT EXISTS "idx_embeddings_source_text" ON "public"."embeddings" ("source_text");
+CREATE UNIQUE INDEX if NOT EXISTS "idx_embeddings_source_text" ON "game_logic"."embeddings" ("source_text");
 
 
 -- RLS Policies
-ALTER TABLE "public"."embeddings" enable ROW level security;
+ALTER TABLE "game_logic"."embeddings" enable ROW level security;
 
 
-DROP POLICY if EXISTS "Embeddings are viewable by everyone" ON "public"."embeddings";
+DROP POLICY if EXISTS "Embeddings are viewable by everyone" ON "game_logic"."embeddings";
 
 
-DROP POLICY if EXISTS "Service role can manage embeddings" ON "public"."embeddings";
+DROP POLICY if EXISTS "Service role can manage embeddings" ON "game_logic"."embeddings";
 
 
-CREATE POLICY "Service role can manage embeddings" ON "public"."embeddings" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
+CREATE POLICY "Service role can manage embeddings" ON "game_logic"."embeddings" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
 WITH
   CHECK (("auth"."role" () = 'service_role'::"text"));
 
 
 -- Explicitly revoke read access from non-service roles; only service_role should see embeddings
-REVOKE ALL ON public.embeddings
+REVOKE ALL ON game_logic.embeddings
 FROM
   public,
   anon,
@@ -326,18 +326,18 @@ FROM
 
 
 -- Comments
-comment ON TABLE "public"."embeddings" IS 'Stores 384d text embeddings (gte-small compatible).';
+comment ON TABLE "game_logic"."embeddings" IS 'Stores 384d text embeddings (gte-small compatible).';
 
 -- --------------------------------------------------------------------------
--- public/tables/geographic_regions.sql
+-- game_logic/tables/geographic_regions.sql
 -- --------------------------------------------------------------------------
 
 -- Table: geographic_regions
--- Schema: public
+-- Schema: game_logic
 -- Description: Geographic regions (continents and countries) from Natural Earth
 -- Used to generate geographic questions dynamically
 -- Table Definition
-CREATE TABLE IF NOT EXISTS "public"."geographic_regions" (
+CREATE TABLE IF NOT EXISTS "game_logic"."geographic_regions" (
   "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
   "name" "text" NOT NULL,
   "level" "text" NOT NULL CHECK ("level" IN ('continent', 'country')),
@@ -348,51 +348,54 @@ CREATE TABLE IF NOT EXISTS "public"."geographic_regions" (
 );
 
 
-ALTER TABLE "public"."geographic_regions" owner TO "postgres";
+ALTER TABLE "game_logic"."geographic_regions" owner TO "postgres";
 
 
 -- Primary Key
-ALTER TABLE ONLY "public"."geographic_regions"
+ALTER TABLE ONLY "game_logic"."geographic_regions"
 ADD CONSTRAINT "geographic_regions_pkey" PRIMARY KEY ("id");
 
 
 -- Foreign Key (self-reference for continent hierarchy)
-ALTER TABLE ONLY "public"."geographic_regions"
-ADD CONSTRAINT "geographic_regions_continent_id_fkey" FOREIGN key ("continent_id") REFERENCES "public"."geographic_regions" ("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "game_logic"."geographic_regions"
+ADD CONSTRAINT "geographic_regions_continent_id_fkey" FOREIGN key ("continent_id") REFERENCES "game_logic"."geographic_regions" ("id") ON DELETE CASCADE;
 
 
 -- Indexes
-CREATE INDEX if NOT EXISTS "idx_geographic_regions_level" ON "public"."geographic_regions" ("level");
+CREATE INDEX if NOT EXISTS "idx_geographic_regions_level" ON "game_logic"."geographic_regions" ("level");
 
 
-CREATE INDEX if NOT EXISTS "idx_geographic_regions_geom" ON "public"."geographic_regions" USING gist ("geom");
+CREATE INDEX if NOT EXISTS "idx_geographic_regions_geom" ON "game_logic"."geographic_regions" USING gist ("geom");
 
 
-CREATE INDEX if NOT EXISTS "idx_geographic_regions_continent_id" ON "public"."geographic_regions" ("continent_id");
+CREATE INDEX if NOT EXISTS "idx_geographic_regions_continent_id" ON "game_logic"."geographic_regions" ("continent_id");
 
 
 -- RLS Policies
-ALTER TABLE "public"."geographic_regions" enable ROW level security;
+ALTER TABLE "game_logic"."geographic_regions" enable ROW level security;
 
 
-DROP POLICY if EXISTS "Geographic regions are viewable by everyone" ON "public"."geographic_regions";
+DROP POLICY if EXISTS "Geographic regions are viewable by everyone" ON "game_logic"."geographic_regions";
 
 
-DROP POLICY if EXISTS "Service role can manage geographic regions" ON "public"."geographic_regions";
+DROP POLICY if EXISTS "Service role can manage geographic regions" ON "game_logic"."geographic_regions";
 
 
-CREATE POLICY "Geographic regions are viewable by everyone" ON "public"."geographic_regions" FOR
-SELECT
-  USING (TRUE);
-
-
-CREATE POLICY "Service role can manage geographic regions" ON "public"."geographic_regions" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
+CREATE POLICY "Service role can manage geographic regions" ON "game_logic"."geographic_regions" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
 WITH
   CHECK (("auth"."role" () = 'service_role'::"text"));
 
 
+-- Explicitly revoke read access from non-service roles; only service_role should see geographic_regions
+REVOKE ALL ON game_logic.geographic_regions
+FROM
+  public,
+  anon,
+  authenticated;
+
+
 -- Comments
-comment ON TABLE "public"."geographic_regions" IS 'Geographic regions (continents and countries) from Natural Earth.
+comment ON TABLE "game_logic"."geographic_regions" IS 'Geographic regions (continents and countries) from Natural Earth.
 Used to generate geographic questions dynamically via v_geographic_questions view.
 - level: continent or country
 - continent_id: NULL for continents, references continent for countries
@@ -425,7 +428,7 @@ ADD CONSTRAINT "traits_pkey" PRIMARY KEY ("id");
 
 -- Foreign Key
 ALTER TABLE ONLY "public"."traits"
-ADD CONSTRAINT "traits_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "traits_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "game_logic"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes
@@ -494,7 +497,7 @@ ADD CONSTRAINT "places_osm_id_key" UNIQUE ("osm_id");
 
 -- Foreign Key
 ALTER TABLE ONLY "public"."places"
-ADD CONSTRAINT "places_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "places_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "game_logic"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes
@@ -581,7 +584,7 @@ ADD CONSTRAINT "game_sessions_place_id_fkey" FOREIGN key ("place_id") REFERENCES
 
 
 ALTER TABLE ONLY "public"."game_sessions"
-ADD CONSTRAINT "game_sessions_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "game_sessions_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "game_logic"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes
@@ -711,7 +714,7 @@ ADD CONSTRAINT "game_answers_trait_id_fkey" FOREIGN key ("trait_id") REFERENCES 
 
 
 ALTER TABLE ONLY "public"."game_answers"
-ADD CONSTRAINT "game_answers_geographic_region_id_fkey" FOREIGN key ("geographic_region_id") REFERENCES "public"."geographic_regions" ("id") ON DELETE CASCADE;
+ADD CONSTRAINT "game_answers_geographic_region_id_fkey" FOREIGN key ("geographic_region_id") REFERENCES "game_logic"."geographic_regions" ("id") ON DELETE CASCADE;
 
 
 -- Indexes
@@ -851,87 +854,6 @@ comment ON COLUMN "game_logic"."config"."value" IS 'Configuration value as JSON'
 comment ON COLUMN "game_logic"."config"."description" IS 'Human-readable description of the setting';
 
 -- --------------------------------------------------------------------------
--- game_logic/tables/question_stats.sql
--- --------------------------------------------------------------------------
-
--- Table: question_stats
--- Schema: game_logic
--- Description: Tracks effectiveness of questions (internal analytics)
-CREATE TABLE IF NOT EXISTS "game_logic"."question_stats" (
-  "id" "uuid" DEFAULT "gen_random_uuid" () NOT NULL,
-  "question_type" "public"."question_type" NOT NULL,
-  "trait_id" UUID,
-  "geographic_region_id" "uuid",
-  "times_asked" INTEGER DEFAULT 0 NOT NULL,
-  "effectiveness_score" DOUBLE PRECISION DEFAULT 0.5 NOT NULL,
-  "created_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
-  CONSTRAINT "question_stats_type_check" CHECK (
-    (
-      "question_type" = 'geographic'
-      AND "geographic_region_id" IS NOT NULL
-      AND "trait_id" IS NULL
-    )
-    OR (
-      "question_type" = 'semantic'
-      AND "trait_id" IS NOT NULL
-      AND "geographic_region_id" IS NULL
-    )
-  )
-);
-
-
-ALTER TABLE "game_logic"."question_stats" owner TO "postgres";
-
-
--- Primary Key
-ALTER TABLE ONLY "game_logic"."question_stats"
-ADD CONSTRAINT "question_stats_pkey" PRIMARY KEY ("id");
-
-
--- Foreign Keys
-ALTER TABLE ONLY "game_logic"."question_stats"
-ADD CONSTRAINT "question_stats_trait_id_fkey" FOREIGN key ("trait_id") REFERENCES "public"."traits" ("id") ON DELETE CASCADE;
-
-
-ALTER TABLE ONLY "game_logic"."question_stats"
-ADD CONSTRAINT "question_stats_geographic_region_id_fkey" FOREIGN key ("geographic_region_id") REFERENCES "public"."geographic_regions" ("id") ON DELETE CASCADE;
-
-
--- Indexes
-CREATE INDEX if NOT EXISTS "idx_question_stats_trait_id" ON "game_logic"."question_stats" ("trait_id");
-
-
-CREATE INDEX if NOT EXISTS "idx_question_stats_geographic_region_id" ON "game_logic"."question_stats" ("geographic_region_id");
-
-
-CREATE INDEX if NOT EXISTS "idx_question_stats_effectiveness" ON "game_logic"."question_stats" ("effectiveness_score" DESC);
-
-
--- RLS Policies
-ALTER TABLE "game_logic"."question_stats" enable ROW level security;
-
-
-DROP POLICY if EXISTS "Service role can manage question stats" ON "game_logic"."question_stats";
-
-
-CREATE POLICY "Service role can manage question stats" ON "game_logic"."question_stats" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
-WITH
-  CHECK (("auth"."role" () = 'service_role'::"text"));
-
-
--- Table Grants
-GRANT
-SELECT
-,
-  insert,
-UPDATE,
-delete ON "game_logic"."question_stats" TO service_role;
-
-
--- Comments
-comment ON TABLE "game_logic"."question_stats" IS 'Internal: Tracks question effectiveness for algorithm tuning.';
-
--- --------------------------------------------------------------------------
 -- game_logic/tables/rate_limit_log.sql
 -- --------------------------------------------------------------------------
 
@@ -1003,110 +925,6 @@ comment ON TABLE "game_logic"."rate_limit_log" IS 'Internal: Tracks rate limit r
 
 
 comment ON COLUMN "game_logic"."rate_limit_log"."action" IS 'Action being rate limited (e.g., start_game, play_turn)';
-
--- --------------------------------------------------------------------------
--- public/tables/app_settings.sql
--- --------------------------------------------------------------------------
-
--- Table: app_settings
--- Schema: public
--- Description: Stores application configuration including LLM prompts
--- Table Definition
-CREATE TABLE IF NOT EXISTS "public"."app_settings" (
-  "key" "text" NOT NULL,
-  "value" "text" NOT NULL,
-  "description" "text",
-  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
-  PRIMARY KEY ("key")
-);
-
-
-ALTER TABLE "public"."app_settings" owner TO "postgres";
-
-
--- RLS Policies
-ALTER TABLE "public"."app_settings" enable ROW level security;
-
-
-DROP POLICY if EXISTS "App settings are readable by everyone" ON "public"."app_settings";
-
-
-DROP POLICY if EXISTS "Service role can manage app settings" ON "public"."app_settings";
-
-
-CREATE POLICY "App settings are readable by everyone" ON "public"."app_settings" FOR
-SELECT
-  USING (TRUE);
-
-
-CREATE POLICY "Service role can manage app settings" ON "public"."app_settings" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
-WITH
-  CHECK (("auth"."role" () = 'service_role'::"text"));
-
-
--- Comments
-comment ON TABLE "public"."app_settings" IS 'Application configuration settings including LLM system prompts';
-
-
-comment ON COLUMN "public"."app_settings"."key" IS 'Configuration key (e.g., question_generation_system_prompt)';
-
-
-comment ON COLUMN "public"."app_settings"."value" IS 'Configuration value (e.g., system prompt text)';
-
-
-comment ON COLUMN "public"."app_settings"."description" IS 'Human-readable description of the setting';
-
--- --------------------------------------------------------------------------
--- public/tables/config.sql
--- --------------------------------------------------------------------------
-
--- Table: config
--- Schema: public
--- Description: Client-visible configuration settings
--- Table Definition
-CREATE TABLE IF NOT EXISTS "public"."config" (
-  "key" "text" NOT NULL,
-  "value" "jsonb" NOT NULL,
-  "description" "text",
-  "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT "now" () NOT NULL,
-  PRIMARY KEY ("key")
-);
-
-
-ALTER TABLE "public"."config" owner TO "postgres";
-
-
--- RLS Policies
-ALTER TABLE "public"."config" enable ROW level security;
-
-
-DROP POLICY if EXISTS "Public config is readable by everyone" ON "public"."config";
-
-
-DROP POLICY if EXISTS "Service role can manage public config" ON "public"."config";
-
-
-CREATE POLICY "Public config is readable by everyone" ON "public"."config" FOR
-SELECT
-  USING (TRUE);
-
-
-CREATE POLICY "Service role can manage public config" ON "public"."config" FOR ALL USING (("auth"."role" () = 'service_role'::"text"))
-WITH
-  CHECK (("auth"."role" () = 'service_role'::"text"));
-
-
--- Comments
-comment ON TABLE "public"."config" IS 'Client-visible configuration settings (e.g., game.max_turns)';
-
-
-comment ON COLUMN "public"."config"."key" IS 'Configuration key (e.g., game.max_turns)';
-
-
-comment ON COLUMN "public"."config"."value" IS 'Configuration value as JSON';
-
-
-comment ON COLUMN "public"."config"."description" IS 'Human-readable description of the setting';
 
 -- --------------------------------------------------------------------------
 -- public/tables/zz_place_traits.sql
@@ -1638,82 +1456,6 @@ Parameters:
 Returns: Updated JSONB array with adjusted confidence scores';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/algorithm/adjust_score.sql
--- --------------------------------------------------------------------------
-
--- Function: adjust_score
--- Category: algorithm
--- Purpose: Adjust candidate score based on answer using power-law scaling
--- Spec: openspec/specs/algorithm/spec.md#score-adjustment
-CREATE OR REPLACE FUNCTION "game_logic"."adjust_score" (
-  p_current_score FLOAT,
-  p_match_strength FLOAT,
-  p_match_zone TEXT,
-  p_answer TEXT, -- 'yes', 'no', 'not_sure'
-  p_base_weight FLOAT DEFAULT 0.3,
-  p_beta FLOAT DEFAULT 1.5
-) returns FLOAT language plpgsql immutable
-SET
-  search_path = public,
-  game_logic AS $$
-DECLARE
-  v_magnitude FLOAT;
-  v_adjustment FLOAT;
-BEGIN
-  -- Not sure = no adjustment
-  IF p_answer = 'not_sure' THEN
-    RETURN p_current_score;
-  END IF;
-  
-  -- Calculate adjustment magnitude with power-law scaling
-  -- magnitude = base_weight * match_strength^beta
-  v_magnitude := p_base_weight * power(p_match_strength, p_beta);
-  
-  -- Determine adjustment direction based on answer and match zone
-  IF p_answer = 'yes' THEN
-    IF p_match_zone IN ('STRONG', 'PARTIAL') THEN
-      -- YES + strong/partial match = boost (place has affirmed trait)
-      v_adjustment := v_magnitude;
-    ELSE
-      -- YES + weak match = penalty (place lacks affirmed trait)
-      v_adjustment := -v_magnitude;
-    END IF;
-  ELSIF p_answer = 'no' THEN
-    IF p_match_zone IN ('STRONG', 'PARTIAL') THEN
-      -- NO + strong/partial match = penalty (place has denied trait)
-      v_adjustment := -v_magnitude;
-    ELSE
-      -- NO + weak match = boost (place correctly lacks denied trait)
-      v_adjustment := v_magnitude * 0.5;  -- Smaller boost for "doesn't have"
-    END IF;
-  ELSE
-    v_adjustment := 0;
-  END IF;
-  
-  RETURN p_current_score + v_adjustment;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."adjust_score" (FLOAT, FLOAT, TEXT, TEXT, FLOAT, FLOAT) owner TO postgres;
-
-
-comment ON function "game_logic"."adjust_score" (FLOAT, FLOAT, TEXT, TEXT, FLOAT, FLOAT) IS 'Adjusts candidate score based on answer using power-law scaling.
-
-Formula: magnitude = base_weight * match_strength^beta
-
-Adjustment rules:
-- YES + STRONG/PARTIAL match: positive (boost - place has affirmed trait)
-- YES + WEAK match: negative (penalty - place lacks affirmed trait)
-- NO + STRONG/PARTIAL match: negative (penalty - place has denied trait)
-- NO + WEAK match: positive (boost - place correctly lacks denied trait)
-- NOT SURE: no adjustment
-
-Parameters:
-- p_base_weight: Base weight for adjustments (default 0.3)
-- p_beta: Power-law exponent (default 1.5)';
-
--- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/apply_softmax_to_candidates.sql
 -- --------------------------------------------------------------------------
 
@@ -1885,56 +1627,6 @@ Configuration keys (with defaults):
 Returns: FLOAT threshold value (clamped between floor and ceiling)';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/algorithm/calculate_split_quality.sql
--- --------------------------------------------------------------------------
-
--- Function: calculate_split_quality
--- Category: algorithm
--- Purpose: Calculate how evenly a question splits candidates
--- Spec: openspec/specs/algorithm/spec.md#question-split-quality
-CREATE OR REPLACE FUNCTION "game_logic"."calculate_split_quality" (p_matching_count INT, p_total_count INT) returns FLOAT language plpgsql immutable
-SET
-  search_path = public,
-  game_logic AS $$
-DECLARE
-  v_fraction FLOAT;
-BEGIN
-  -- Edge cases
-  IF p_total_count <= 0 THEN
-    RETURN 0;
-  END IF;
-  
-  IF p_total_count = 1 THEN
-    RETURN 0;  -- Can't split a single candidate
-  END IF;
-  
-  -- Calculate fraction matching
-  v_fraction := p_matching_count::FLOAT / p_total_count::FLOAT;
-  
-  -- Split quality = 1 - |0.5 - fraction|
-  -- 0.5 fraction = 1.0 quality (perfect split)
-  -- 0.0 or 1.0 fraction = 0.5 quality (useless question)
-  RETURN 1 - abs(0.5 - v_fraction);
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."calculate_split_quality" (INT, INT) owner TO postgres;
-
-
-comment ON function "game_logic"."calculate_split_quality" (INT, INT) IS 'Calculates how evenly a question splits candidates.
-
-Formula: split_quality = 1 - |0.5 - fraction|
-Where: fraction = matching_count / total_count
-
-Quality interpretation:
-- 1.0: Perfect split (50% match)
-- 0.75: Good split (25% or 75% match)
-- 0.5: Useless question (0% or 100% match)
-
-Returns value between 0.5 and 1.0.';
-
--- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/confidence_metrics.sql
 -- --------------------------------------------------------------------------
 
@@ -2015,82 +1707,6 @@ Returns:
   - 1 = maximum uncertainty (uniform distribution)
 
 Used by should_guess() to determine if confidence thresholds are met.';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/algorithm/filter_by_geography.sql
--- --------------------------------------------------------------------------
-
--- Function: filter_candidates_by_geography
--- Category: algorithm
--- Purpose: Filter candidates via PostGIS for geographic YES/NO answers
--- Spec: openspec/specs/algorithm/spec.md#spatial-filtering
-CREATE OR REPLACE FUNCTION "game_logic"."filter_candidates_by_geography" (
-  p_candidates JSONB,
-  p_region_id UUID,
-  p_answer TEXT -- 'yes' or 'no'
-) returns JSONB language plpgsql
-SET
-  search_path = public,
-  game_logic,
-  extensions AS $$
-DECLARE
-  v_region_geom geometry;
-  v_filtered JSONB := '[]'::JSONB;
-  v_candidate JSONB;
-  v_place_geom geometry;
-  v_contains BOOLEAN;
-BEGIN
-  -- Get region geometry
-  SELECT geom INTO v_region_geom
-  FROM geographic_regions
-  WHERE id = p_region_id;
-  
-  IF v_region_geom IS NULL THEN
-    RAISE EXCEPTION 'Geographic region % not found', p_region_id;
-  END IF;
-  
-  -- Filter each candidate
-  FOR v_candidate IN SELECT * FROM jsonb_array_elements(p_candidates)
-  LOOP
-    -- Get place geometry
-    SELECT geom INTO v_place_geom
-    FROM places
-    WHERE id = (v_candidate->>'id')::UUID;
-    
-    IF v_place_geom IS NOT NULL THEN
-      -- Check if region contains place
-      v_contains := ST_Contains(v_region_geom, v_place_geom);
-      
-      -- YES answer: keep places IN the region
-      -- NO answer: keep places NOT IN the region
-      IF (p_answer = 'yes' AND v_contains) OR (p_answer = 'no' AND NOT v_contains) THEN
-        v_filtered := v_filtered || v_candidate;
-      END IF;
-    END IF;
-  END LOOP;
-  
-  RETURN v_filtered;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."filter_candidates_by_geography" (JSONB, UUID, TEXT) owner TO postgres;
-
-
-comment ON function "game_logic"."filter_candidates_by_geography" (JSONB, UUID, TEXT) IS 'Filters candidates via PostGIS for geographic answers.
-
-Geographic YES answer:
-- candidates = filter(ST_Contains(region, place.geom))
-
-Geographic NO answer:  
-- candidates = filter(NOT ST_Contains(region, place.geom))
-
-Parameters:
-- p_candidates: JSONB array of candidates with id field
-- p_region_id: Geographic region UUID
-- p_answer: ''yes'' or ''no''
-
-Returns: Filtered JSONB array of candidates';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/algorithm/filter_candidates_for_geography.sql
@@ -2427,66 +2043,6 @@ Parameters:
 Returns: Array of probabilities that sum to 1.0
 
 Uses numerical stability trick: subtracts max score before exp to prevent overflow.';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/algorithm/trait_match_strength.sql
--- --------------------------------------------------------------------------
-
--- Function: calculate_trait_match_strength
--- Category: algorithm
--- Purpose: Calculate match strength and zone for trait-place pairs
--- Spec: openspec/specs/algorithm/spec.md#trait-match-scoring
-CREATE OR REPLACE FUNCTION "game_logic"."calculate_trait_match_strength" (
-  p_place_embedding extensions.vector (384),
-  p_trait_embedding extensions.vector (384),
-  p_strong_threshold FLOAT DEFAULT 0.7,
-  p_partial_threshold FLOAT DEFAULT 0.5
-) returns TABLE (match_strength FLOAT, match_zone TEXT) language plpgsql immutable
-SET
-  search_path = public,
-  game_logic,
-  extensions AS $$
-DECLARE
-  v_similarity FLOAT;
-BEGIN
-  -- Calculate cosine similarity (1 - cosine distance)
-  v_similarity := 1 - (p_place_embedding <=> p_trait_embedding);
-  
-  -- Determine match zone
-  RETURN QUERY SELECT 
-    v_similarity,
-    CASE
-      WHEN v_similarity >= p_strong_threshold THEN 'STRONG'
-      WHEN v_similarity >= p_partial_threshold THEN 'PARTIAL'
-      ELSE 'WEAK'
-    END AS match_zone;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."calculate_trait_match_strength" (
-  extensions.vector (384),
-  extensions.vector (384),
-  FLOAT,
-  FLOAT
-) owner TO postgres;
-
-
-comment ON function "game_logic"."calculate_trait_match_strength" (
-  extensions.vector (384),
-  extensions.vector (384),
-  FLOAT,
-  FLOAT
-) IS 'Calculates match strength between place and trait embeddings.
-
-Match zones:
-- STRONG: match_strength >= strong_threshold (default 0.7)
-- PARTIAL: match_strength >= partial_threshold (default 0.5)
-- WEAK: below partial_threshold
-
-Returns:
-- match_strength: cosine similarity (0-1)
-- match_zone: STRONG, PARTIAL, or WEAK';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/decide_next_turn.sql
@@ -3501,51 +3057,6 @@ Geometry handling:
 Returns: place_id (UUID)';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/places/approve_pending_place.sql
--- --------------------------------------------------------------------------
-
--- Function: approve_pending_place
--- Category: places
--- Purpose: Admin function to approve pending places (placeholder)
--- NOTE: Places don't have pending_review - sessions do. This function is for
--- direct place approval in case we add pending_review to places in future.
--- Currently returns success for any existing place.
-CREATE OR REPLACE FUNCTION "game_logic"."approve_pending_place" ("p_place_id" "uuid") returns "jsonb" language "plpgsql" security definer
-SET
-  search_path = public,
-  game_logic AS $$
-DECLARE
-  v_place RECORD;
-BEGIN
-  -- Get place
-  SELECT * INTO v_place FROM places WHERE id = p_place_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Place not found: %', p_place_id;
-  END IF;
-
-  -- Place exists - return success
-  -- NOTE: Places table does not have pending_review column currently.
-  -- Anonymous submissions go through game_sessions.pending_review instead.
-  -- This function is kept for future extensibility.
-  
-  RETURN jsonb_build_object(
-    'status', 'approved',
-    'place_id', p_place_id,
-    'name', v_place.name
-  );
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."approve_pending_place" ("p_place_id" "uuid") owner TO "postgres";
-
-
-comment ON function "game_logic"."approve_pending_place" ("p_place_id" "uuid") IS 'Admin function for place approval.
-NOTE: Currently places do not have pending_review - that is on game_sessions.
-Use approve_pending_session trigger for anonymous submission approval.
-This function returns success for any existing place.';
-
--- --------------------------------------------------------------------------
 -- game_logic/functions/places/enrich_place.sql
 -- --------------------------------------------------------------------------
 
@@ -3671,129 +3182,6 @@ Parameters:
 - p_place_id: The place that was correctly guessed
 
 Returns: JSONB with learning statistics';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/places/match_places.sql
--- --------------------------------------------------------------------------
-
--- Function: match_places
--- Category: places
--- Purpose: Find places matching query embedding with geographic filters
--- Uses embedding_id FK to embeddings table (not direct embedding column)
-CREATE OR REPLACE FUNCTION "game_logic"."match_places" (
-  "query_embedding" "extensions"."vector",
-  "constraint_text" "text" DEFAULT NULL::"text",
-  "filters" "jsonb" DEFAULT '{}'::"jsonb",
-  "match_threshold" DOUBLE PRECISION DEFAULT 0.1,
-  "match_count" INTEGER DEFAULT 20
-) returns TABLE (
-  "id" "uuid",
-  "name" "text",
-  "lat" DOUBLE PRECISION,
-  "lng" DOUBLE PRECISION,
-  "descriptors" "jsonb",
-  "semantic_similarity" DOUBLE PRECISION,
-  "spatial_confidence" DOUBLE PRECISION,
-  "composite_confidence" DOUBLE PRECISION
-) language "plpgsql"
-SET
-  search_path = public,
-  game_logic,
-  extensions AS $$
-DECLARE
-  centroid_geom geometry;
-  max_distance float;
-  spatial_score float;
-  effective_embedding vector(384);
-BEGIN
-  effective_embedding := query_embedding;
-
-  CREATE TEMP TABLE temp_candidates AS
-  SELECT
-    p.id,
-    p.name,
-    p.lat,
-    p.lng,
-    NULL::jsonb as descriptors,  -- places table doesn't have descriptors column
-    p.geom,
-    1 - (e.embedding <=> effective_embedding) as sem_similarity
-  FROM places p
-  JOIN embeddings e ON e.id = p.embedding_id
-  WHERE p.embedding_id IS NOT NULL
-    AND p.geom IS NOT NULL
-    AND 1 - (e.embedding <=> effective_embedding) > match_threshold
-    -- Apply geographic filters from filters parameter
-    AND (
-      filters IS NULL
-      OR NOT (filters ? 'include_bbox')
-      OR (
-        filters->>'include_bbox' IS NULL
-        OR ST_Within(
-          p.geom,
-          ST_MakeEnvelope(
-            (filters->'include_bbox'->0)::text::float,
-            (filters->'include_bbox'->1)::text::float,
-            (filters->'include_bbox'->2)::text::float,
-            (filters->'include_bbox'->3)::text::float,
-            4326
-          )
-        )
-      )
-    )
-    AND (
-      filters IS NULL
-      OR NOT (filters ? 'exclude_bbox')
-      OR (
-        filters->>'exclude_bbox' IS NULL
-        OR NOT ST_Within(
-          p.geom,
-          ST_MakeEnvelope(
-            (filters->'exclude_bbox'->0)::text::float,
-            (filters->'exclude_bbox'->1)::text::float,
-            (filters->'exclude_bbox'->2)::text::float,
-            (filters->'exclude_bbox'->3)::text::float,
-            4326
-          )
-        )
-      )
-    )
-  ORDER BY e.embedding <=> effective_embedding, p.id
-  LIMIT match_count;
-
-  SELECT ST_Centroid(ST_Collect(geom)) INTO centroid_geom
-  FROM temp_candidates;
-
-  SELECT MAX(ST_Distance(geom::geography, centroid_geom::geography)) INTO max_distance
-  FROM temp_candidates;
-
-  IF max_distance IS NULL OR max_distance = 0 THEN
-    spatial_score := 1.0;
-  ELSIF max_distance <= 50000 THEN
-    spatial_score := 1.0;
-  ELSIF max_distance <= 200000 THEN
-    spatial_score := 0.7 + (0.3 * (1 - (max_distance - 50000) / 150000));
-  ELSIF max_distance <= 500000 THEN
-    spatial_score := 0.3 + (0.4 * (1 - (max_distance - 200000) / 300000));
-  ELSE
-    spatial_score := 0.2 * (1 - LEAST((max_distance - 500000) / 5000000, 1));
-  END IF;
-
-  RETURN QUERY
-  SELECT
-    tc.id,
-    tc.name,
-    tc.lat,
-    tc.lng,
-    tc.descriptors,
-    tc.sem_similarity::float as semantic_similarity,
-    spatial_score::float as spatial_confidence,
-    (tc.sem_similarity * 0.95 + spatial_score * 0.05)::float as composite_confidence
-  FROM temp_candidates tc
-  ORDER BY (tc.sem_similarity * 0.95 + spatial_score * 0.05) DESC, tc.id;
-
-  DROP TABLE temp_candidates;
-END;
-$$;
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/places/update_place_traits.sql
@@ -4120,26 +3508,25 @@ BEGIN
       ST_GeomFromText((c->>'geom_wkt')::text, 4326) as geom
     FROM jsonb_array_elements(p_candidates) c
   ),
-  region_splits AS (
-    -- Calculate how each region splits the candidates
-    SELECT
-      gr.id,
-      gr.name,
-      gr.level,
-      COALESCE(qs.effectiveness_score, 0.5) as effectiveness_score,
-      COALESCE(qs.times_asked, 0) as times_asked,
-      -- Count candidates that intersect with region (YES answers)
-      COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom)) as yes_count,
-      -- Count candidates that don't intersect with region (NO answers)
-      COUNT(*) FILTER (WHERE NOT ST_Intersects(cg.geom, gr.geom)) as no_count,
-      -- Information gain: 1.0 = perfect 50/50 split, 0.0 = all yes or all no
-      CASE 
-        WHEN COUNT(*) = 0 THEN 0.0
-        ELSE 1.0 - ABS(0.5 - (COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom))::float / COUNT(*)))
-      END as information_gain
-    FROM geographic_regions gr
-    CROSS JOIN candidate_geoms cg
-    LEFT JOIN game_logic.question_stats qs ON qs.geographic_region_id = gr.id
+   region_splits AS (
+     -- Calculate how each region splits the candidates
+     SELECT
+       gr.id,
+       gr.name,
+       gr.level,
+       0.5::DOUBLE PRECISION as effectiveness_score,
+       0::INTEGER as times_asked,
+       -- Count candidates that intersect with region (YES answers)
+       COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom)) as yes_count,
+       -- Count candidates that don't intersect with region (NO answers)
+       COUNT(*) FILTER (WHERE NOT ST_Intersects(cg.geom, gr.geom)) as no_count,
+       -- Information gain: 1.0 = perfect 50/50 split, 0.0 = all yes or all no
+       CASE 
+         WHEN COUNT(*) = 0 THEN 0.0
+         ELSE 1.0 - ABS(0.5 - (COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom))::float / COUNT(*)))
+       END as information_gain
+     FROM geographic_regions gr
+     CROSS JOIN candidate_geoms cg
     WHERE
       -- Don't ask same region twice
       gr.id NOT IN (
@@ -4162,7 +3549,7 @@ BEGIN
           WHERE ST_Intersects(confirmed_geom, gr.geom)
         )
       )
-    GROUP BY gr.id, gr.name, gr.level, qs.effectiveness_score, qs.times_asked
+     GROUP BY gr.id, gr.name, gr.level
     HAVING 
       -- CRITICAL: Only return regions that actually SPLIT the candidates
       COUNT(*) FILTER (WHERE ST_Intersects(cg.geom, gr.geom)) > 0  -- Some YES
@@ -4352,134 +3739,6 @@ Orders by:
 
 Returns: trait info + yes_count, no_count, split_quality for analysis.
 Question text is generated on-the-fly by LLM from trait clauses.';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/questions/update_question_effectiveness_batch.sql
--- --------------------------------------------------------------------------
-
--- Function: update_question_effectiveness_batch
--- Category: questions
--- Updates game_logic.question_stats based on game performance
-CREATE OR REPLACE FUNCTION "game_logic"."update_question_effectiveness_batch" ("session_id_param" "uuid") returns "void" language "plpgsql" security definer
-SET
-  search_path = public,
-  game_logic AS $$
-DECLARE
-  answer_record RECORD;
-  v_stat_id UUID;
-  v_question_type question_type;
-  precision_gain FLOAT;
-  survival INT;
-  score_delta FLOAT;
-  new_effectiveness_score FLOAT;
-  session_was_correct BOOLEAN;
-BEGIN
-  -- Only update effectiveness for successful/won sessions
-  SELECT gs.was_correct INTO session_was_correct
-  FROM game_sessions gs
-  WHERE gs.id = session_id_param;
-
-  -- Skip update if session was not won
-  IF session_was_correct != TRUE THEN
-    RETURN;
-  END IF;
-
-  FOR answer_record IN
-    SELECT
-      ga.trait_id,
-      ga.geographic_region_id,
-      ga.candidates::jsonb->'before_count' AS candidates_before_count,
-      ga.candidates::jsonb->'after_count' AS candidates_after_count,
-      ga.candidates::jsonb->'correct_survived' AS correct_place_survived
-    FROM game_answers ga
-    WHERE ga.session_id = session_id_param
-      AND (ga.trait_id IS NOT NULL OR ga.geographic_region_id IS NOT NULL)
-    ORDER BY ga.created_at ASC
-  LOOP
-    -- Determine question type
-    v_question_type := CASE
-      WHEN answer_record.trait_id IS NOT NULL THEN 'semantic'
-      WHEN answer_record.geographic_region_id IS NOT NULL THEN 'geographic'
-    END;
-
-    -- Find or create game_logic.question_stats entry
-    IF v_question_type = 'semantic' THEN
-      SELECT id INTO v_stat_id
-      FROM game_logic.question_stats
-      WHERE trait_id = answer_record.trait_id;
-      
-      IF v_stat_id IS NULL THEN
-        INSERT INTO game_logic.question_stats (question_type, trait_id)
-        VALUES ('semantic', answer_record.trait_id)
-        RETURNING id INTO v_stat_id;
-      END IF;
-    ELSE
-      SELECT id INTO v_stat_id
-      FROM game_logic.question_stats
-      WHERE geographic_region_id = answer_record.geographic_region_id;
-      
-      IF v_stat_id IS NULL THEN
-        INSERT INTO game_logic.question_stats (question_type, geographic_region_id)
-        VALUES ('geographic', answer_record.geographic_region_id)
-        RETURNING id INTO v_stat_id;
-      END IF;
-    END IF;
-
-    -- Calculate precision gain
-    precision_gain := (
-      (answer_record.candidates_before_count::TEXT::INT - answer_record.candidates_after_count::TEXT::INT)::FLOAT 
-      / GREATEST(1.0, answer_record.candidates_before_count::TEXT::INT::FLOAT)
-    );
-
-    -- Determine survival
-    survival := CASE WHEN answer_record.correct_place_survived::TEXT::BOOLEAN THEN 1 ELSE -1 END;
-
-    -- Calculate score delta
-    score_delta := 0.04 * precision_gain * survival;
-
-    -- Apply bonus/penalty adjustments
-    IF precision_gain >= 0.30 AND survival = 1 THEN
-      score_delta := score_delta + 0.01;
-    END IF;
-
-    IF precision_gain < 0.05 THEN
-      score_delta := score_delta - 0.02;
-    END IF;
-
-    -- Get current effectiveness and calculate new value
-    SELECT effectiveness_score INTO new_effectiveness_score
-    FROM game_logic.question_stats
-    WHERE id = v_stat_id;
-
-    new_effectiveness_score := new_effectiveness_score + score_delta;
-
-    -- Clamp to valid range [0.0, 1.0]
-    new_effectiveness_score := LEAST(1.0, GREATEST(0.0, new_effectiveness_score));
-
-    -- Update the stats
-    UPDATE game_logic.question_stats
-    SET
-      times_asked = times_asked + 1,
-      effectiveness_score = new_effectiveness_score
-    WHERE id = v_stat_id;
-  END LOOP;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."update_question_effectiveness_batch" ("session_id_param" "uuid") owner TO "postgres";
-
-
-comment ON function "game_logic"."update_question_effectiveness_batch" ("session_id_param" "uuid") IS 'Enhanced effectiveness update for v2 using precision-gain formula from PRD.
-Formula:
-  precision_gain = (before - after) / greatest(1, before)
-  survival = CASE WHEN correct_place_survived THEN 1 ELSE -1 END
-  score_delta = 0.04 * precision_gain * survival
-  IF precision_gain >= 0.30 AND survival = 1 THEN score_delta += 0.01
-  IF precision_gain < 0.05 THEN score_delta -= 0.02
-  effectiveness_score = clamp(effectiveness_score + score_delta, 0.0, 1.0)
-
-Also increments times_asked for each question used in the session.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/record_game_answer.sql
@@ -4689,37 +3948,6 @@ Parameters:
 - answer: expected result (TRUE for filter should pass, FALSE for inverted)
 
 Returns TRUE if the filter condition matches the expected answer.';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/utilities/approve_pending_session.sql
--- --------------------------------------------------------------------------
-
--- Function: approve_pending_session
--- Category: utilities
--- Purpose: Trigger to process approved place submissions
--- When pending_review changes from TRUE to FALSE on places, marks place as approved
-CREATE OR REPLACE FUNCTION "game_logic"."approve_pending_session" () returns "trigger" language "plpgsql" security definer
-SET
-  search_path = public,
-  game_logic AS $$
-BEGIN
-  -- Only fire when pending_review becomes false
-  IF OLD.pending_review = TRUE AND NEW.pending_review = FALSE THEN
-    -- Place is now approved - no additional action needed
-    -- The place record already exists with all required data
-    NULL;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."approve_pending_session" () owner TO "postgres";
-
-
-comment ON function "game_logic"."approve_pending_session" () IS 'Trigger function for processing approved place submissions.
-When places.pending_review changes from TRUE to FALSE, the place is marked as approved.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/archive_trait_queue_by_place.sql
@@ -5472,32 +4700,6 @@ Parameters:
 Returns immediately - trait extraction happens asynchronously.';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/utilities/enrich_place_on_approval.sql
--- --------------------------------------------------------------------------
-
--- Function: enrich_place_on_approval
--- Category: utilities
--- Dependencies: See migration files for full dependency chain
--- This file is auto-generated from migrations
-CREATE OR REPLACE FUNCTION "game_logic"."enrich_place_on_approval" () returns "trigger" language "plpgsql"
-SET
-  search_path = public,
-  game_logic AS $$
-BEGIN
-  -- Only fire when pending_review becomes FALSE
-  IF OLD.pending_review = TRUE AND NEW.pending_review = FALSE THEN
-    -- Run enrichment
-    PERFORM enrich_place(NEW.id);
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."enrich_place_on_approval" () owner TO "postgres";
-
--- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/enrich_place_on_session_complete.sql
 -- --------------------------------------------------------------------------
 
@@ -5947,94 +5149,6 @@ Parameters:
 Returns: Natural language question text in the requested language.';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/utilities/geo_region_for.sql
--- --------------------------------------------------------------------------
-
--- Function: geo_region_for
--- Category: utilities
--- Purpose: Map geographic feature values to standard bounding boxes (SRID 4326)
--- Returns JSONB with bbox array [min_lat, max_lat, min_lng, max_lng]
-CREATE OR REPLACE FUNCTION "game_logic"."geo_region_for" ("p_feature_value" "text") returns "jsonb" language plpgsql security definer
-SET
-  search_path = public,
-  game_logic AS $$
-DECLARE
-  v_bbox JSONB;
-BEGIN
-  -- Map geographic feature values to standard bounding boxes
-  -- Format: [min_lat, max_lat, min_lng, max_lng] in SRID 4326
-  v_bbox := CASE LOWER(p_feature_value)
-    -- Continents
-    WHEN 'europe' THEN jsonb_build_object('bbox', jsonb_build_array(35, 71, -10, 40))
-    WHEN 'asia' THEN jsonb_build_object('bbox', jsonb_build_array(-10, 77, 26, 180))
-    WHEN 'americas' THEN jsonb_build_object('bbox', jsonb_build_array(-56, 85, -170, -35))
-    WHEN 'africa' THEN jsonb_build_object('bbox', jsonb_build_array(-35, 37, -18, 52))
-    WHEN 'oceania' THEN jsonb_build_object('bbox', jsonb_build_array(-47, -10, 113, 180))
-    WHEN 'north america' THEN jsonb_build_object('bbox', jsonb_build_array(15, 85, -170, -50))
-    WHEN 'south america' THEN jsonb_build_object('bbox', jsonb_build_array(-56, 13, -82, -35))
-    
-    -- European countries
-    WHEN 'france' THEN jsonb_build_object('bbox', jsonb_build_array(41.5, 51.5, -8, 8))
-    WHEN 'uk' THEN jsonb_build_object('bbox', jsonb_build_array(50, 59, -8, 2))
-    WHEN 'united kingdom' THEN jsonb_build_object('bbox', jsonb_build_array(50, 59, -8, 2))
-    WHEN 'germany' THEN jsonb_build_object('bbox', jsonb_build_array(47, 56, 6, 16))
-    WHEN 'italy' THEN jsonb_build_object('bbox', jsonb_build_array(36, 47, 6, 19))
-    WHEN 'spain' THEN jsonb_build_object('bbox', jsonb_build_array(36, 44, -10, 4))
-    WHEN 'portugal' THEN jsonb_build_object('bbox', jsonb_build_array(37, 42, -10, -6))
-    WHEN 'netherlands' THEN jsonb_build_object('bbox', jsonb_build_array(50.5, 53.5, 3, 8))
-    WHEN 'belgium' THEN jsonb_build_object('bbox', jsonb_build_array(49.5, 51.5, 2, 6))
-    WHEN 'switzerland' THEN jsonb_build_object('bbox', jsonb_build_array(45, 48, 5, 11))
-    WHEN 'austria' THEN jsonb_build_object('bbox', jsonb_build_array(46.5, 49, 9, 17))
-    WHEN 'czech republic' THEN jsonb_build_object('bbox', jsonb_build_array(48, 51, 12, 19))
-    WHEN 'poland' THEN jsonb_build_object('bbox', jsonb_build_array(49, 54, 14, 24))
-    WHEN 'sweden' THEN jsonb_build_object('bbox', jsonb_build_array(55, 70, 11, 25))
-    WHEN 'norway' THEN jsonb_build_object('bbox', jsonb_build_array(58, 71, 4, 32))
-    WHEN 'denmark' THEN jsonb_build_object('bbox', jsonb_build_array(54, 58, 8, 16))
-    WHEN 'greece' THEN jsonb_build_object('bbox', jsonb_build_array(35, 42, 19, 29))
-    WHEN 'hungary' THEN jsonb_build_object('bbox', jsonb_build_array(45.5, 48.5, 16, 23))
-    WHEN 'romania' THEN jsonb_build_object('bbox', jsonb_build_array(43.5, 48.5, 20, 30))
-    WHEN 'ireland' THEN jsonb_build_object('bbox', jsonb_build_array(51.5, 55.5, -11, -5))
-    WHEN 'scotland' THEN jsonb_build_object('bbox', jsonb_build_array(55, 59, -8, -2))
-    WHEN 'wales' THEN jsonb_build_object('bbox', jsonb_build_array(51.5, 53.5, -5, -2))
-    WHEN 'england' THEN jsonb_build_object('bbox', jsonb_build_array(50, 56, -6, 2))
-    
-    -- Default: return NULL if feature value not recognized
-    ELSE NULL
-  END;
-
-  RETURN v_bbox;
-EXCEPTION
-  WHEN others THEN
-    RAISE NOTICE 'Error in geo_region_for: %', SQLERRM;
-    RETURN NULL;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."geo_region_for" ("p_feature_value" "text") owner TO "postgres";
-
-
-comment ON function "game_logic"."geo_region_for" ("p_feature_value" "text") IS 'Maps geographic feature values to standard bounding boxes (SRID 4326).
-
-Parameters:
-- p_feature_value: Geographic feature value (e.g., "Europe", "France", "UK")
-
-Returns JSONB object with bbox array:
-{
-  "bbox": [min_lat, max_lat, min_lng, max_lng]
-}
-
-Supported values:
-- Continents: Europe, Asia, Americas, Africa, Oceania, North America, South America
-- European countries: France, UK, Germany, Italy, Spain, Portugal, Netherlands, Belgium, 
-  Switzerland, Austria, Czech Republic, Poland, Sweden, Norway, Denmark, Greece, Hungary, 
-  Romania, Ireland, Scotland, Wales, England
-
-Returns NULL if feature value not recognized.
-
-Used by generate_question to set geographic_region when question_type=''geographic''.';
-
--- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/get_config.sql
 -- --------------------------------------------------------------------------
 
@@ -6231,120 +5345,6 @@ Returns 5 if setting not found.
 Marked STABLE for query optimization.';
 
 -- --------------------------------------------------------------------------
--- game_logic/functions/utilities/http_call_edge_function.sql
--- --------------------------------------------------------------------------
-
--- Function: http_call_edge_function
--- Category: utilities
--- Purpose: Call Supabase Edge Functions from database using pg_net extension
-CREATE OR REPLACE FUNCTION "game_logic"."http_call_edge_function" (
-  p_function_name TEXT,
-  p_method TEXT DEFAULT 'POST',
-  p_headers JSONB DEFAULT '{}',
-  p_body JSONB DEFAULT '{}'
-) returns JSONB language plpgsql security definer
-SET
-  search_path = public,
-  extensions,
-  game_logic AS $$
-DECLARE
-  v_url TEXT;
-  v_auth_token TEXT;
-  v_response_body TEXT;
-  v_response_status INT;
-  v_result JSONB;
-BEGIN
-  -- Build Edge Function URL (from GUC vars or game_logic.config - NO hardcoded values)
-  v_url := COALESCE(
-    NULLIF(current_setting('app.supabase_url', true), ''),
-    get_config_text('runtime.supabase_url')
-  );
-  
-  IF v_url IS NULL THEN
-    RAISE EXCEPTION 'Missing configuration: app.supabase_url or runtime.supabase_url';
-  END IF;
-  
-  v_url := v_url || '/functions/v1/' || p_function_name;
-  
-  -- Get service role key for authentication (NO hardcoded secrets)
-  v_auth_token := COALESCE(
-    NULLIF(current_setting('app.service_role_key', true), ''),
-    get_config_text('runtime.supabase_service_role_key')
-  );
-  
-  IF v_auth_token IS NULL OR v_auth_token = '' THEN
-    RAISE EXCEPTION 'Missing configuration: app.service_role_key or runtime.supabase_service_role_key';
-  END IF;
-  
-  -- Add authorization header
-  p_headers := p_headers || jsonb_build_object(
-    'Authorization', 'Bearer ' || v_auth_token,
-    'Content-Type', 'application/json'
-  );
-  
-  -- Make HTTP request using pg_net
-  PERFORM net.http_post(
-    url := v_url,
-    headers := p_headers,
-    body := jsonb_build_object('data', p_body)::text
-  );
-  
-  -- Wait for response
-  SELECT 
-    body,
-    status
-  INTO v_response_body, v_response_status
-  FROM net.http_collect_response(
-    (SELECT id FROM net.http_request ORDER BY created_at DESC LIMIT 1)
-  );
-  
-  -- Check for HTTP errors
-  IF v_response_status < 200 OR v_response_status >= 300 THEN
-    RAISE EXCEPTION 'Edge function call failed: status %, body: %', v_response_status, v_response_body;
-  END IF;
-  
-  -- Parse and return JSON response
-  BEGIN
-    v_result := v_response_body::jsonb;
-  EXCEPTION WHEN others THEN
-    RAISE EXCEPTION 'Edge function returned invalid JSON: %', v_response_body;
-  END;
-  
-  RETURN v_result;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."http_call_edge_function" (
-  p_function_name TEXT,
-  p_method TEXT,
-  p_headers JSONB,
-  p_body JSONB
-) owner TO "postgres";
-
-
-comment ON function "game_logic"."http_call_edge_function" (
-  p_function_name TEXT,
-  p_method TEXT,
-  p_headers JSONB,
-  p_body JSONB
-) IS 'Call Supabase Edge Functions from database using pg_net extension.
-
-Requires pg_net extension and app settings:
-- app.supabase_url: Supabase project URL
-- app.service_role_key: Service role key for authentication
-
-Parameters:
-- p_function_name: Name of edge function (without path)
-- p_method: HTTP method (default: POST)
-- p_headers: Additional headers as JSONB
-- p_body: Request body as JSONB
-
-Returns: JSONB response from edge function
-
-Raises exception on HTTP errors or invalid JSON response.';
-
--- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/is_installed.sql
 -- --------------------------------------------------------------------------
 
@@ -6459,139 +5459,6 @@ BEGIN
   );
 END;
 $$;
-
--- --------------------------------------------------------------------------
--- game_logic/functions/utilities/update_embedding.sql
--- --------------------------------------------------------------------------
-
--- Function: update_embedding
--- Category: utilities
--- Updates existing embedding with new text
-CREATE OR REPLACE FUNCTION "game_logic"."update_embedding" ("p_id" UUID, "p_new_text" "text") returns void language "plpgsql" security definer
-SET
-  "search_path" = public,
-  game_logic,
-  extensions AS $$
-DECLARE
-  v_new_embedding vector(384);
-BEGIN
-  -- Generate new embedding
-  v_new_embedding := generate_embedding(p_new_text);
-
-  -- Update embedding record
-  UPDATE embeddings
-  SET
-    source_text = p_new_text,
-    embedding = v_new_embedding,
-    updated_at = now()
-  WHERE id = p_id;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Embedding with ID % not found', p_id;
-  END IF;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."update_embedding" ("p_id" UUID, "p_new_text" "text") owner TO "postgres";
-
-
-comment ON function "game_logic"."update_embedding" ("p_id" UUID, "p_new_text" "text") IS 'Updates existing embedding with new text. Regenerates embedding.';
-
--- --------------------------------------------------------------------------
--- game_logic/functions/utilities/update_place_embedding.sql
--- --------------------------------------------------------------------------
-
--- Function: update_place_embedding
--- Category: utilities
--- Purpose: Update place embedding using weighted average (learning)
--- Uses embedding_id FK to embeddings table (not direct embedding column)
-CREATE OR REPLACE FUNCTION "game_logic"."update_place_embedding" (
-  "place_id_param" "uuid",
-  "new_embedding" "extensions"."vector",
-  "learning_rate" DOUBLE PRECISION DEFAULT 0.3
-) returns "void" language "plpgsql" security definer
-SET
-  search_path = public,
-  game_logic,
-  extensions AS $$
-DECLARE
-  v_embedding_id uuid;
-  v_current_embedding vector(384);
-  v_current_count int;
-  v_weight float;
-  v_blended_embedding vector(384);
-BEGIN
-  -- Get current embedding_id and times_encountered from places
-  SELECT p.embedding_id, p.times_encountered 
-  INTO v_embedding_id, v_current_count
-  FROM places p
-  WHERE p.id = place_id_param;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Place not found: %', place_id_param;
-  END IF;
-
-  -- If place has no embedding yet, create one
-  IF v_embedding_id IS NULL THEN
-    INSERT INTO embeddings (embedding)
-    VALUES (new_embedding)
-    RETURNING id INTO v_embedding_id;
-    
-    UPDATE places
-    SET
-      embedding_id = v_embedding_id,
-      times_encountered = times_encountered + 1
-    WHERE id = place_id_param;
-    RETURN;
-  END IF;
-
-  -- Get current embedding from embeddings table
-  SELECT e.embedding INTO v_current_embedding
-  FROM embeddings e
-  WHERE e.id = v_embedding_id;
-
-  -- Calculate weight (decreases as times_encountered increases)
-  v_weight := learning_rate / (1.0 + v_current_count * 0.1);
-
-  -- Blend embeddings using weighted average
-  SELECT array_agg(
-    (1.0 - v_weight) * old_val + v_weight * new_val
-  )::vector(384)
-  INTO v_blended_embedding
-  FROM unnest(v_current_embedding::float[], new_embedding::float[]) AS t(old_val, new_val);
-
-  -- Update embedding in embeddings table
-  UPDATE embeddings
-  SET
-    embedding = v_blended_embedding,
-    updated_at = now()
-  WHERE id = v_embedding_id;
-
-  -- Bump times_encountered on place
-  UPDATE places
-  SET times_encountered = times_encountered + 1
-  WHERE id = place_id_param;
-END;
-$$;
-
-
-ALTER FUNCTION "game_logic"."update_place_embedding" (
-  "place_id_param" "uuid",
-  "new_embedding" "extensions"."vector",
-  "learning_rate" DOUBLE PRECISION
-) owner TO "postgres";
-
-
-comment ON function "game_logic"."update_place_embedding" (
-  "place_id_param" "uuid",
-  "new_embedding" "extensions"."vector",
-  "learning_rate" DOUBLE PRECISION
-) IS 'Updates a place''s embedding using weighted average (learning).
-Weight decreases as times_encountered increases.
-Uses 384-dimensional vectors (gte-small compatible per spec).
-Updates embedding via embedding_id FK to embeddings table.
-After update, bumps times_encountered counter.';
 
 -- --------------------------------------------------------------------------
 -- game_logic/functions/utilities/validate_user_input.sql
@@ -6953,7 +5820,7 @@ SELECT
     SELECT
       count(*)
     FROM
-      embeddings
+      game_logic.embeddings
   ) AS total_embeddings
 FROM
   game_sessions gs;

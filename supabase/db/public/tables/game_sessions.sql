@@ -35,7 +35,7 @@ ADD CONSTRAINT "game_sessions_place_id_fkey" FOREIGN key ("place_id") REFERENCES
 
 
 ALTER TABLE ONLY "public"."game_sessions"
-ADD CONSTRAINT "game_sessions_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "public"."embeddings" ("id") ON DELETE SET NULL;
+ADD CONSTRAINT "game_sessions_embedding_id_fkey" FOREIGN key ("embedding_id") REFERENCES "game_logic"."embeddings" ("id") ON DELETE SET NULL;
 
 
 -- Indexes
