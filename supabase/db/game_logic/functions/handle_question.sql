@@ -39,14 +39,6 @@ BEGIN
   -- Get softmax temperature from config
   v_temperature := COALESCE(get_config_float('scoring.temperature'), 1.0);
 
-  -- Update trait state (for trait arrays used by other functions)
-  PERFORM apply_answer_to_session_state(
-    p_session_record.id,
-    p_answer,
-    v_trait_id,
-    v_geographic_region_id
-  );
-
   -- Record answer with snapshot BEFORE adjustment
   PERFORM record_game_answer(
     p_session_record.id,

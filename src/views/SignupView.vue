@@ -1,15 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-
-interface Properties {
-  renderMode?: 'layers' | 'ui'
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _properties = withDefaults(defineProps<Properties>(), {
-  renderMode: 'ui',
-})
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
@@ -125,12 +116,8 @@ function goToLogin() {
 </script>
 
 <template>
-  <!-- No map layers for auth views -->
-  <template v-if="renderMode === 'layers'" />
-
   <!-- UI - Blurred backdrop overlay -->
   <div
-    v-else
     class="absolute inset-0 backdrop-blur-md bg-black/30 flex items-center justify-center pointer-events-none"
   >
     <div class="pointer-events-auto">
