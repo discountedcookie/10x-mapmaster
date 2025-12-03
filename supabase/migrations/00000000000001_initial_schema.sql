@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-03T03:49:31.597Z
+-- Generated: 2025-12-03T05:57:42.607Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 13, Functions: 63, Triggers: 1, Views: 4
 
@@ -1250,7 +1250,7 @@ BEGIN
   END IF;
 
   -- Ownership check (service_role may bypass)
-  IF auth.role() <> 'service_role' AND (v_session_record.user_id IS NULL OR v_session_record.user_id != auth.uid()) THEN
+  IF auth.role() <> 'service_role' AND v_session_record.user_id != auth.uid() THEN
     RAISE EXCEPTION 'Not authorized to modify this session';
   END IF;
 
@@ -6124,7 +6124,6 @@ BEGIN
     v_prompt_template := get_config_text('llm.question.trait_prompt');
     v_prompt := replace(v_prompt_template, '{trait_clause}', v_trait_clause);
     v_prompt := replace(v_prompt, '{language_code}', p_language_code);
-    v_prompt := replace(v_prompt, '{user_description}', COALESCE(p_user_description, ''));
     
   ELSIF p_region_id IS NOT NULL THEN
     SELECT name INTO v_region_name
@@ -6138,7 +6137,6 @@ BEGIN
     v_prompt_template := get_config_text('llm.question.region_prompt');
     v_prompt := replace(v_prompt_template, '{region_name}', v_region_name);
     v_prompt := replace(v_prompt, '{language_code}', p_language_code);
-    v_prompt := replace(v_prompt, '{user_description}', COALESCE(p_user_description, ''));
     
   ELSE
     RAISE EXCEPTION 'Either trait_id or region_id must be provided';
@@ -7033,8 +7031,7 @@ FROM
   game_sessions gs
   LEFT JOIN places wp ON gs.place_id = wp.id
 WHERE
-  gs.user_id = auth.uid ()
-  OR gs.user_id IS NULL;
+  gs.user_id = auth.uid ();
 
 
 ALTER VIEW "public"."game_session_state" owner TO "postgres";
@@ -7347,7 +7344,6 @@ FROM
   game_sessions gs
 WHERE
   gs.user_id = auth.uid ()
-  OR gs.user_id IS NULL
 GROUP BY
   gs.user_id;
 

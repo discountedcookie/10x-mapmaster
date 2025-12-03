@@ -5,9 +5,9 @@ SET
   client_min_messages = warning;
 
 
--- Plan: 19 tests
+-- Plan: 22 tests
 SELECT
-  plan (19);
+  plan (22);
 
 
 -- Clean up any pre-existing test data for isolation
@@ -153,7 +153,7 @@ SELECT
   );
 
 
--- Test 7: Anonymous users can insert anonymous sessions
+-- Test 7: Unauthenticated users cannot insert sessions (no auth.uid())
 SET
   local role anon;
 
@@ -171,7 +171,102 @@ SELECT
     $sql$ INSERT INTO game_sessions (user_id, description, language_code) VALUES (NULL, 'Anonymous test', 'en'); $sql$,
     '42501',
     'new row violates row-level security policy for table "game_sessions"',
-    'Anonymous users cannot create sessions without auth'
+    'Unauthenticated users cannot create sessions (NULL user_id rejected)'
+  );
+
+
+-- ===========================================================================
+-- UUID-BASED ANONYMOUS USER TESTS
+-- These tests verify that Supabase anon-auth users (who have a UUID via
+-- anonymous sign-in) can create and access sessions using their UUID.
+-- ===========================================================================
+
+-- Create test UUIDs for anonymous users (distinct from registered test users)
+-- Test 7a: Anonymous UUID user can create session with their user_id
+SET
+  local role authenticated;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '550e8400-e29b-41d4-a716-446655440003',
+    TRUE
+  );
+
+
+SELECT
+  lives_ok (
+    $sql$ INSERT INTO game_sessions (user_id, description, language_code) VALUES ('550e8400-e29b-41d4-a716-446655440003', 'Anonymous UUID user test', 'en'); $sql$,
+    'Anonymous UUID user can create session with their user_id'
+  );
+
+
+-- Test 7b: Anonymous UUID user can query their own sessions
+SET
+  local role authenticated;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '550e8400-e29b-41d4-a716-446655440003',
+    TRUE
+  );
+
+
+SELECT
+  IS (
+    (
+      SELECT
+        count(*)::INT
+      FROM
+        game_sessions
+      WHERE
+        user_id = '550e8400-e29b-41d4-a716-446655440003'
+    ),
+    1,
+    'Anonymous UUID user can see their own session'
+  );
+
+
+-- Test 7c: Different anonymous UUID users are isolated
+SET
+  local role authenticated;
+
+
+SELECT
+  set_config('request.jwt.claim.role', 'authenticated', TRUE);
+
+
+SELECT
+  set_config(
+    'request.jwt.claim.sub',
+    '550e8400-e29b-41d4-a716-446655440004',
+    TRUE
+  );
+
+
+SELECT
+  IS (
+    (
+      SELECT
+        count(*)::INT
+      FROM
+        game_sessions
+      WHERE
+        user_id = '550e8400-e29b-41d4-a716-446655440003'
+    ),
+    0,
+    'Anonymous UUID user cannot see other anonymous users sessions'
   );
 
 
