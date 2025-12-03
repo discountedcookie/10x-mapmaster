@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-03T03:19:59.322Z
+-- Generated: 2025-12-03T03:27:01.401Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 13, Functions: 63, Triggers: 1, Views: 4
 
@@ -2629,6 +2629,9 @@ BEGIN
   
   -- Convert scores to probability distribution using softmax
   v_probabilities := softmax_probabilities(v_confidence_scores, v_softmax_temperature);
+  
+  -- Apply softmax probabilities to candidates JSONB (adds 'probability' field)
+  v_candidates := apply_softmax_to_candidates(v_candidates, v_softmax_temperature);
   
   -- Calculate confidence metrics (top_prob, margin, normalized_entropy)
   SELECT * INTO v_confidence_metrics

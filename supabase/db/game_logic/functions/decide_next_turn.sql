@@ -73,6 +73,9 @@ BEGIN
   -- Convert scores to probability distribution using softmax
   v_probabilities := softmax_probabilities(v_confidence_scores, v_softmax_temperature);
   
+  -- Apply softmax probabilities to candidates JSONB (adds 'probability' field)
+  v_candidates := apply_softmax_to_candidates(v_candidates, v_softmax_temperature);
+  
   -- Calculate confidence metrics (top_prob, margin, normalized_entropy)
   SELECT * INTO v_confidence_metrics
   FROM calculate_confidence_metrics(v_probabilities);
