@@ -99,34 +99,27 @@ Deno.serve(async (request: Request) => {
       responseFormat = { type: 'json_object' }
     }
 
-    const response = await openai.chat.completions.create({
+    // Build request params - pass through all options directly
+    // OpenRouter accepts any valid parameter and ignores unsupported ones
+    const { stop, ...restOptions } = modelOptions
+    const requestParams: Record<string, unknown> = {
       model,
       messages,
-      temperature:
-        typeof modelOptions.temperature === 'number' ? modelOptions.temperature : undefined,
-      max_tokens:
-        typeof modelOptions.num_predict === 'number' ? modelOptions.num_predict : undefined,
-      top_p: typeof modelOptions.top_p === 'number' ? modelOptions.top_p : undefined,
-      stop:
-        Array.isArray(modelOptions.stop) && modelOptions.stop.length > 0
-          ? (modelOptions.stop as string[])
-          : undefined,
-      frequency_penalty:
-        typeof modelOptions.frequency_penalty === 'number'
-          ? modelOptions.frequency_penalty
-          : undefined,
-      presence_penalty:
-        typeof modelOptions.presence_penalty === 'number'
-          ? modelOptions.presence_penalty
-          : undefined,
-      // @ts-ignore - OpenRouter supports this but OpenAI SDK doesn't have it typed
-      repetition_penalty:
-        typeof modelOptions.repetition_penalty === 'number'
-          ? modelOptions.repetition_penalty
-          : undefined,
-      // @ts-ignore - response_format with json_schema
-      response_format: responseFormat,
-    })
+      ...restOptions,
+    }
+
+    // Only include stop if non-empty array
+    if (Array.isArray(stop) && stop.length > 0) {
+      requestParams.stop = stop
+    }
+
+    // Add response_format if configured
+    if (responseFormat) {
+      requestParams.response_format = responseFormat
+    }
+
+    // @ts-ignore - OpenRouter accepts additional params beyond OpenAI SDK types
+    const response = await openai.chat.completions.create(requestParams)
 
     const choice = response.choices?.[0]
     const content = choice?.message?.content

@@ -20,6 +20,8 @@ DECLARE
   v_language_code TEXT;
   v_user_description TEXT;
   v_generated_text TEXT;
+  v_question_count INT;
+  v_turn_number INT;
 BEGIN
   -- Get configuration values
   v_geographic_preference_threshold := get_config_float('questions.geographic_preference_threshold', 0.7);
@@ -31,6 +33,15 @@ BEGIN
   FROM game_sessions
   WHERE id = p_session_id;
   v_language_code := COALESCE(v_language_code, 'en');
+  
+  -- Count existing questions to determine turn number
+  -- Questions are stored in game_answers with trait_id or geographic_region_id set
+  -- Turn 1 = first question (no questions yet), turn 2 = second question, etc.
+  SELECT COUNT(*) INTO v_question_count
+  FROM game_answers ga
+  WHERE ga.session_id = p_session_id
+    AND (ga.trait_id IS NOT NULL OR ga.geographic_region_id IS NOT NULL);
+  v_turn_number := v_question_count + 1;
   
   -- Use algorithmic selection based on split_quality (per spec)
   -- select_best_question already filters out already-asked questions
@@ -56,7 +67,8 @@ BEGIN
       v_result.trait_id,
       v_result.geographic_region_id,
       v_language_code,
-      v_user_description
+      v_user_description,
+      v_turn_number
     );
     
     IF v_generated_text IS NULL OR v_generated_text = '' THEN

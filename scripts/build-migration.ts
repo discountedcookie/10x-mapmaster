@@ -35,6 +35,7 @@ const PUBLIC_FUNCTIONS_DIR = 'supabase/db/public/functions'
 const GAME_LOGIC_TABLES_DIR = 'supabase/db/game_logic/tables'
 const GAME_LOGIC_VIEWS_DIR = 'supabase/db/game_logic/views'
 const GAME_LOGIC_FUNCTIONS_DIR = 'supabase/db/game_logic/functions'
+const GAME_LOGIC_DATA_DIR = 'supabase/db/game_logic/data'
 const MIGRATIONS_DIR = 'supabase/migrations'
 const DEFAULT_DESCRIPTION = 'update_functions'
 
@@ -154,6 +155,17 @@ function findTriggerFiles(): string[] {
   }
 }
 
+function findDataFiles(): string[] {
+  try {
+    return readdirSync(GAME_LOGIC_DATA_DIR)
+      .filter((e) => e.endsWith('.sql'))
+      .map((e) => join(GAME_LOGIC_DATA_DIR, e))
+      .sort()
+  } catch {
+    return []
+  }
+}
+
 function readFile(filePath: string): string {
   try {
     return readFileSync(filePath, 'utf-8')
@@ -168,13 +180,14 @@ function generateDevelopmentMigrationContent(
   tableFiles: string[],
   functionFiles: string[],
   triggerFiles: string[],
-  viewFiles: string[]
+  viewFiles: string[],
+  dataFiles: string[]
 ): string {
   const timestamp = new Date().toISOString()
   let content = `-- Migration: Initial Schema and Functions\n`
   content += `-- Generated: ${timestamp}\n`
   content += `-- Mode: DEV (clean rebuild)\n`
-  content += `-- Schema: ${schemaFiles.length}, Tables: ${tableFiles.length}, Functions: ${functionFiles.length}, Triggers: ${triggerFiles.length}, Views: ${viewFiles.length}\n\n`
+  content += `-- Schema: ${schemaFiles.length}, Tables: ${tableFiles.length}, Functions: ${functionFiles.length}, Triggers: ${triggerFiles.length}, Views: ${viewFiles.length}, Data: ${dataFiles.length}\n\n`
 
   // Extensions
   if (schemaFiles.length > 0) {
@@ -221,6 +234,15 @@ function generateDevelopmentMigrationContent(
     }
   }
 
+  // Data (config, geographic regions, etc.)
+  if (dataFiles.length > 0) {
+    content += `-- ${'='.repeat(76)}\n-- DATA (CONFIG, GEOGRAPHIC REGIONS)\n-- ${'='.repeat(76)}\n\n`
+    for (const f of dataFiles) {
+      content += `-- ${'-'.repeat(74)}\n-- ${relative('supabase/db', f)}\n-- ${'-'.repeat(74)}\n\n`
+      content += readFile(f).trim() + '\n\n'
+    }
+  }
+
   return content
 }
 
@@ -262,6 +284,7 @@ async function main() {
     const functionFiles = findFunctionFiles()
     const triggerFiles = findTriggerFiles()
     const viewFiles = findViewFiles()
+    const dataFiles = findDataFiles()
 
     if (functionFiles.length === 0) {
       console.error('❌ No function files found')
@@ -273,14 +296,15 @@ async function main() {
       tableFiles,
       functionFiles,
       triggerFiles,
-      viewFiles
+      viewFiles,
+      dataFiles
     )
     const filename = '00000000000001_initial_schema.sql'
     writeFileSync(join(MIGRATIONS_DIR, filename), content, 'utf-8')
 
     console.log(`✅ Created: ${filename}`)
     console.log(
-      `   Schema: ${schemaFiles.length}, Tables: ${tableFiles.length}, Functions: ${functionFiles.length}, Triggers: ${triggerFiles.length}, Views: ${viewFiles.length}`
+      `   Schema: ${schemaFiles.length}, Tables: ${tableFiles.length}, Functions: ${functionFiles.length}, Triggers: ${triggerFiles.length}, Views: ${viewFiles.length}, Data: ${dataFiles.length}`
     )
     console.log(`\n✨ Ready for: supabase db reset\n`)
   } else {
