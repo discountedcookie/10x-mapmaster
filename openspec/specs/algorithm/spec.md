@@ -3,9 +3,7 @@
 ## Purpose
 
 Specifies the algorithms for candidate filtering, scoring, confidence decisions, trait matching, and question selection. All algorithm logic executes in PostgreSQL functions within the `game_logic` schema.
-
 ## Requirements
-
 ### Requirement: Geographic Candidate Filtering
 
 The system SHALL filter candidate places by geographic regions for geographic questions.
@@ -65,27 +63,22 @@ The system SHALL decide to guess or ask based on configured confidence metrics.
 
 ### Requirement: Trait Matching Adjustments
 
-The system SHALL adjust candidate scores based on binary trait ownership from place_traits table.
+The system SHALL adjust candidate scores based on trait embedding similarity and answers.
 
-#### Scenario: Trait ownership check
+#### Scenario: Match strength zones
 
 - **WHEN** evaluating a trait against a place
-- **THEN** the system checks if the place has the trait via place_traits relationship (binary: has or doesn't have)
+- **THEN** match_strength is computed as embedding similarity (pgvector) and compared to strong/partial thresholds to classify match zone
 
-#### Scenario: Score adjustments for YES answer
+#### Scenario: Score adjustments
 
-- **WHEN** player answers YES to a trait question
-- **THEN** places that have the trait are boosted (multiplied by boost_factor) and places lacking the trait are penalized (multiplied by penalty_factor)
+- **WHEN** applying an answer
+- **THEN** scores are boosted/penalized using power-law weighting per answer and match zone; not_sure makes no adjustment
 
-#### Scenario: Score adjustments for NO answer
+#### Scenario: Embedding-based matching
 
-- **WHEN** player answers NO to a trait question
-- **THEN** places that have the trait are penalized and places lacking the trait are boosted
-
-#### Scenario: NOT SURE answer
-
-- **WHEN** player answers NOT SURE
-- **THEN** no score adjustment is made (multiplier = 1.0)
+- **WHEN** determining if a place has a trait
+- **THEN** similarity is calculated via pgvector operators (no join table fallback)
 
 ### Requirement: Question Selection
 
@@ -120,3 +113,4 @@ The system SHALL choose the next question based on split quality calculated from
 
 - **WHEN** LLM is unavailable or errors
 - **THEN** a simple fallback template is used and the error is logged
+
