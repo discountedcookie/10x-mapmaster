@@ -12,12 +12,12 @@
 
 ## 3. Add Lazy Loading
 
-- [ ] 3.1 Convert HomeView import to `() => import('@/views/HomeView.vue')`
-- [ ] 3.2 Convert GameView import to lazy
-- [ ] 3.3 Convert LoginView import to lazy
-- [ ] 3.4 Convert SignupView import to lazy
-- [ ] 3.5 Convert StatisticsView import to lazy
-- [ ] 3.6 Convert PlaceView import to lazy
+- [x] 3.1 Convert HomeView import to `() => import('@/views/HomeView.vue')`
+- [x] 3.2 Convert GameView import to lazy
+- [x] 3.3 Convert LoginView import to lazy
+- [x] 3.4 Convert SignupView import to lazy
+- [x] 3.5 Convert StatisticsView import to lazy
+- [x] 3.6 Convert PlaceView import to lazy
 
 ## 4. Verify
 

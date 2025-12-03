@@ -1,11 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '@/views/HomeView.vue'
-import GameView from '@/views/GameView.vue'
-import LoginView from '@/views/LoginView.vue'
-import SignupView from '@/views/SignupView.vue'
-import StatisticsView from '@/views/StatisticsView.vue'
-import PlaceView from '@/views/PlaceView.vue'
 import { useAuthStore } from '@/stores/auth'
+
+// Lazy load all view components for code splitting
+const HomeView = () => import('@/views/HomeView.vue')
+const GameView = () => import('@/views/GameView.vue')
+const LoginView = () => import('@/views/LoginView.vue')
+const SignupView = () => import('@/views/SignupView.vue')
+const StatisticsView = () => import('@/views/StatisticsView.vue')
+const PlaceView = () => import('@/views/PlaceView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
