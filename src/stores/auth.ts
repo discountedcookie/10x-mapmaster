@@ -10,6 +10,24 @@ export const useAuthStore = defineStore('auth', () => {
   const session = ref<Session>()
   const loading = ref(true)
 
+  // Promise-based ready state (resolves when auth initialization completes)
+  let readyResolve: (() => void) | null = null
+  let readyPromise: Promise<void> | null = null
+
+  function whenReady(): Promise<void> {
+    // If already initialized, resolve immediately
+    if (!loading.value) {
+      return Promise.resolve()
+    }
+    // Create promise if not exists (handles whenReady called before initialize)
+    if (!readyPromise) {
+      readyPromise = new Promise((resolve) => {
+        readyResolve = resolve
+      })
+    }
+    return readyPromise
+  }
+
   // Computed
   const isAuthenticated = computed(() => !!user.value && !user.value.is_anonymous)
   const isAnonymous = computed(() => user.value?.is_anonymous ?? false)
@@ -48,6 +66,11 @@ export const useAuthStore = defineStore('auth', () => {
       })
     } finally {
       loading.value = false
+      // Resolve the ready promise
+      if (readyResolve) {
+        readyResolve()
+        readyResolve = null
+      }
     }
   }
 
@@ -74,5 +97,6 @@ export const useAuthStore = defineStore('auth', () => {
     isAnonymous,
     initialize,
     signOut,
+    whenReady,
   }
 })

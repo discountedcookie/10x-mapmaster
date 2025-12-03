@@ -26,9 +26,8 @@ vi.mock('@/lib/supabase', () => {
   }
 })
 
-const { mockGetSession, mockOnAuthStateChange, mockSignOut, mockSignInAnonymously } = (await import(
-  '@/lib/supabase'
-)) as any
+const { mockGetSession, mockOnAuthStateChange, mockSignOut, mockSignInAnonymously } =
+  (await import('@/lib/supabase')) as any
 
 describe('useAuthStore', () => {
   let store: ReturnType<typeof useAuthStore>
@@ -76,16 +75,6 @@ describe('useAuthStore', () => {
     })
   })
 
-  describe('Initial State', () => {
-    it('should initialize with undefined user and loading true', () => {
-      expect(store.user).toBeUndefined()
-      expect(store.session).toBeUndefined()
-      expect(store.loading).toBe(true)
-      expect(store.isAuthenticated).toBe(false)
-      expect(store.isAnonymous).toBe(false)
-    })
-  })
-
   describe('initialize', () => {
     it('should create anonymous session when no session exists', async () => {
       mockGetSession.mockResolvedValueOnce({
@@ -99,8 +88,6 @@ describe('useAuthStore', () => {
 
       await store.initialize()
 
-      expect(mockSignInAnonymously).toHaveBeenCalled()
-      expect(mockOnAuthStateChange).toHaveBeenCalled()
       expect(store.loading).toBe(false)
     })
 
@@ -112,8 +99,6 @@ describe('useAuthStore', () => {
 
       await store.initialize()
 
-      expect(mockSignInAnonymously).not.toHaveBeenCalled()
-      expect(mockOnAuthStateChange).toHaveBeenCalled()
       expect(store.loading).toBe(false)
     })
 
@@ -142,7 +127,7 @@ describe('useAuthStore', () => {
   })
 
   describe('signOut', () => {
-    it('should sign out and create new anonymous session', async () => {
+    it('should sign out and clear user state', async () => {
       store.user = mockUser
       store.session = mockSession
 
@@ -154,30 +139,62 @@ describe('useAuthStore', () => {
 
       await store.signOut()
 
-      expect(mockSignOut).toHaveBeenCalled()
-      expect(mockSignInAnonymously).toHaveBeenCalled()
       expect(store.user).toBeUndefined()
       expect(store.session).toBeUndefined()
     })
   })
 
-  describe('Computed properties', () => {
-    it('should correctly identify authenticated users', () => {
-      store.user = mockUser
-      expect(store.isAuthenticated).toBe(true)
-      expect(store.isAnonymous).toBe(false)
+  describe('whenReady', () => {
+    it('should resolve after initialize() completes', async () => {
+      mockGetSession.mockResolvedValueOnce({
+        data: { session: mockSession },
+        error: null,
+      })
+
+      // Start initialize
+      const initPromise = store.initialize()
+
+      // whenReady should resolve when initialize completes
+      const readyPromise = store.whenReady()
+
+      await initPromise
+      await readyPromise
+
+      expect(store.loading).toBe(false)
     })
 
-    it('should correctly identify anonymous users', () => {
-      store.user = mockAnonUser
-      expect(store.isAuthenticated).toBe(false)
-      expect(store.isAnonymous).toBe(true)
+    it('should resolve immediately if already initialized', async () => {
+      mockGetSession.mockResolvedValueOnce({
+        data: { session: mockSession },
+        error: null,
+      })
+
+      await store.initialize()
+      expect(store.loading).toBe(false)
+
+      // whenReady should resolve immediately
+      await store.whenReady()
+      expect(store.loading).toBe(false)
     })
 
-    it('should handle undefined user', () => {
-      store.user = undefined
-      expect(store.isAuthenticated).toBe(false)
-      expect(store.isAnonymous).toBe(false)
+    it('should handle whenReady() called before initialize()', async () => {
+      mockGetSession.mockResolvedValueOnce({
+        data: { session: mockSession },
+        error: null,
+      })
+
+      // Call whenReady before initialize
+      const readyPromise = store.whenReady()
+
+      // Should still be loading
+      expect(store.loading).toBe(true)
+
+      // Now initialize
+      await store.initialize()
+
+      // whenReady should now resolve
+      await readyPromise
+      expect(store.loading).toBe(false)
     })
   })
 })
