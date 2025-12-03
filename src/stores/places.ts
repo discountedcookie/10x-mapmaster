@@ -14,9 +14,9 @@ export const usePlacesStore = defineStore('places', () => {
   // State
   const places = ref<Place[]>([])
   const loading = ref(false)
-  const error = ref<string | undefined>()
+  const error = ref<string | null>(null)
   const searchLoading = ref(false)
-  const searchError = ref<string | undefined>()
+  const searchError = ref<string | null>(null)
   let fetchPromise: Promise<void> | undefined
 
   // Actions
@@ -32,7 +32,7 @@ export const usePlacesStore = defineStore('places', () => {
     }
 
     loading.value = true
-    error.value = undefined
+    error.value = null
 
     fetchPromise = (async () => {
       try {
@@ -60,7 +60,7 @@ export const usePlacesStore = defineStore('places', () => {
   async function searchPlaces(query: string): Promise<NominatimPlace[]> {
     try {
       searchLoading.value = true
-      searchError.value = undefined
+      searchError.value = null
 
       const results = await searchNominatim(query, { limit: 5 })
       return results
@@ -75,9 +75,9 @@ export const usePlacesStore = defineStore('places', () => {
   function reset() {
     places.value = []
     loading.value = false
-    error.value = undefined
+    error.value = null
     searchLoading.value = false
-    searchError.value = undefined
+    searchError.value = null
     fetchPromise = undefined
   }
 

@@ -279,7 +279,7 @@ describe('usePlacesStore', () => {
       expect(mockSearchNominatim).toHaveBeenCalledWith('Paris', { limit: 5 })
       expect(results).toEqual([mockNominatimPlace])
       expect(store.searchLoading).toBe(false)
-      expect(store.searchError).toBeUndefined()
+      expect(store.searchError).toBeNull()
     })
 
     it('should set loading state during search', async () => {

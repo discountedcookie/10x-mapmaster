@@ -22,13 +22,13 @@ export interface UserStatistics {
   avgQuestionsPerGame: number
   avgWrongGuesses: number
   totalQuestionsAsked: number
-  mostRecentGame: string | undefined
+  mostRecentGame: string | null
 }
 
 export function useStatistics() {
   const authStore = useAuthStore()
   const loading = ref(false)
-  const error = ref<string | undefined>()
+  const error = ref<string | null>(null)
   const sessions = ref<GameSessionStats[]>([])
 
   const statistics = computed<UserStatistics>(() => {
@@ -41,7 +41,7 @@ export function useStatistics() {
         avgQuestionsPerGame: 0,
         avgWrongGuesses: 0,
         totalQuestionsAsked: 0,
-        mostRecentGame: undefined,
+        mostRecentGame: null,
       }
     }
 
@@ -59,7 +59,7 @@ export function useStatistics() {
       avgQuestionsPerGame: sessions.value.length > 0 ? totalQuestions / sessions.value.length : 0,
       avgWrongGuesses: sessions.value.length > 0 ? totalWrongGuesses / sessions.value.length : 0,
       totalQuestionsAsked: totalQuestions,
-      mostRecentGame: sessions.value[0]?.created_at,
+      mostRecentGame: sessions.value[0]?.created_at ?? null,
     }
   })
 
@@ -72,7 +72,7 @@ export function useStatistics() {
 
     try {
       loading.value = true
-      error.value = undefined
+      error.value = null
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: fetchError } = await (supabase as any)

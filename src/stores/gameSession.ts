@@ -8,7 +8,7 @@ export const useGameSessionStore = defineStore('gameSession', () => {
   // Core state mirrors the game_session_state view
   const session = ref<GameSessionStateRow | null>(null)
   const loading = ref(false)
-  const error = ref<string | undefined>(undefined)
+  const error = ref<string | null>(null)
 
   /**
    * Fetch game state from game_session_state view
@@ -111,7 +111,7 @@ export const useGameSessionStore = defineStore('gameSession', () => {
   function resetGame(): void {
     session.value = null
     loading.value = false
-    error.value = undefined
+    error.value = null
   }
 
   // Minimal status helpers (temporary, to be removed once call sites use session.status directly)

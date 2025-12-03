@@ -48,11 +48,11 @@ export function transformError(error: unknown): ApiError {
 export async function withLoadingState<T>(
   fn: () => Promise<T>,
   loading: Ref<boolean>,
-  error: Ref<string | undefined>
+  error: Ref<string | null>
 ): Promise<T | undefined> {
   try {
     loading.value = true
-    error.value = undefined
+    error.value = null
     return await fn()
   } catch (e) {
     const apiError = transformError(e)

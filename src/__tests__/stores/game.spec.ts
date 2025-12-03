@@ -52,7 +52,7 @@ describe('useGameSessionStore', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia())
-    store = useGameStore()
+    store = useGameSessionStore()
     vi.clearAllMocks()
     // Set up default mocks to prevent unhandled rejections
     // These will be overridden by specific test mocks
@@ -77,7 +77,7 @@ describe('useGameSessionStore', () => {
       expect(store.gameState).toBeNull()
       expect(store.gameSessionId).toBeNull()
       expect(store.loading).toBe(false)
-      expect(store.error).toBeUndefined()
+      expect(store.error).toBeNull()
     })
   })
 
