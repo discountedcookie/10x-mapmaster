@@ -1,36 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useGameSessionStore } from '@/stores/gameSession'
-import type { PlaceWithScore } from '@/types/game'
-import { supabase } from '@/lib/supabase'
+import type { GameSessionStateRow } from '@/lib/api'
 
-// Mock Supabase client
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    rpc: vi.fn(),
-    from: vi.fn(),
+// Mock the API module
+vi.mock('@/lib/api', () => ({
+  gameApi: {
+    startGame: vi.fn(),
+    playTurn: vi.fn(),
+    getGameState: vi.fn(),
+    submitPlace: vi.fn(),
   },
 }))
+
+// Import the mocked module
+import { gameApi } from '@/lib/api'
 
 describe('useGameSessionStore', () => {
   let store: ReturnType<typeof useGameSessionStore>
 
-  const mockPlace: PlaceWithScore = {
-    id: 'place-1',
-    name: 'Test Place',
-    lat: 48.8566,
-    lng: 2.3522,
-    probability: 0.85,
-    description_similarity: 0.9,
-    affirmed_trait_similarity: 0.8,
-    denied_trait_similarity: null,
-    geographic_distance: 1_000_000,
-  }
-
-  const mockGameSessionStateRow = {
+  const mockGameSessionStateRow: GameSessionStateRow = {
     session_id: 'session-123',
     description: 'A famous tower',
-    status: 'active' as const,
+    status: 'active',
     semantic_constraint: 'tall landmark',
     current_question_id: 'q-1',
     current_question_text: 'Is it in Europe?',
@@ -46,7 +38,7 @@ describe('useGameSessionStore', () => {
       action: 'question',
       question_text: 'Is it in Europe?',
       question_id: 'q-1',
-      candidates: [mockPlace],
+      candidates: [],
     },
   }
 
@@ -54,312 +46,238 @@ describe('useGameSessionStore', () => {
     setActivePinia(createPinia())
     store = useGameSessionStore()
     vi.clearAllMocks()
-    // Set up default mocks to prevent unhandled rejections
-    // These will be overridden by specific test mocks
-    vi.mocked(supabase.rpc).mockResolvedValue({
-      data: [{ session_id: 'session-123' }],
-      error: null,
-    })
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: mockGameSessionStateRow,
-            error: null,
-          }),
-        }),
-      }),
-    } as any)
+
+    // Set up default mocks
+    vi.mocked(gameApi.startGame).mockResolvedValue('session-123')
+    vi.mocked(gameApi.getGameState).mockResolvedValue(mockGameSessionStateRow)
+    vi.mocked(gameApi.playTurn).mockResolvedValue(undefined)
+    vi.mocked(gameApi.submitPlace).mockResolvedValue(undefined)
   })
 
   describe('Initial State', () => {
     it('should initialize with empty state', () => {
-      expect(store.gameState).toBeNull()
-      expect(store.gameSessionId).toBeNull()
+      expect(store.session).toBeNull()
       expect(store.loading).toBe(false)
       expect(store.error).toBeNull()
     })
   })
 
   describe('startNewGame', () => {
-    it('should call database and store session', async () => {
-      // Mock database responses
-      vi.mocked(supabase.rpc).mockResolvedValueOnce({
-        data: [{ session_id: 'session-123' }],
-        error: null,
-      })
-
-      vi.mocked(supabase.from).mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: mockGameSessionStateRow,
-              error: null,
-            }),
-          }),
-        }),
-      } as any)
-
+    it('should call API and store session', async () => {
       await store.startNewGame('A famous tower')
 
-      expect(store.gameSessionId).toBe('session-123')
-      expect(store.gameState?.description).toBe('A famous tower')
-      expect(store.gameState?.status).toBe('active')
+      expect(gameApi.startGame).toHaveBeenCalledWith('A famous tower', 'en')
+      expect(gameApi.getGameState).toHaveBeenCalledWith('session-123')
+      expect(store.session?.session_id).toBe('session-123')
+      expect(store.session?.description).toBe('A famous tower')
+      expect(store.session?.status).toBe('active')
       expect(store.loading).toBe(false)
     })
 
-    it('should handle database errors', async () => {
-      vi.mocked(supabase.rpc).mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Database error' } as any,
-      })
+    it('should handle API errors', async () => {
+      vi.mocked(gameApi.startGame).mockRejectedValueOnce(new Error('Database error'))
 
-      // Don't need to mock supabase.from since the RPC error will be thrown before it's called
+      await store.startNewGame('test')
 
-      await expect(store.startNewGame('test')).rejects.toThrow()
+      expect(store.error).toBe('Database error')
       expect(store.loading).toBe(false)
     })
 
-    it('should handle empty description', async () => {
-      await expect(store.startNewGame('')).rejects.toThrow('Description cannot be empty')
+    it('should handle empty description without calling API', async () => {
+      await store.startNewGame('')
+
+      expect(gameApi.startGame).not.toHaveBeenCalled()
+      expect(store.error).toBe('Description cannot be empty')
+    })
+
+    it('should handle whitespace-only description', async () => {
+      await store.startNewGame('   ')
+
+      expect(gameApi.startGame).not.toHaveBeenCalled()
+      expect(store.error).toBe('Description cannot be empty')
     })
   })
 
-  describe('playTurn', () => {
-    beforeEach(() => {
-      store.gameSessionId = 'session-123'
-      store.gameState = {
-        sessionId: 'session-123',
-        description: 'A famous tower',
-        messages: [],
-        candidates: [mockPlace],
-        probability: 0.85,
-        threshold: 0.92,
-        semanticConstraint: 'tall landmark',
-        questionCount: 1,
-        wrongGuessCount: 0,
-        status: 'active',
-      }
+  describe('answer', () => {
+    beforeEach(async () => {
+      // Start a game first to have an active session
+      await store.startNewGame('A famous tower')
+      vi.clearAllMocks()
     })
 
-    it('should call database and update state', async () => {
+    it('should call API and update state', async () => {
       const updatedRow = { ...mockGameSessionStateRow, question_count: 2 }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(updatedRow)
 
-      vi.mocked(supabase.rpc).mockResolvedValueOnce({
-        data: true,
-        error: null,
-      })
+      await store.answer(true)
 
-      vi.mocked(supabase.from).mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: updatedRow, error: null }),
-          }),
-        }),
-      } as any)
+      expect(gameApi.playTurn).toHaveBeenCalledWith('session-123', 'yes')
+      expect(gameApi.getGameState).toHaveBeenCalledWith('session-123')
+      expect(store.session?.question_count).toBe(2)
+      expect(store.loading).toBe(false)
+    })
 
-      await store.playTurn(true)
+    it('should pass correct answer value for "no"', async () => {
+      await store.answer(false)
 
-      expect(store.gameState?.questionCount).toBe(2)
+      expect(gameApi.playTurn).toHaveBeenCalledWith('session-123', 'no')
+    })
+
+    it('should require active session', async () => {
+      store.resetGame()
+
+      await store.answer(true)
+
+      expect(gameApi.playTurn).not.toHaveBeenCalled()
+      expect(store.error).toBe('No active game')
+    })
+
+    it('should handle API errors', async () => {
+      vi.mocked(gameApi.playTurn).mockRejectedValueOnce(new Error('Network error'))
+
+      await store.answer(true)
+
+      expect(store.error).toBe('Network error')
+      expect(store.loading).toBe(false)
+    })
+  })
+
+  describe('submitPlace', () => {
+    beforeEach(async () => {
+      // Start a game and set status to needs_submission
+      const needsSubmissionRow = { ...mockGameSessionStateRow, status: 'needs_submission' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(needsSubmissionRow)
+      await store.startNewGame('A place')
+      vi.clearAllMocks()
+    })
+
+    it('should submit place to API', async () => {
+      const endedRow = { ...mockGameSessionStateRow, status: 'ended' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(endedRow)
+
+      await store.submitPlace('osm-123')
+
+      expect(gameApi.submitPlace).toHaveBeenCalledWith('session-123', 'osm-123')
+      expect(gameApi.getGameState).toHaveBeenCalledWith('session-123')
+      expect(store.session?.status).toBe('ended')
       expect(store.loading).toBe(false)
     })
 
     it('should require active session', async () => {
-      store.gameSessionId = null
-      await expect(store.playTurn(true)).rejects.toThrow('No active game')
+      store.resetGame()
+
+      await store.submitPlace('osm-123')
+
+      expect(gameApi.submitPlace).not.toHaveBeenCalled()
+      expect(store.error).toBe('No active game')
+    })
+
+    it('should handle API errors', async () => {
+      vi.mocked(gameApi.submitPlace).mockRejectedValueOnce(new Error('Submission failed'))
+
+      await store.submitPlace('osm-123')
+
+      expect(store.error).toBe('Submission failed')
+      expect(store.loading).toBe(false)
     })
   })
 
-  describe('submitActualPlace', () => {
-    beforeEach(() => {
-      store.gameSessionId = 'session-123'
-      store.gameState = {
-        sessionId: 'session-123',
-        description: 'A place',
-        messages: [],
-        candidates: [],
-        probability: 0,
-        threshold: 0.92,
-        semanticConstraint: 'test',
-        questionCount: 5,
-        wrongGuessCount: 0,
-        status: 'needs_submission',
-      }
+  describe('refresh', () => {
+    beforeEach(async () => {
+      await store.startNewGame('A famous tower')
+      vi.clearAllMocks()
     })
 
-    it('should submit place to database', async () => {
-      // Mock fetching session language code
-      vi.mocked(supabase.from).mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { description_language_code: 'en' },
-              error: null,
-            }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        }),
-      } as any)
+    it('should refresh current session', async () => {
+      const updatedRow = { ...mockGameSessionStateRow, question_count: 5 }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(updatedRow)
 
-      vi.mocked(supabase.rpc).mockResolvedValueOnce({
-        data: 'new-place-id',
-        error: null,
-      })
+      await store.refresh()
 
-      await store.submitActualPlace('Test Place', 48.8566, 2.3522, 'nominatim-123')
+      expect(gameApi.getGameState).toHaveBeenCalledWith('session-123')
+      expect(store.session?.question_count).toBe(5)
+    })
 
-      expect(store.gameState?.status).toBe('ended')
-      expect(store.loading).toBe(false)
+    it('should allow refresh with specific session ID', async () => {
+      await store.refresh('other-session')
+
+      expect(gameApi.getGameState).toHaveBeenCalledWith('other-session')
+    })
+
+    it('should require session when none provided', async () => {
+      store.resetGame()
+
+      await store.refresh()
+
+      expect(gameApi.getGameState).not.toHaveBeenCalled()
+      expect(store.error).toBe('No active game')
     })
   })
 
   describe('Game State Management', () => {
-    it('should reset game state', () => {
-      store.gameSessionId = 'session-123'
-      store.gameState = {
-        sessionId: 'session-123',
-        description: 'test',
-        messages: [],
-        candidates: [],
-        probability: 0,
-        threshold: 0.92,
-        semanticConstraint: '',
-        questionCount: 0,
-        wrongGuessCount: 0,
-        status: 'active',
-      }
+    it('should reset game state', async () => {
+      await store.startNewGame('test')
+      expect(store.session).not.toBeNull()
 
       store.resetGame()
 
-      expect(store.gameSessionId).toBeNull()
-      expect(store.gameState).toBeNull()
+      expect(store.session).toBeNull()
       expect(store.loading).toBe(false)
+      expect(store.error).toBeNull()
     })
   })
 
   describe('Computed Properties', () => {
-    it('should derive UI state from game state', () => {
+    it('should derive isGameActive from session status', async () => {
       expect(store.isGameActive).toBe(false)
-      expect(store.topCandidates).toEqual([])
 
-      store.gameState = {
-        sessionId: 'session-123',
-        description: 'test',
-        messages: [],
-        candidates: [mockPlace, mockPlace, mockPlace, mockPlace, mockPlace, mockPlace],
-        probability: 0.85,
-        threshold: 0.92,
-        semanticConstraint: '',
-        questionCount: 1,
-        wrongGuessCount: 0,
-        status: 'active',
-      }
+      await store.startNewGame('test')
 
       expect(store.isGameActive).toBe(true)
-      expect(store.topCandidates).toHaveLength(5)
-    })
-  })
-
-  describe('convertViewToGameState - JSONB Fallback', () => {
-    it('should parse question from flattened current_question_text field', () => {
-      const _row = {
-        ...mockGameSessionStateRow,
-        current_question_text: 'Is it in Europe?',
-        current_question_id: 'q-1',
-      }
-
-      const _gameState = store.startNewGame('test').then(() => {
-        // This would be called internally, but we're testing the conversion logic
-      })
-
-      void _row
-      void _gameState
-
-      // We can't directly test the private function, but we can verify the behavior
-      // through the public API by checking that messages are populated correctly
     })
 
-    it('should parse question from next_turn JSONB when flattened fields are null', () => {
-      const row = {
-        session_id: 'session-123',
-        description: 'A famous tower',
-        status: 'active' as const,
-        semantic_constraint: 'tall landmark',
-        current_question_id: null, // Flattened field is null
-        current_question_text: null, // Flattened field is null
-        question_type: 'geographic',
-        pending_guess_place_id: null,
-        pending_guess_place_name: null,
-        correct_place_id: null,
-        correct_place_name: null,
-        correct_place_lat: null,
-        correct_place_lng: null,
-        question_count: 1,
-        next_turn: {
-          // JSONB object with question data
-          action: 'question',
-          question_text: 'Is it in Europe?',
-          question_id: 'q-1',
-          candidates: [],
-        },
-      }
+    it('should derive isGameEnded correctly', async () => {
+      expect(store.isGameEnded).toBe(false)
 
-      // Mock the database response with JSONB next_turn
-      vi.mocked(supabase.from).mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: row,
-              error: null,
-            }),
-          }),
-        }),
-      } as any)
+      // Test 'won' status
+      const wonRow = { ...mockGameSessionStateRow, status: 'won' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(wonRow)
+      await store.startNewGame('test')
+      expect(store.isGameEnded).toBe(true)
 
-      // After startNewGame, the game state should have the question from next_turn
-      // This tests the fallback logic in convertViewToGameState
+      // Test 'needs_submission' status
+      store.resetGame()
+      const needsSubmissionRow = { ...mockGameSessionStateRow, status: 'needs_submission' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(needsSubmissionRow)
+      await store.startNewGame('test')
+      expect(store.isGameEnded).toBe(true)
+
+      // Test 'ended' status
+      store.resetGame()
+      const endedRow = { ...mockGameSessionStateRow, status: 'ended' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(endedRow)
+      await store.startNewGame('test')
+      expect(store.isGameEnded).toBe(true)
     })
 
-    it('should parse guess from next_turn JSONB when flattened fields are null', () => {
-      const row = {
-        session_id: 'session-123',
-        description: 'A famous tower',
-        status: 'active' as const,
-        semantic_constraint: 'tall landmark',
-        current_question_id: null,
-        current_question_text: null,
-        question_type: 'geographic',
-        pending_guess_place_id: null, // Flattened field is null
-        pending_guess_place_name: null, // Flattened field is null
-        correct_place_id: null,
-        correct_place_name: null,
-        correct_place_lat: null,
-        correct_place_lng: null,
-        question_count: 1,
-        next_turn: {
-          // JSONB object with guess data
-          action: 'guess',
-          place_name: 'Eiffel Tower',
-          place_id: 'place-1',
-        },
-      }
+    it('should derive isNeedsSubmission correctly', async () => {
+      expect(store.isNeedsSubmission).toBe(false)
 
-      // Mock the database response with JSONB next_turn
-      vi.mocked(supabase.from).mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: row,
-              error: null,
-            }),
-          }),
-        }),
-      } as any)
+      const needsSubmissionRow = { ...mockGameSessionStateRow, status: 'needs_submission' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(needsSubmissionRow)
+      await store.startNewGame('test')
 
-      // After startNewGame, the game state should have the guess from next_turn
-      // This tests the fallback logic in convertViewToGameState
+      expect(store.isNeedsSubmission).toBe(true)
+    })
+
+    it('should derive isWon correctly', async () => {
+      expect(store.isWon).toBe(false)
+
+      const wonRow = { ...mockGameSessionStateRow, status: 'won' as const }
+      vi.mocked(gameApi.getGameState).mockResolvedValueOnce(wonRow)
+      await store.startNewGame('test')
+
+      expect(store.isWon).toBe(true)
     })
   })
 })

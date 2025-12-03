@@ -104,8 +104,8 @@ describe('usePlacesStore', () => {
     it('should fetch places from Supabase', async () => {
       await store.fetchAllPlaces()
 
-      expect(mockFrom).toHaveBeenCalledWith('places')
-      expect(mockSelect).toHaveBeenCalledWith('id, name, lat, lng, times_encountered')
+      expect(mockFrom).toHaveBeenCalledWith('places_with_geometry')
+      expect(mockSelect).toHaveBeenCalledWith('*')
       expect(mockOrder).toHaveBeenCalledWith('name')
       expect(store.places).toEqual(mockPlaces)
     })

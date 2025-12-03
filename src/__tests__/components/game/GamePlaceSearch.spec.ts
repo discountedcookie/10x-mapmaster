@@ -26,6 +26,7 @@ describe('GamePlaceSearch', () => {
     type: 'city',
     class: 'place',
     importance: 0.9,
+    osm_type: 'relation',
   }
 
   beforeEach(() => {
@@ -51,9 +52,9 @@ describe('GamePlaceSearch', () => {
     expect(input.attributes('placeholder')).toBe(i18n.global.t('game.place_search.placeholder'))
   })
 
-  it('should display title and description', () => {
-    expect(wrapper.text()).toContain(i18n.global.t('game.place_search.title'))
-    expect(wrapper.text()).toContain(i18n.global.t('game.place_search.description'))
+  it('should display initial state message', () => {
+    // Component shows "Search for a place by name" in initial state (not title/description)
+    expect(wrapper.text()).toContain('Search for a place by name')
   })
 
   it('should debounce search queries', async () => {
@@ -65,7 +66,7 @@ describe('GamePlaceSearch', () => {
     await input.setValue('Paris')
     expect(mockSearchPlaces).not.toHaveBeenCalled()
 
-    // Advance time by 1 second (debounce period)
+    // Advance time by 1 second (debounce period is 800ms)
     await vi.advanceTimersByTimeAsync(1000)
 
     expect(mockSearchPlaces).toHaveBeenCalledTimes(1)
@@ -79,8 +80,13 @@ describe('GamePlaceSearch', () => {
     await vi.advanceTimersByTimeAsync(1000)
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.text()).toContain('Paris, France')
-    expect(wrapper.text()).toContain('48.8566, 2.3522')
+    // Component uses parseDisplayName which shows "Paris" as the name
+    // and "France" as details separately
+    expect(wrapper.text()).toContain('Paris')
+    expect(wrapper.text()).toContain('France')
+    // Coordinates are shown with 4 decimal places and degree symbol
+    expect(wrapper.text()).toContain('48.8566°')
+    expect(wrapper.text()).toContain('2.3522°')
   })
 
   it('should emit select event when place is clicked', async () => {
@@ -90,7 +96,9 @@ describe('GamePlaceSearch', () => {
     await vi.advanceTimersByTimeAsync(1000)
     await wrapper.vm.$nextTick()
 
-    const resultButton = wrapper.find('button[class*="p-3"]')
+    // Button has p-4 class in the component
+    const resultButton = wrapper.find('button[class*="p-4"]')
+    expect(resultButton.exists()).toBe(true)
     await resultButton.trigger('click')
 
     expect(wrapper.emitted('select')).toBeTruthy()
@@ -119,7 +127,7 @@ describe('GamePlaceSearch', () => {
     await wrapper.vm.$nextTick()
 
     // Results should be cleared without waiting for debounce
-    expect(wrapper.findAll('button[class*="p-3"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[class*="p-4"]')).toHaveLength(0)
   })
 
   it('should clear previous timeout when query changes', async () => {
@@ -150,6 +158,7 @@ describe('GamePlaceSearch', () => {
         type: 'city',
         class: 'place',
         importance: 0.9,
+        osm_type: 'relation',
       },
       {
         place_id: 124,
@@ -159,6 +168,7 @@ describe('GamePlaceSearch', () => {
         type: 'city',
         class: 'place',
         importance: 0.7,
+        osm_type: 'relation',
       },
     ]
 
@@ -169,10 +179,14 @@ describe('GamePlaceSearch', () => {
     await vi.advanceTimersByTimeAsync(1000)
     await wrapper.vm.$nextTick()
 
-    const resultButtons = wrapper.findAll('button[class*="p-3"]')
+    // Result buttons have p-4 class
+    const resultButtons = wrapper.findAll('button[class*="p-4"]')
     expect(resultButtons).toHaveLength(2)
-    expect(wrapper.text()).toContain('Paris, France')
-    expect(wrapper.text()).toContain('Paris, Texas, USA')
+    // Results show parsed names
+    expect(wrapper.text()).toContain('Paris')
+    expect(wrapper.text()).toContain('France')
+    expect(wrapper.text()).toContain('Texas')
+    expect(wrapper.text()).toContain('USA')
   })
 
   it('should handle search errors gracefully', async () => {
@@ -184,6 +198,27 @@ describe('GamePlaceSearch', () => {
     await wrapper.vm.$nextTick()
 
     // Error is handled in store, component should not crash
-    expect(wrapper.findAll('button[class*="p-3"]')).toHaveLength(0)
+    expect(wrapper.findAll('button[class*="p-4"]')).toHaveLength(0)
+  })
+
+  it('should emit searchResults event with places', async () => {
+    const input = wrapper.find('input')
+
+    await input.setValue('Paris')
+    await vi.advanceTimersByTimeAsync(1000)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('searchResults')).toBeTruthy()
+    expect(wrapper.emitted('searchResults')?.[0]).toEqual([[mockPlace]])
+  })
+
+  it('should show result count', async () => {
+    const input = wrapper.find('input')
+
+    await input.setValue('Paris')
+    await vi.advanceTimersByTimeAsync(1000)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('1 result found')
   })
 })

@@ -22,6 +22,10 @@ vi.mock('@indoorequal/vue-maplibre-gl', () => ({
   MglMap: { name: 'MglMap' },
   MglMarker: { name: 'MglMarker' },
   MglPopup: { name: 'MglPopup' },
+  useMap: vi.fn(() => ({
+    map: { value: null },
+    isLoaded: { value: false },
+  })),
 }))
 
 // Mock Supabase globally to prevent initialization errors in tests
