@@ -13,7 +13,8 @@ The system SHALL define and enforce an auth model covering anonymous, registered
 #### Scenario: Auth personas
 
 - **WHEN** the database evaluates access
-- **THEN** it recognizes anonymous users (auth.uid() is NULL), registered users (auth.uid() set), and service_role with elevated privileges
+- **THEN** it recognizes anonymous users (auth.uid() set via Supabase anon auth), registered users (auth.uid() set via sign-in), and service_role with elevated privileges
+- **AND** all users—anonymous and registered—have a valid UUID from auth.uid(); there is no supported NULL auth.uid() access path
 
 #### Scenario: SECURITY DEFINER guardrails
 
@@ -188,8 +189,9 @@ The system SHALL enforce row-level security for game_sessions and game_answers b
 
 #### Scenario: Anonymous ownership
 
-- **WHEN** an anonymous user (auth.uid() IS NULL) accesses
-- **THEN** they can only see/modify rows whose user_id IS NULL
+- **WHEN** an anonymous user accesses sessions/answers
+- **THEN** they can only see and modify rows where game_sessions.user_id = auth.uid()
+- **AND** anonymous users have a valid UUID from Supabase anon auth, not a NULL user_id
 
 #### Scenario: Service role
 
