@@ -20,7 +20,7 @@
 ## 4. Fix Map Typing
 
 - [ ] 4.1 Add type definitions for custom map data structures
-- [ ] 4.2 Fix `useGameMap.ts` - remove `any` for map events
+- [ ] 4.2 Fix `PlacesLayer.vue` - type geometry field properly (GeoJSON.Polygon | GeoJSON.MultiPolygon | null)
 - [ ] 4.3 Fix `PlaceView.vue` - type map-related data
 
 ## 5. Verify

@@ -17,7 +17,14 @@ import { join } from 'node:path'
  *   bun run scripts/generate-geographic-regions.ts
  */
 
-const OUTPUT_FILE = join(process.cwd(), 'supabase', 'seeds', '02_geographic_regions.sql')
+const OUTPUT_FILE = join(
+  process.cwd(),
+  'supabase',
+  'db',
+  'game_logic',
+  'data',
+  'geographic_regions.sql'
+)
 const COUNTRIES_URL =
   'https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/50m/cultural/ne_50m_admin_0_countries.json'
 

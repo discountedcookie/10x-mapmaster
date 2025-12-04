@@ -217,28 +217,6 @@ The system SHALL use a consistent nullability convention for error state in fron
 - **WHEN** running unit tests for stores and composables with error state
 - **THEN** tests expect null for empty error state and match the standardized nullability convention.
 
-### Requirement: Store Mutation Pattern
-
-The system SHALL mutate Pinia store state only through defined actions.
-
-#### Scenario: Adding a place via realtime
-
-- **WHEN** a realtime INSERT event is received
-- **THEN** the `addPlace` action is called
-- **AND** Vue devtools records the action
-
-#### Scenario: Updating a place via realtime
-
-- **WHEN** a realtime UPDATE event is received
-- **THEN** the `updatePlace` action is called
-- **AND** Vue devtools records the action
-
-#### Scenario: Removing a place via realtime
-
-- **WHEN** a realtime DELETE event is received
-- **THEN** the `removePlace` action is called
-- **AND** Vue devtools records the action
-
 ### Requirement: Cross-Store Dependencies
 
 The system SHALL inject cross-store dependencies at store setup time, not inside computeds.
@@ -248,4 +226,31 @@ The system SHALL inject cross-store dependencies at store setup time, not inside
 - **WHEN** a store needs data from another store
 - **THEN** the dependency is established at setup time
 - **AND** computeds reference the injected store instance
+
+### Requirement: Route Lazy Loading
+
+The system SHALL lazy-load view components to reduce initial bundle size.
+
+#### Scenario: Initial page load
+
+- **WHEN** the application loads
+- **THEN** only the requested route's component is loaded
+- **AND** other view components are loaded on demand
+
+### Requirement: Auth-Aware Navigation
+
+The system SHALL wait for auth initialization before evaluating route guards.
+
+#### Scenario: Navigation during auth initialization
+
+- **WHEN** a user navigates to a protected route
+- **AND** auth state is still initializing
+- **THEN** navigation waits for auth to complete (without polling)
+- **AND** then evaluates the route guard
+
+#### Scenario: Auth already initialized
+
+- **WHEN** a user navigates to any route
+- **AND** auth state is already initialized
+- **THEN** navigation proceeds immediately
 

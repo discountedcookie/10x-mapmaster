@@ -12,6 +12,8 @@ The codebase has 15+ instances of `@ts-ignore`, `eslint-disable @typescript-esli
 
 These are "type safety theater" - the code looks typed but isn't.
 
+Note: Game session type issues (`useGameMap.ts`, `GameActive.vue`) are addressed by the `normalize-game-session-schema` change which eliminates JSONB columns entirely.
+
 ## What Changes
 
 - Fix Supabase client typing for RPC calls

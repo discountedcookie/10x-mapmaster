@@ -156,11 +156,14 @@ BEGIN
   v_llm_prompt := replace(v_llm_prompt, '{max_traits}', v_max_traits::text);
 
   RAISE NOTICE 'Updating traits for place: %', v_place.name;
+  RAISE NOTICE 'Trait extraction prompt: %', v_llm_prompt;
 
   -- ============================================================================
   -- CALL LLM
   -- ============================================================================
   v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
+  
+  RAISE NOTICE 'LLM trait response: %', left(v_llm_response, 500);
 
   -- ============================================================================
   -- PARSE RESPONSE
