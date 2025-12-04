@@ -61,14 +61,15 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('confidence.margin_bonus', '0.10'::jsonb, 'Reduction in threshold when margin is high'),
 
 -- Scoring configuration
-('scoring.temperature', '1.0'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
+('scoring.temperature', '0.2'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
 ('scoring.trait_aggregation_temperature', '0.1'::jsonb, 'Temperature for trait similarity aggregation. Lower = best traits dominate'),
 ('scoring.initial_candidate_threshold', '0.3'::jsonb, 'Minimum aggregated trait score to become a candidate'),
 ('scoring.max_initial_candidates', '100'::jsonb, 'Maximum number of initial candidates'),
+('scoring.min_display_probability', '0.1'::jsonb, 'Minimum probability to display candidate in UI (filters noise)'),
 
 -- Trait matching (binary via place_traits, multiplicative adjustments)
 ('traits.boost_factor', '1.5'::jsonb, 'Score multiplier when trait ownership matches answer'),
-('traits.penalty_factor', '0.6'::jsonb, 'Score multiplier when trait ownership contradicts answer'),
+('traits.penalty_factor', '0.4'::jsonb, 'Score multiplier when trait ownership contradicts answer'),
 
 -- Question selection
 ('questions.min_split_quality', '0.3'::jsonb, 'Minimum acceptable split quality for questions'),

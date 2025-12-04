@@ -55,7 +55,28 @@ SELECT
       wp.lng
     )
   END AS place,
-  coalesce(gs.next_turn -> 'candidates', '[]'::JSONB) AS candidates,
+  -- Filter candidates above threshold and renormalize probabilities to sum to 100%
+  coalesce(
+    (
+      WITH threshold AS (
+        SELECT (value)::float as min_prob FROM game_logic.config WHERE key = 'scoring.min_display_probability'
+      ),
+      filtered AS (
+        SELECT c, (c->>'probability')::float as prob
+        FROM jsonb_array_elements(gs.next_turn -> 'candidates') c, threshold
+        WHERE (c->>'probability')::float >= threshold.min_prob
+      ),
+      total AS (
+        SELECT sum(prob) as sum_prob FROM filtered
+      )
+      SELECT jsonb_agg(
+        jsonb_set(filtered.c, '{probability}', to_jsonb(filtered.prob / total.sum_prob))
+        ORDER BY filtered.prob DESC
+      )
+      FROM filtered, total
+    ),
+    '[]'::JSONB
+  ) AS candidates,
   -- Metadata
   (
     SELECT

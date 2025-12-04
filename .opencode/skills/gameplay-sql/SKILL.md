@@ -44,6 +44,23 @@ SELECT play_turn('SESSION_ID'::uuid, 'yes'::answer_value);
 SELECT submit_place('SESSION_ID'::uuid, 'way/5013364');
 ```
 
+## Query Candidates
+
+View candidate places with their probabilities from `game_session_state`:
+
+```sql
+SELECT 
+    c->>'name' as place_name,
+    (c->>'probability')::numeric(5,3) as probability,
+    (c->>'confidence')::numeric(5,3) as confidence
+FROM game_session_state gss, 
+     jsonb_array_elements(gss.candidates) as c
+WHERE session_id = 'SESSION_ID'
+ORDER BY (c->>'probability')::numeric DESC;
+```
+
+Available candidate fields: `id`, `name`, `lat`, `lng`, `probability`, `confidence`, `geographic_distance`, `description_similarity`.
+
 ## Key Views/Functions
 
 | Function | Purpose |
