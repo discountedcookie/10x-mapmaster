@@ -68,35 +68,6 @@ export const usePlacesStore = defineStore('places', () => {
     }
   }
 
-  /**
-   * Add a place to the store, maintaining sort order by name
-   */
-  function addPlace(place: Place) {
-    places.value.push(place)
-    places.value.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-  }
-
-  /**
-   * Update an existing place by id, maintaining sort order by name
-   */
-  function updatePlace(id: string, place: Place) {
-    const index = places.value.findIndex((p) => p.id === id)
-    if (index !== -1) {
-      places.value[index] = place
-      places.value.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
-    }
-  }
-
-  /**
-   * Remove a place by id
-   */
-  function removePlace(id: string) {
-    const index = places.value.findIndex((p) => p.id === id)
-    if (index !== -1) {
-      places.value.splice(index, 1)
-    }
-  }
-
   function reset() {
     places.value = []
     loading.value = false
@@ -117,9 +88,6 @@ export const usePlacesStore = defineStore('places', () => {
     // Actions
     fetchAllPlaces,
     searchPlaces,
-    addPlace,
-    updatePlace,
-    removePlace,
     reset,
   }
 })
