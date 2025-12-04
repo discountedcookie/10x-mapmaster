@@ -7,7 +7,7 @@ The system SHALL use Supabase-generated types for game session state.
 #### Scenario: Store state type
 
 - **WHEN** defining the game session store state
-- **THEN** it uses the Supabase-generated type for the `game_session_state` view columns
+- **THEN** it uses the Supabase-generated type for the `game_state` view columns
 - **AND** no manual type definitions are needed for session fields
 - **AND** no `as unknown as` casts are used
 
@@ -15,22 +15,38 @@ The system SHALL use Supabase-generated types for game session state.
 
 - **WHEN** the store holds candidates
 - **THEN** candidates are stored in a separate ref (e.g., `candidates: Ref<Candidate[]>`)
-- **AND** the type is the Supabase-generated return type for `get_session_candidates`
+- **AND** the type is the Supabase-generated return type for `get_turn_candidates`
 - **AND** candidates are fetched via the typed RPC function after each turn
 
 #### Scenario: play_turn response
 
 - **WHEN** `play_turn` completes
 - **THEN** the store updates session state from the typed return value
-- **AND** the store then fetches updated candidates via `get_session_candidates`
+- **AND** the store fetches updated candidates for the new current turn
 - **AND** both operations happen in sequence (turn → candidates)
 
 #### Scenario: Initial load / refresh
 
 - **WHEN** loading a game session (page refresh, navigation)
-- **THEN** session state is fetched from `game_session_state` view
-- **AND** candidates are fetched via `get_session_candidates`
+- **THEN** session state is fetched from `game_state` view
+- **AND** candidates are fetched via `get_turn_candidates` for the current turn
 - **AND** both are stored in their respective refs
+
+### Requirement: Game History
+
+The system SHALL support fetching turn history for completed games.
+
+#### Scenario: History fetch
+
+- **WHEN** a game is completed (won, ended, needs_submission)
+- **THEN** frontend can call `get_session_history(session_id)` to get all turns
+- **AND** for each turn, can call `get_turn_candidates(turn_id)` to get candidates at that point
+
+#### Scenario: History display
+
+- **WHEN** displaying game history
+- **THEN** components receive typed arrays of turns and candidates
+- **AND** no JSONB parsing is required
 
 ### Requirement: Gameplay UI Components
 
@@ -62,12 +78,33 @@ The system SHALL use typed RPC calls.
 #### Scenario: playTurn API
 
 - **WHEN** `gameApi.playTurn` is called
-- **THEN** it returns a typed object matching `game_session_state` columns
+- **THEN** it returns a typed object matching `game_state` columns
 - **AND** the TypeScript type is auto-generated from Supabase
 
-#### Scenario: getSessionCandidates API
+#### Scenario: getTurnCandidates API
 
-- **WHEN** `gameApi.getSessionCandidates` is called
-- **THEN** it calls the `get_session_candidates` RPC
+- **WHEN** `gameApi.getTurnCandidates` is called
+- **THEN** it calls the `get_turn_candidates` RPC
 - **AND** returns a typed array of candidates
 - **AND** the TypeScript type is auto-generated from Supabase
+
+#### Scenario: getSessionHistory API
+
+- **WHEN** `gameApi.getSessionHistory` is called
+- **THEN** it calls the `get_session_history` RPC
+- **AND** returns a typed array of turns
+- **AND** the TypeScript type is auto-generated from Supabase
+
+### Requirement: View Rename
+
+The system SHALL update all references from `game_session_state` to `game_state`.
+
+#### Scenario: Store queries
+
+- **WHEN** the store queries for session state
+- **THEN** it queries from `game_state` view (not `game_session_state`)
+
+#### Scenario: Type imports
+
+- **WHEN** TypeScript types are generated
+- **THEN** they reference `game_state` (not `game_session_state`)

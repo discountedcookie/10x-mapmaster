@@ -1,18 +1,16 @@
 -- Function: should_guess
 -- Category: algorithm
--- Purpose: Decide whether to guess based on confidence thresholds
--- Spec: openspec/specs/algorithm/spec.md#guess-decision-rule
+-- Purpose: Decide whether to guess based on dynamic threshold
+-- Spec: openspec/changes/add-smart-confidence-thresholds/specs/algorithm/spec.md
 CREATE OR REPLACE FUNCTION "game_logic"."should_guess" (
   p_probabilities FLOAT[],
-  p_top_prob_threshold FLOAT DEFAULT 0.4,
-  p_margin_threshold FLOAT DEFAULT 0.15,
-  p_entropy_threshold FLOAT DEFAULT 0.7
+  p_threshold FLOAT
 ) returns BOOLEAN language plpgsql immutable
 SET
   search_path = public,
   game_logic AS $$
 DECLARE
-  v_metrics RECORD;
+  v_top_prob FLOAT;
   v_count INT;
 BEGIN
   v_count := COALESCE(array_length(p_probabilities, 1), 0);
@@ -27,33 +25,30 @@ BEGIN
     RETURN FALSE;
   END IF;
   
-  -- Get confidence metrics
-  SELECT * INTO v_metrics FROM calculate_confidence_metrics(p_probabilities);
+  -- Get top probability (array is already sorted DESC by caller)
+  v_top_prob := p_probabilities[1];
   
-  -- All three thresholds must pass
-  -- top_prob >= threshold AND margin >= threshold AND entropy <= threshold
-  RETURN (
-    v_metrics.top_prob >= p_top_prob_threshold
-    AND v_metrics.margin >= p_margin_threshold
-    AND v_metrics.normalized_entropy <= p_entropy_threshold
-  );
+  -- Simple threshold check: guess if top probability exceeds dynamic threshold
+  RETURN v_top_prob >= p_threshold;
 END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."should_guess" (FLOAT[], FLOAT, FLOAT, FLOAT) owner TO postgres;
+ALTER FUNCTION "game_logic"."should_guess" (FLOAT[], FLOAT) owner TO postgres;
 
 
-comment ON function "game_logic"."should_guess" (FLOAT[], FLOAT, FLOAT, FLOAT) IS 'Decides whether to guess based on confidence thresholds.
+comment ON function "game_logic"."should_guess" (FLOAT[], FLOAT) IS 'Decides whether to guess based on dynamic threshold.
 
-Decision Rule (ALL must pass):
-- top_prob >= threshold (default 0.4)
-- margin >= threshold (default 0.15)  
-- normalized_entropy <= threshold (default 0.7)
+Decision Rule:
+- Guess if top_prob >= p_threshold
+
+The threshold is calculated dynamically by calculate_dynamic_threshold() based on:
+- Turn progress (more aggressive as game progresses)
+- Candidate count (bonus if few candidates)
+- Margin between top two (bonus if clear leader)
 
 Edge cases:
 - Single candidate: automatic guess (returns TRUE)
 - Zero candidates: cannot guess (returns FALSE)
-- All scores identical: all thresholds fail, ask question
 
 Returns TRUE if should guess, FALSE if should ask question.';

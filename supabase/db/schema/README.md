@@ -197,24 +197,49 @@ VALUES
     'Maximum candidates to consider'
   );
 
--- Confidence thresholds  
+-- Dynamic confidence thresholds
 INSERT INTO
   game_logic.config (key, value, description)
 VALUES
   (
-    'confidence.top_prob_threshold',
-    '0.8',
-    'Minimum top probability to guess'
+    'confidence.guess_threshold_max',
+    '0.90',
+    'Maximum threshold at turn 0 (conservative)'
   ),
   (
-    'confidence.margin_threshold',
-    '0.15',
-    'Minimum gap between top two candidates'
+    'confidence.guess_threshold_min',
+    '0.60',
+    'Minimum threshold at final turn (aggressive)'
   ),
   (
-    'confidence.entropy_threshold',
-    '0.6',
-    'Maximum normalized entropy to guess'
+    'confidence.threshold_floor',
+    '0.50',
+    'Absolute minimum threshold'
+  ),
+  (
+    'confidence.threshold_ceiling',
+    '0.95',
+    'Absolute maximum threshold'
+  ),
+  (
+    'confidence.candidate_low_threshold',
+    '3',
+    'Candidate count below which bonus applies'
+  ),
+  (
+    'confidence.candidate_bonus',
+    '0.10',
+    'Threshold reduction for few candidates'
+  ),
+  (
+    'confidence.margin_high_threshold',
+    '0.25',
+    'Margin above which bonus applies'
+  ),
+  (
+    'confidence.margin_bonus',
+    '0.10',
+    'Threshold reduction for high margin'
   );
 
 -- Trait matching

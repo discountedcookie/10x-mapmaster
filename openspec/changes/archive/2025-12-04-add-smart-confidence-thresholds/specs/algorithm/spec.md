@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Confidence Normalization
 
@@ -56,8 +56,6 @@ The system SHALL use a dynamic threshold for guessing that adapts based on turn 
 - **WHEN** top candidate probability exceeds the dynamic threshold
 - **THEN** the system guesses instead of asking another question
 
-## ADDED Requirements
-
 ### Requirement: Smart Threshold Configuration
 
 The system SHALL expose configuration knobs for all threshold parameters.
@@ -74,9 +72,3 @@ The system SHALL expose configuration knobs for all threshold parameters.
   - `confidence.candidate_bonus` (default 0.10)
   - `confidence.margin_high_threshold` (default 0.25)
   - `confidence.margin_bonus` (default 0.10)
-
-## REMOVED Requirements
-
-### Requirement: Static Threshold (REMOVED)
-
-The static `confidence.top_prob_threshold`, `confidence.margin_threshold`, and `confidence.entropy_threshold` config keys are removed. Replaced by the dynamic threshold system.

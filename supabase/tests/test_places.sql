@@ -16,7 +16,7 @@ DO $$ BEGIN PERFORM set_config('pgtap.version', '1.0', true); END $$;
 
 
 SELECT
-  plan (9);
+  plan (10);
 
 
 -- ============================================================================
@@ -276,12 +276,28 @@ SELECT
 
 
 -- ============================================================================
--- Test 8: Places RLS - Places are publicly readable
+-- Test 8: Places RLS - Anonymous users can read places
+-- ============================================================================
+SET LOCAL role anon;
+SELECT set_config('request.jwt.claim.role', 'anon', TRUE);
+SELECT set_config('request.jwt.claim.sub', '', TRUE);
+
+SELECT
+  ok (
+    (SELECT COUNT(*) FROM places) > 0,
+    'Anonymous users can read places (RLS allows public read)'
+  );
+
+
+-- ============================================================================
+-- Test 9: Places RLS - Anonymous users cannot insert places
 -- ============================================================================
 SELECT
-  lives_ok (
-    $sql$ SELECT COUNT(*) FROM places; $sql$,
-    'Places are publicly readable'
+  throws_ok (
+    $sql$ INSERT INTO places (name, lat, lng) VALUES ('Hacker Place', 0, 0); $sql$,
+    '42501',
+    NULL,
+    'Anonymous users cannot insert places (RLS blocks insert)'
   );
 
 

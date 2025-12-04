@@ -1,129 +1,152 @@
 ## 1. Database Schema Changes
 
-- [ ] 1.1 Create `game_turn` table
-  - session_id (PK, FK to game_sessions ON DELETE CASCADE)
-  - action (turn_action enum: 'question', 'guess')
-  - question_text, question_type, trait_id, geographic_region_id
-  - guess_place_id, guess_place_name
-  - created_at (timestamptz default now())
-  - CHECK constraint: question fields valid when action='question'
-  - CHECK constraint: guess fields valid when action='guess'
-- [ ] 1.2 Create `game_session_candidates` table
-  - (session_id, place_id) composite PK
-  - session_id FK to game_sessions ON DELETE CASCADE
+- [ ] 1.1 Create `turn_action` enum type
+  - Values: 'question', 'guess'
+- [ ] 1.2 Create `game_turns` table
+  - id (uuid PK, default gen_random_uuid())
+  - session_id (FK to game_sessions ON DELETE CASCADE)
+  - turn_number (integer NOT NULL)
+  - action (turn_action enum NOT NULL)
+  - question_text, question_type, trait_id, geographic_region_id (question fields)
+  - guess_place_id, guess_place_name (guess fields)
+  - answer (answer_value enum, nullable - NULL = pending)
+  - created_at, answered_at
+  - UNIQUE (session_id, turn_number)
+  - CHECK: question fields valid when action='question'
+  - CHECK: guess fields valid when action='guess'
+- [ ] 1.3 Create `game_turn_candidates` table
+  - (turn_id, place_id) composite PK
+  - turn_id FK to game_turns ON DELETE CASCADE
   - place_id FK to places
   - probability (double precision NOT NULL)
   - description_similarity, affirmed_trait_similarity, denied_trait_similarity, geographic_distance
-  - Indexes: (session_id), (session_id, probability DESC)
-- [ ] 1.3 Create RLS policies for new tables
-  - game_turn: SELECT/INSERT/UPDATE/DELETE where session.user_id = auth.uid()
-  - game_session_candidates: SELECT/INSERT/UPDATE/DELETE where session.user_id = auth.uid()
-- [ ] 1.4 Create `get_session_candidates(p_session_id uuid)` function
+  - Index: (turn_id, probability DESC)
+- [ ] 1.4 Create RLS policies for new tables
+  - game_turns: SELECT/INSERT/UPDATE/DELETE where session.user_id = auth.uid()
+  - game_turn_candidates: SELECT/INSERT/UPDATE/DELETE via join through game_turns → game_sessions
+- [ ] 1.5 Create `get_turn_candidates(p_turn_id uuid)` function
   - RETURNS TABLE(id, name, lat, lng, probability, description_similarity)
   - SECURITY DEFINER with hardened search_path
-  - Validates session ownership
+  - Validates turn's session ownership
   - Joins candidates with places, orders by probability DESC
-- [ ] 1.5 Rewrite `game_session_state` view
+- [ ] 1.6 Create `get_session_history(p_session_id uuid)` function
+  - RETURNS TABLE(turn_id, turn_number, action, question_text, question_type, guess_place_name, answer, answered_at)
+  - SECURITY DEFINER, validates session ownership
+  - Orders by turn_number ASC
+- [ ] 1.7 Drop `game_session_state` view
+- [ ] 1.8 Create `game_state` view
   - Flat typed columns (no JSONB output)
-  - LEFT JOIN game_turn for action/question/guess fields
+  - LEFT JOIN game_turns (WHERE answer IS NULL) for current turn fields
   - LEFT JOIN places for final place details
-  - Computed status from was_correct, game_turn existence, place_id
-- [ ] 1.6 Drop `next_turn` column from `game_sessions`
-  - Migration drops column (no data migration needed for dev)
+  - Computed status from was_correct, game_turns existence, place_id
+  - total_turns count from game_turns
+- [ ] 1.9 Drop `game_answers` table
+- [ ] 1.10 Drop `next_turn` column from `game_sessions`
 
 ## 2. Game Logic Function Updates
 
 - [ ] 2.1 Update `start_game`
-  - Insert candidates into game_session_candidates (not JSONB)
-  - Insert first turn into game_turn (not next_turn JSONB)
-  - Change return type to TABLE(...) matching game_session_state
+  - Insert first turn into game_turns (turn_number=1, answer=NULL)
+  - Insert initial candidates into game_turn_candidates for that turn
+  - Change return type to TABLE(...) matching game_state
 - [ ] 2.2 Update `play_turn`
-  - Read current turn from game_turn table
-  - Change return type to TABLE(...) matching game_session_state
-  - Return state via SELECT from game_session_state after mutation
+  - Find current turn (answer IS NULL)
+  - Update that turn (set answer, answered_at)
+  - Change return type to TABLE(...) matching game_state
+  - Return state via SELECT from game_state after mutation
 - [ ] 2.3 Update `submit_place`
-  - Delete game_turn row when game ends
-  - Change return type to TABLE(...) matching game_session_state
+  - No turn table changes needed (game already ended)
+  - Change return type to TABLE(...) matching game_state
 - [ ] 2.4 Update `get_candidates`
-  - Query game_session_candidates joined with places
+  - Query game_turn_candidates for current turn joined with places
   - Return typed result set (not JSONB)
 - [ ] 2.5 Update `decide_next_turn`
-  - INSERT or UPDATE game_turn table (not next_turn JSONB)
-  - On game end: DELETE from game_turn
+  - INSERT new row into game_turns (turn_number+1, answer=NULL)
+  - INSERT candidates into game_turn_candidates for that turn
+  - On game end: do NOT insert new turn
 - [ ] 2.6 Update `handle_question`
-  - Read turn state from game_turn table
-  - Call decide_next_turn which updates game_turn
+  - UPDATE current game_turns row (answer, answered_at)
+  - Compute new candidate scores
+  - Call decide_next_turn which creates new turn + candidates
 - [ ] 2.7 Update `handle_guess`
-  - Read turn state from game_turn table
-  - On correct: DELETE game_turn, UPDATE game_sessions.was_correct
-  - On wrong: DELETE candidate row, call decide_next_turn
+  - UPDATE current game_turns row (answer, answered_at)
+  - On correct: UPDATE game_sessions (was_correct, place_id)
+  - On wrong: call decide_next_turn with place excluded
 - [ ] 2.8 Update `filter_candidates_for_geography`
-  - Change to UPDATE/DELETE on game_session_candidates table
-  - Input: session_id, region_id, answer
-  - No return value (void), operates on table directly
+  - Change to RETURN candidates (not void/table mutation)
+  - Takes candidates array, returns filtered array
+  - Caller inserts into game_turn_candidates
 - [ ] 2.9 Update `adjust_candidates_for_answer`
-  - Change to UPDATE on game_session_candidates table
-  - Input: session_id, trait_id, answer
-  - No return value (void), operates on table directly
+  - Change to RETURN candidates (not void/table mutation)
+  - Takes candidates array, returns adjusted array
+  - Caller inserts into game_turn_candidates
 - [ ] 2.10 Update `apply_softmax_to_candidates`
-  - Change to UPDATE on game_session_candidates table
-  - Input: session_id, temperature
-  - No return value (void), operates on table directly
-- [ ] 2.11 Update `record_game_answer`
-  - Keep candidates_snapshot parameter (JSONB for historical audit)
-  - Build snapshot by querying game_session_candidates instead of receiving JSONB
-  - Historical snapshot in game_answers is acceptable (not frontend-facing)
-- [ ] 2.12 Remove or deprecate JSONB builder functions
-  - `build_guess_turn` - no longer needed (INSERT into game_turn directly)
-  - `build_question_turn` - no longer needed (INSERT into game_turn directly)
+  - Change to RETURN candidates (not void/table mutation)
+  - Takes candidates array, returns with updated probabilities
+  - Caller inserts into game_turn_candidates
+- [ ] 2.11 Drop `record_game_answer` function
+  - Functionality replaced by UPDATE on game_turns
+- [ ] 2.12 Drop JSONB builder functions
+  - `build_guess_turn` - no longer needed
+  - `build_question_turn` - no longer needed
 - [ ] 2.13 Update `global_stats` view
-  - Change status calculation to use game_turn table existence instead of next_turn JSONB
+  - Change active_sessions to count sessions with pending turn in game_turns
+  - Change question count to use game_turns (action='question', answer IS NOT NULL)
 
 ## 3. Frontend Updates
 
 - [ ] 3.1 Regenerate Supabase types
   - Run `bun run supabase:types`
-  - Verify types for: game_turn, game_session_candidates, game_session_state view, get_session_candidates function
+  - Verify types for: game_turns, game_turn_candidates, game_state view, get_turn_candidates, get_session_history
 - [ ] 3.2 Update `src/lib/api/index.ts`
   - playTurn: return typed session state (not void)
   - startGame: return typed session state (not just session_id)
   - submitPlace: return typed session state (not void)
-  - Add getSessionCandidates(sessionId) calling RPC
-  - Remove getGameState (or keep for refresh, but prefer view query)
+  - Add getTurnCandidates(turnId) calling get_turn_candidates RPC
+  - Add getSessionHistory(sessionId) calling get_session_history RPC
+  - Update view queries from game_session_state to game_state
 - [ ] 3.3 Update `src/stores/gameSession.ts`
-  - Separate refs: session (game state) and candidates (array)
+  - Separate refs: session (game_state row) and candidates (array)
   - Use Supabase-generated types for both
-  - After playTurn: update session from return, then fetch candidates
-  - After startGame: update session from return, then fetch candidates
+  - After playTurn: update session from return, fetch candidates for new turn
+  - After startGame: update session from return, fetch candidates
   - Remove all manual type definitions
+  - Update view name references
 - [ ] 3.4 Update `src/composables/game/useGameMap.ts`
   - Remove `as unknown as` cast
   - Read candidates from store's typed candidates ref
 - [ ] 3.5 Update `src/components/game/states/GameActive.vue`
   - Remove session cast and QuestionJson/GuessJson interfaces
   - Read session.question_text, session.guess_place_name directly
+- [ ] 3.6 Update any components referencing game_session_state
+  - Search and replace view name references
 
 ## 4. Database Tests
 
-- [ ] 4.1 Add test_tables_game_turn.sql
+- [ ] 4.1 Add test_tables_game_turns.sql
   - Test table constraints (action-dependent fields)
   - Test RLS policies
   - Test cascade delete from game_sessions
-- [ ] 4.2 Add test_tables_game_session_candidates.sql
+  - Test unique (session_id, turn_number)
+- [ ] 4.2 Add test_tables_game_turn_candidates.sql
   - Test table constraints
-  - Test RLS policies
-  - Test cascade delete from game_sessions
-- [ ] 4.3 Add test_functions_get_session_candidates.sql
+  - Test RLS policies (via game_turns → game_sessions)
+  - Test cascade delete from game_turns
+- [ ] 4.3 Add test_functions_get_turn_candidates.sql
   - Test returns correct data
   - Test ownership validation
   - Test ordering by probability
-- [ ] 4.4 Update test_game_flow.sql
+- [ ] 4.4 Add test_functions_get_session_history.sql
+  - Test returns all turns in order
+  - Test ownership validation
+- [ ] 4.5 Update test_game_flow.sql
   - Update to use new table structure
-  - Verify candidates in table after each turn
-  - Verify game_turn updates correctly
-- [ ] 4.5 Update test_sessions.sql
+  - Verify candidates in game_turn_candidates after each turn
+  - Verify game_turns rows created correctly
+- [ ] 4.6 Update test_sessions.sql
   - Remove tests for next_turn JSONB
-  - Add tests for game_turn table behavior
+  - Remove tests for game_answers table
+  - Add tests for game_turns-based state
 
 ## 5. Verify
 

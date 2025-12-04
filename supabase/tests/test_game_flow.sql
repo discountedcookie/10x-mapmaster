@@ -11,6 +11,11 @@ SET
   extensions;
 
 
+-- Enable test mode: generate_embedding returns zero vectors instead of calling external API
+SET
+  pgtap.version = '1.0';
+
+
 -- Simulate authenticated user context
 SET
   local role authenticated;

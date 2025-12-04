@@ -13,6 +13,7 @@ DECLARE
   v_confidence_scores FLOAT[];
   v_probabilities FLOAT[];
   v_confidence_metrics RECORD;
+  v_dynamic_threshold FLOAT;
   v_should_guess BOOLEAN;
   v_top_candidate JSONB;
   v_question_record RECORD;
@@ -20,20 +21,10 @@ DECLARE
   v_total_turns INT;
   v_max_turns INT;
   v_softmax_temperature FLOAT;
-  v_top_prob_threshold FLOAT;
-  v_margin_threshold FLOAT;
-  v_entropy_threshold FLOAT;
 BEGIN
-  -- Get configuration from game_logic.config (FAIL if missing)
+  -- Get configuration from game_logic.config (NO FALLBACKS - fail visibly if missing)
   v_max_turns := get_max_turns();
-  
   v_softmax_temperature := get_config_float('scoring.temperature');
-  
-  v_top_prob_threshold := get_config_float('confidence.top_prob_threshold');
-  
-  v_margin_threshold := get_config_float('confidence.margin_threshold');
-  
-  v_entropy_threshold := get_config_float('confidence.entropy_threshold');
 
   -- Get current turn count
   SELECT COUNT(*) INTO v_total_turns
@@ -77,16 +68,20 @@ BEGIN
   v_candidates := apply_softmax_to_candidates(v_candidates, v_softmax_temperature);
   
   -- Calculate confidence metrics (top_prob, margin, normalized_entropy)
-  SELECT * INTO v_confidence_metrics
+  -- Note: Select specific columns to avoid TupleDesc resource leak
+  SELECT top_prob, margin, normalized_entropy INTO v_confidence_metrics
   FROM calculate_confidence_metrics(v_probabilities);
   
-  -- Make guess decision using algorithm function
-  v_should_guess := should_guess(
-    v_probabilities,
-    v_top_prob_threshold,
-    v_margin_threshold,
-    v_entropy_threshold
+  -- Calculate dynamic threshold based on turn progress, candidate count, and margin
+  v_dynamic_threshold := calculate_dynamic_threshold(
+    v_total_turns,
+    v_max_turns,
+    v_candidate_count,
+    v_confidence_metrics.margin
   );
+  
+  -- Make guess decision using algorithm function with dynamic threshold
+  v_should_guess := should_guess(v_probabilities, v_dynamic_threshold);
   
   -- Get top candidate for guess
   SELECT elem INTO v_top_candidate
@@ -104,7 +99,9 @@ BEGIN
     v_next_turn := build_guess_turn(v_top_candidate, v_candidates);
   ELSE
     -- Ask a question: call get_question with candidates
-    SELECT * INTO v_question_record
+    -- Note: Select specific columns to avoid TupleDesc resource leak
+    SELECT question_type, trait_id, geographic_region_id, question_text, question_reasoning 
+    INTO v_question_record
     FROM get_question(p_session_id, v_candidates)
     LIMIT 1;
     
@@ -147,16 +144,20 @@ Responsibilities (SRP - Orchestration only):
 1. Get/validate candidates
 2. Extract confidence scores and convert to probabilities using softmax_probabilities()
 3. Calculate confidence metrics using calculate_confidence_metrics()
-4. Make guess decision using should_guess() with proper thresholds
-5. Call get_question() if asking question (delegates to question domain)
-6. Call build_guess_turn() or build_question_turn() for formatting (pure functions)
-7. Update database with next_turn
+4. Calculate dynamic threshold using calculate_dynamic_threshold()
+5. Make guess decision using should_guess() with dynamic threshold
+6. Call get_question() if asking question (delegates to question domain)
+7. Call build_guess_turn() or build_question_turn() for formatting (pure functions)
+8. Update database with next_turn
 
 Algorithm Integration:
 - Uses softmax_probabilities() to convert scores to probability distribution
 - Uses calculate_confidence_metrics() for top_prob, margin, normalized_entropy
-- Uses should_guess() for evidence-based guess decisions
-- Replaces hardcoded confidence thresholds with algorithmic approach
+- Uses calculate_dynamic_threshold() for adaptive guess threshold based on:
+  * Turn progress (more aggressive as game progresses)
+  * Candidate count (bonus when few candidates remain)
+  * Margin between top candidates (bonus when clear leader)
+- Uses should_guess() with dynamic threshold for decision
 
 Returns next_turn JSONB structure:
 - {"action": "guess", "place_id": "...", "place_name": "...", "candidates": [...]}
@@ -168,7 +169,10 @@ Called by:
 - handle_question() after user answers question (passes candidates)
 - handle_guess() after wrong guess (passes candidates)
 
-Configuration (from app_settings):
-- max_turns, softmax_temperature, top_prob_threshold, margin_threshold, entropy_threshold
+Configuration (from game_logic.config):
+- game.max_turns, scoring.temperature
+- confidence.guess_threshold_max/min, threshold_floor/ceiling
+- confidence.candidate_low_threshold, candidate_bonus
+- confidence.margin_high_threshold, margin_bonus
 
 Returns: VOID (side-effect only)';

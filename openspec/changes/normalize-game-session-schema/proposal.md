@@ -2,66 +2,58 @@
 
 ## Why
 
-The current game session architecture stores dynamic state in a `next_turn` JSONB column:
+The current game session architecture has two problems:
 
-```sql
--- Current: JSONB with dynamic shapes
-next_turn JSONB -- Contains question OR guess data + candidates array
-```
-
-This causes problems:
-
-1. **No type safety** - Supabase generates `Json` type, forcing manual TypeScript definitions
-2. **Frontend casts everywhere** - `as unknown as { question: ... }` throughout codebase
-3. **Schema not self-documenting** - Shape lives in code comments, not database constraints
-4. **Can't query/index JSONB internals efficiently**
-
-The `game_session_state` view extracts JSONB into more JSONB blobs (`question`, `guess`, `candidates`), which doesn't solve the typing problem.
+1. **JSONB everywhere** - `next_turn` JSONB column forces manual TypeScript definitions and `as unknown as` casts throughout the frontend
+2. **No turn history for UI** - Frontend needs to show "how the game progressed" after completion, but `game_answers.candidates` is JSONB and not designed for presentation
 
 ## What Changes
 
 **Add two new tables:**
 
-1. **`game_turn`** - Current pending action (what we're asking the user)
-   - 1:1 with `game_sessions`
-   - Contains: action type, question fields, guess fields
-   - Row exists = game has pending turn; no row = game ended
+1. **`game_turns`** - All turns (historical + current pending)
+   - Multiple rows per session (turn history)
+   - Contains: turn_number, action type, question/guess fields, answer (NULL = pending)
+   - Frontend can replay the game after completion
 
-2. **`game_session_candidates`** - Current candidate places with scores
-   - N:1 with `game_sessions`
+2. **`game_turn_candidates`** - Candidates at each turn
+   - FK to `game_turns.id` (not session)
    - Contains: place_id, probability, similarity scores
-   - Replaces candidates array in JSONB
+   - Typed history, not JSONB snapshots
 
-**Modify existing:**
+**Remove:**
 
-- **`game_sessions`** - Remove `next_turn` JSONB column
-- **`game_session_state`** - Flatten to typed columns (no JSONB output)
-- **Game logic functions** - Update to use new tables instead of JSONB
+- **`game_sessions.next_turn`** - JSONB column (replaced by `game_turns`)
+- **`game_answers`** - Table (replaced by `game_turns`)
+
+**Rename:**
+
+- **`game_session_state`** → **`game_state`** - Cleaner name
 
 **Result:**
 
-| Table                     | Purpose                                                        |
-| ------------------------- | -------------------------------------------------------------- |
-| `game_sessions`           | Session lifecycle (id, user, description, status, final place) |
-| `game_turn`               | Current pending action (question or guess being asked)         |
-| `game_answers`            | History of past turns (what was asked, what user answered)     |
-| `game_session_candidates` | Current candidate places with scores                           |
+| Table                  | Purpose                                            |
+| ---------------------- | -------------------------------------------------- |
+| `game_sessions`        | Session lifecycle (id, user, description, outcome) |
+| `game_turns`           | All turns with typed columns (history + pending)   |
+| `game_turn_candidates` | Candidates at each turn (typed, queryable)         |
+| `game_state` (view)    | Current state for frontend (flattened, typed)      |
 
 All game state is now:
 
 - Properly relational
 - Fully typed by Supabase
-- Queryable and indexable
-- Self-documenting via schema
+- Queryable for both current state AND history
+- No JSONB in frontend-facing APIs
 
 ## Impact
 
 - Affected specs: `database`, `game-core`, `frontend`
 - Affected code:
-  - `supabase/db/public/` - Schema changes, view rewrite
+  - `supabase/db/public/` - Schema changes, view rename
   - `supabase/db/game_logic/` - All game logic functions
   - `supabase/migrations/` - New migration
   - `src/stores/gameSession.ts` - Use typed columns
   - `src/composables/game/useGameMap.ts` - Use typed candidates
   - `src/components/game/states/` - Use typed data
-  - `src/lib/api/index.ts` - Typed return from `play_turn`
+  - `src/lib/api/index.ts` - Typed returns, history API

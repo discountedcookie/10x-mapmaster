@@ -11,6 +11,11 @@ SET
   extensions;
 
 
+-- Enable test mode: external API calls return stubs instead of calling real services
+SET
+  pgtap.version = '1.0';
+
+
 SELECT
   plan (12);
 
@@ -68,7 +73,15 @@ SELECT
   );
 
 
--- Test 2: Users cannot access other users' sessions
+-- Test 2: Users cannot access other users' sessions (RLS filters them out)
+-- First insert a session as user 2 (bypass RLS)
+SET LOCAL role postgres;
+INSERT INTO game_sessions (id, user_id, description, language_code)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '550e8400-e29b-41d4-a716-446655440002', 'User 2 session', 'en');
+SET LOCAL role authenticated;
+SELECT set_config('request.jwt.claim.sub', '550e8400-e29b-41d4-a716-446655440001', TRUE);
+
+-- As user 1, verify user 2's session is NOT visible (RLS should filter it)
 SELECT
   IS (
     (
@@ -77,11 +90,10 @@ SELECT
       FROM
         game_sessions
       WHERE
-        user_id = '550e8400-e29b-41d4-a716-446655440002'
-        AND auth.uid () = '550e8400-e29b-41d4-a716-446655440001'
+        id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
     ),
     0,
-    'Users cannot access other users sessions'
+    'Users cannot access other users sessions (RLS filters them out)'
   );
 
 

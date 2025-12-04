@@ -11,17 +11,25 @@ SET
   extensions;
 
 
+-- Enable test mode: external API calls return stubs instead of calling real services
+SET
+  pgtap.version = '1.0';
+
+
 SELECT
-  plan (20);
+  plan (30);
 
 
+-- ============================================================================
 -- Test: softmax_probabilities function
+-- ============================================================================
+
 -- Test 1: Single candidate returns [1.0]
 SELECT
   results_eq (
     'SELECT softmax_probabilities(ARRAY[0.5]::FLOAT[])',
     'SELECT ARRAY[1.0]::FLOAT[]',
-    'Single candidate returns probability [1.0]'
+    'softmax: single candidate returns [1.0]'
   );
 
 
@@ -30,7 +38,7 @@ SELECT
   results_eq (
     'SELECT softmax_probabilities(ARRAY[]::FLOAT[])',
     'SELECT ARRAY[]::FLOAT[]',
-    'Empty array returns empty array'
+    'softmax: empty array returns empty array'
   );
 
 
@@ -41,7 +49,7 @@ SELECT
       SELECT
         (softmax_probabilities (ARRAY[2.0, 1.0, 0.5])) [1] > (softmax_probabilities (ARRAY[2.0, 1.0, 0.5])) [2]
     ),
-    'Higher scores produce higher probabilities'
+    'softmax: higher scores produce higher probabilities'
   );
 
 
@@ -54,165 +62,290 @@ SELECT
       FROM
         unnest(softmax_probabilities (ARRAY[1.5, 0.8, 2.1, 0.3])) AS x
     ),
-    'Probabilities sum to 1.0'
+    'softmax: probabilities sum to 1.0'
   );
 
 
--- Test 5: Lower temperature makes distribution sharper (higher max probability)
+-- Test 5: Lower temperature makes distribution sharper
 SELECT
   ok (
     (
       SELECT
         (softmax_probabilities (ARRAY[2.0, 1.0], 0.1)) [1] > (softmax_probabilities (ARRAY[2.0, 1.0], 1.0)) [1]
     ),
-    'Lower temperature produces sharper distribution'
+    'softmax: lower temperature produces sharper distribution'
   );
 
 
+-- Test 6: Identical scores produce uniform distribution
+SELECT
+  ok (
+    (
+      SELECT
+        abs((softmax_probabilities(ARRAY[0.5, 0.5, 0.5]))[1] - 0.333) < 0.01
+    ),
+    'softmax: identical scores produce uniform distribution (~0.33 each)'
+  );
+
+
+-- ============================================================================
 -- Test: calculate_confidence_metrics function
--- Test 6: Single candidate has top_prob = 1.0
+-- ============================================================================
+
+-- Test 7: Single candidate has top_prob = 1.0
 SELECT
   ok (
     (
       SELECT
         (calculate_confidence_metrics (ARRAY[1.0])).top_prob = 1.0
     ),
-    'Single candidate has top_prob = 1.0'
+    'metrics: single candidate has top_prob = 1.0'
   );
 
 
--- Test 7: Empty array returns 0 metrics (no candidates)
+-- Test 8: Empty array returns 0 metrics
 SELECT
   ok (
     (
       SELECT
         (calculate_confidence_metrics (ARRAY[]::FLOAT[])).top_prob = 0
     ),
-    'Empty array returns zero top_prob'
+    'metrics: empty array returns zero top_prob'
   );
 
 
--- Test 8: Uniform distribution has low margin (close to 0)
+-- Test 9: Uniform distribution has zero margin
 SELECT
   ok (
     (
       SELECT
-        (
-          calculate_confidence_metrics (ARRAY[0.25, 0.25, 0.25, 0.25])
-        ).margin < 0.01
+        (calculate_confidence_metrics (ARRAY[0.25, 0.25, 0.25, 0.25])).margin < 0.01
     ),
-    'Uniform distribution has near-zero margin'
+    'metrics: uniform distribution has near-zero margin'
   );
 
 
--- Test 9: Certain distribution has high top_prob (>0.8)
+-- Test 10: Certain distribution has high top_prob
 SELECT
   ok (
     (
       SELECT
-        (
-          calculate_confidence_metrics (ARRAY[0.9, 0.05, 0.05])
-        ).top_prob > 0.8
+        (calculate_confidence_metrics (ARRAY[0.9, 0.05, 0.05])).top_prob > 0.8
     ),
-    'Certain distribution has high top_prob'
+    'metrics: skewed distribution has high top_prob'
   );
 
 
+-- Test 11: Two candidates - margin equals difference
+SELECT
+  ok (
+    (
+      SELECT
+        abs((calculate_confidence_metrics(ARRAY[0.7, 0.3])).margin - 0.4) < 0.01
+    ),
+    'metrics: two candidates margin equals difference (0.7-0.3=0.4)'
+  );
+
+
+-- ============================================================================
 -- Test: calculate_dynamic_threshold function
--- Test 10: At turn 0 with many candidates, returns high threshold (conservative)
+-- ============================================================================
+
+-- Test 12: Turn 0 returns high threshold (conservative)
 SELECT
   ok (
     calculate_dynamic_threshold(0, 5, 10, 0.1) > 0.85,
-    'Turn 0 with many candidates returns high threshold'
+    'threshold: turn 0 returns high threshold (>0.85)'
   );
 
 
--- Test 11: At final turn with many candidates, returns lower threshold (aggressive)
+-- Test 13: Final turn returns low threshold (aggressive)
 SELECT
   ok (
     calculate_dynamic_threshold(5, 5, 10, 0.1) < 0.65,
-    'Final turn with many candidates returns lower threshold'
+    'threshold: final turn returns low threshold (<0.65)'
   );
 
 
--- Test 12: With few candidates (<=3), applies candidate bonus
+-- Test 14: Few candidates applies bonus
 SELECT
   ok (
     calculate_dynamic_threshold(2, 5, 3, 0.1) < calculate_dynamic_threshold(2, 5, 10, 0.1),
-    'Few candidates reduces threshold (candidate bonus applied)'
+    'threshold: few candidates reduces threshold'
   );
 
 
--- Test 13: With high margin (>=0.25), applies margin bonus
+-- Test 15: High margin applies bonus
 SELECT
   ok (
     calculate_dynamic_threshold(2, 5, 10, 0.30) < calculate_dynamic_threshold(2, 5, 10, 0.10),
-    'High margin reduces threshold (margin bonus applied)'
+    'threshold: high margin reduces threshold'
   );
 
 
--- Test 14: Both bonuses stack additively
+-- Test 16: Ceiling clamp at 0.95
 SELECT
   ok (
-    calculate_dynamic_threshold(2, 5, 3, 0.30) < calculate_dynamic_threshold(2, 5, 3, 0.10),
-    'Bonuses stack additively'
+    calculate_dynamic_threshold(0, 5, 100, 0.0) <= 0.95,
+    'threshold: clamped to ceiling (0.95)'
   );
 
 
--- Test 15: Result is clamped between floor and ceiling
+-- Test 17: Floor clamp at 0.50
 SELECT
   ok (
-    calculate_dynamic_threshold(0, 5, 100, 0.1) <= 0.95,
-    'Threshold clamped to ceiling (0.95)'
+    calculate_dynamic_threshold(5, 5, 1, 0.99) >= 0.50,
+    'threshold: clamped to floor (0.50)'
   );
 
 
--- Test 16: Result is clamped between floor and ceiling
+-- Test 18: Mid-game interpolation
 SELECT
   ok (
-    calculate_dynamic_threshold(5, 5, 1, 0.50) >= 0.50,
-    'Threshold clamped to floor (0.50)'
+    (
+      SELECT
+        t > 0.70 AND t < 0.85
+      FROM calculate_dynamic_threshold(2, 5, 10, 0.1) t
+    ),
+    'threshold: mid-game (turn 2/5) returns mid-range threshold'
   );
 
 
--- Test: should_guess function (updated for dynamic threshold)
--- Test 17: Single candidate returns TRUE (only one option = should guess)
+-- ============================================================================
+-- Test: should_guess function
+-- ============================================================================
+
+-- Test 19: Single candidate always guesses
 SELECT
   IS (
-    should_guess (ARRAY[1.0], 0, 5, 1),
+    should_guess (ARRAY[1.0]::FLOAT[], 0.99),
     TRUE,
-    'Single candidate returns TRUE (must guess)'
+    'should_guess: single candidate returns TRUE regardless of threshold'
   );
 
 
--- Test 18: Empty array returns FALSE (no candidates = cannot guess)
+-- Test 20: Empty array never guesses
 SELECT
   IS (
-    should_guess (ARRAY[]::FLOAT[], 0, 5, 0),
+    should_guess (ARRAY[]::FLOAT[], 0.01),
     FALSE,
-    'Empty array returns FALSE (no candidates)'
+    'should_guess: empty array returns FALSE regardless of threshold'
   );
 
 
--- Test 19: High confidence returns TRUE with default thresholds
--- Probabilities [0.85, 0.1, 0.05]: top_prob=0.85, margin=0.75, entropy~0.5
--- All pass default thresholds (0.4, 0.15, 0.7)
+-- Test 21: Above threshold returns TRUE
 SELECT
   IS (
-    should_guess (ARRAY[0.85, 0.1, 0.05]),
+    should_guess (ARRAY[0.85, 0.10, 0.05]::FLOAT[], 0.80),
     TRUE,
-    'High confidence (0.85) returns TRUE with default thresholds'
+    'should_guess: top_prob (0.85) > threshold (0.80) returns TRUE'
   );
 
 
--- Test 20: Moderate confidence returns TRUE with relaxed thresholds
--- Probabilities [0.65, 0.25, 0.1]: top_prob=0.65, margin=0.40, entropy~0.8
--- Passes with relaxed thresholds (0.5, 0.3, 0.9)
+-- Test 22: Below threshold returns FALSE
 SELECT
   IS (
-    should_guess (ARRAY[0.65, 0.25, 0.1], 0.5, 0.3, 0.9),
+    should_guess (ARRAY[0.60, 0.25, 0.15]::FLOAT[], 0.80),
+    FALSE,
+    'should_guess: top_prob (0.60) < threshold (0.80) returns FALSE'
+  );
+
+
+-- Test 23: Exactly at threshold returns TRUE (>= comparison)
+SELECT
+  IS (
+    should_guess (ARRAY[0.80, 0.15, 0.05]::FLOAT[], 0.80),
     TRUE,
-    'Moderate confidence (0.65) returns TRUE with relaxed thresholds'
+    'should_guess: top_prob equals threshold returns TRUE'
+  );
+
+
+-- ============================================================================
+-- Test: apply_softmax_to_candidates function
+-- ============================================================================
+
+-- Test 24: Empty candidates returns empty array
+SELECT
+  results_eq (
+    $$SELECT apply_softmax_to_candidates('[]'::JSONB)$$,
+    $$SELECT '[]'::JSONB$$,
+    'apply_softmax: empty candidates returns empty array'
+  );
+
+
+-- Test 25: NULL candidates returns empty array
+SELECT
+  results_eq (
+    $$SELECT apply_softmax_to_candidates(NULL)$$,
+    $$SELECT '[]'::JSONB$$,
+    'apply_softmax: NULL candidates returns empty array'
+  );
+
+
+-- Test 26: Single candidate gets probability 1.0
+SELECT
+  ok (
+    (
+      SELECT
+        abs((apply_softmax_to_candidates('[{"id": "a", "confidence": 0.8}]'::JSONB)->0->>'probability')::FLOAT - 1.0) < 0.001
+    ),
+    'apply_softmax: single candidate gets probability 1.0'
+  );
+
+
+-- Test 27: Probabilities sum to 1.0
+SELECT
+  ok (
+    (
+      SELECT
+        abs(sum((c->>'probability')::FLOAT) - 1.0) < 0.001
+      FROM jsonb_array_elements(
+        apply_softmax_to_candidates('[{"id": "a", "confidence": 0.9}, {"id": "b", "confidence": 0.7}, {"id": "c", "confidence": 0.5}]'::JSONB)
+      ) c
+    ),
+    'apply_softmax: probabilities sum to 1.0'
+  );
+
+
+-- Test 28: Results sorted by probability DESC
+SELECT
+  ok (
+    (
+      SELECT
+        (r->0->>'probability')::FLOAT >= (r->1->>'probability')::FLOAT
+        AND (r->1->>'probability')::FLOAT >= (r->2->>'probability')::FLOAT
+      FROM (
+        SELECT apply_softmax_to_candidates('[{"id": "a", "confidence": 0.5}, {"id": "b", "confidence": 0.9}, {"id": "c", "confidence": 0.7}]'::JSONB) r
+      ) x
+    ),
+    'apply_softmax: results sorted by probability DESC'
+  );
+
+
+-- Test 29: Higher confidence gets higher probability
+SELECT
+  ok (
+    (
+      WITH result AS (
+        SELECT apply_softmax_to_candidates('[{"id": "high", "confidence": 0.9}, {"id": "low", "confidence": 0.3}]'::JSONB) r
+      )
+      SELECT
+        (SELECT (c->>'probability')::FLOAT FROM jsonb_array_elements((SELECT r FROM result)) c WHERE c->>'id' = 'high')
+        >
+        (SELECT (c->>'probability')::FLOAT FROM jsonb_array_elements((SELECT r FROM result)) c WHERE c->>'id' = 'low')
+    ),
+    'apply_softmax: higher confidence gets higher probability'
+  );
+
+
+-- Test 30: Missing confidence defaults to 0.5
+SELECT
+  ok (
+    (
+      SELECT
+        (apply_softmax_to_candidates('[{"id": "a"}]'::JSONB)->0->>'probability')::FLOAT = 1.0
+    ),
+    'apply_softmax: missing confidence defaults (single candidate still gets 1.0)'
   );
 
 

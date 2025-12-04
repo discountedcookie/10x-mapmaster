@@ -31,12 +31,16 @@ BEGIN
   END IF;
   
   -- Find best geographic question (already filters out asked questions)
-  SELECT * INTO v_best_geo_question
-  FROM get_geographic_questions(p_session_id, p_candidates, 1);
+  -- Note: Use table alias to avoid column name ambiguity with return type
+  SELECT geo.geographic_region_id, geo.split_quality, geo.question_text 
+  INTO v_best_geo_question
+  FROM get_geographic_questions(p_session_id, p_candidates, 1) geo;
   
   -- Find best semantic question (already filters out asked questions)
-  SELECT * INTO v_best_semantic_question
-  FROM get_semantic_questions(p_session_id, p_candidates, 1);
+  -- Note: Use table alias to avoid column name ambiguity with return type
+  SELECT sem.trait_id, sem.split_quality, sem.question_text
+  INTO v_best_semantic_question
+  FROM get_semantic_questions(p_session_id, p_candidates, 1) sem;
   
   -- Decision: prefer geographic if split quality >= threshold
   IF v_best_geo_question.split_quality >= p_geographic_preference_threshold THEN

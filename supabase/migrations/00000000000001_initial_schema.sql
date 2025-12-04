@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-04T03:22:33.887Z
+-- Generated: 2025-12-04T12:52:25.613Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -1823,12 +1823,16 @@ BEGIN
   END IF;
   
   -- Find best geographic question (already filters out asked questions)
-  SELECT * INTO v_best_geo_question
-  FROM get_geographic_questions(p_session_id, p_candidates, 1);
+  -- Note: Use table alias to avoid column name ambiguity with return type
+  SELECT geo.geographic_region_id, geo.split_quality, geo.question_text 
+  INTO v_best_geo_question
+  FROM get_geographic_questions(p_session_id, p_candidates, 1) geo;
   
   -- Find best semantic question (already filters out asked questions)
-  SELECT * INTO v_best_semantic_question
-  FROM get_semantic_questions(p_session_id, p_candidates, 1);
+  -- Note: Use table alias to avoid column name ambiguity with return type
+  SELECT sem.trait_id, sem.split_quality, sem.question_text
+  INTO v_best_semantic_question
+  FROM get_semantic_questions(p_session_id, p_candidates, 1) sem;
   
   -- Decision: prefer geographic if split quality >= threshold
   IF v_best_geo_question.split_quality >= p_geographic_preference_threshold THEN
@@ -1910,19 +1914,17 @@ NOTE: This is an internal function that should be in game_logic schema (not clie
 
 -- Function: should_guess
 -- Category: algorithm
--- Purpose: Decide whether to guess based on confidence thresholds
--- Spec: openspec/specs/algorithm/spec.md#guess-decision-rule
+-- Purpose: Decide whether to guess based on dynamic threshold
+-- Spec: openspec/changes/add-smart-confidence-thresholds/specs/algorithm/spec.md
 CREATE OR REPLACE FUNCTION "game_logic"."should_guess" (
   p_probabilities FLOAT[],
-  p_top_prob_threshold FLOAT DEFAULT 0.4,
-  p_margin_threshold FLOAT DEFAULT 0.15,
-  p_entropy_threshold FLOAT DEFAULT 0.7
+  p_threshold FLOAT
 ) returns BOOLEAN language plpgsql immutable
 SET
   search_path = public,
   game_logic AS $$
 DECLARE
-  v_metrics RECORD;
+  v_top_prob FLOAT;
   v_count INT;
 BEGIN
   v_count := COALESCE(array_length(p_probabilities, 1), 0);
@@ -1937,34 +1939,31 @@ BEGIN
     RETURN FALSE;
   END IF;
   
-  -- Get confidence metrics
-  SELECT * INTO v_metrics FROM calculate_confidence_metrics(p_probabilities);
+  -- Get top probability (array is already sorted DESC by caller)
+  v_top_prob := p_probabilities[1];
   
-  -- All three thresholds must pass
-  -- top_prob >= threshold AND margin >= threshold AND entropy <= threshold
-  RETURN (
-    v_metrics.top_prob >= p_top_prob_threshold
-    AND v_metrics.margin >= p_margin_threshold
-    AND v_metrics.normalized_entropy <= p_entropy_threshold
-  );
+  -- Simple threshold check: guess if top probability exceeds dynamic threshold
+  RETURN v_top_prob >= p_threshold;
 END;
 $$;
 
 
-ALTER FUNCTION "game_logic"."should_guess" (FLOAT[], FLOAT, FLOAT, FLOAT) owner TO postgres;
+ALTER FUNCTION "game_logic"."should_guess" (FLOAT[], FLOAT) owner TO postgres;
 
 
-comment ON function "game_logic"."should_guess" (FLOAT[], FLOAT, FLOAT, FLOAT) IS 'Decides whether to guess based on confidence thresholds.
+comment ON function "game_logic"."should_guess" (FLOAT[], FLOAT) IS 'Decides whether to guess based on dynamic threshold.
 
-Decision Rule (ALL must pass):
-- top_prob >= threshold (default 0.4)
-- margin >= threshold (default 0.15)  
-- normalized_entropy <= threshold (default 0.7)
+Decision Rule:
+- Guess if top_prob >= p_threshold
+
+The threshold is calculated dynamically by calculate_dynamic_threshold() based on:
+- Turn progress (more aggressive as game progresses)
+- Candidate count (bonus if few candidates)
+- Margin between top two (bonus if clear leader)
 
 Edge cases:
 - Single candidate: automatic guess (returns TRUE)
 - Zero candidates: cannot guess (returns FALSE)
-- All scores identical: all thresholds fail, ask question
 
 Returns TRUE if should guess, FALSE if should ask question.';
 
@@ -2063,6 +2062,7 @@ DECLARE
   v_confidence_scores FLOAT[];
   v_probabilities FLOAT[];
   v_confidence_metrics RECORD;
+  v_dynamic_threshold FLOAT;
   v_should_guess BOOLEAN;
   v_top_candidate JSONB;
   v_question_record RECORD;
@@ -2070,20 +2070,10 @@ DECLARE
   v_total_turns INT;
   v_max_turns INT;
   v_softmax_temperature FLOAT;
-  v_top_prob_threshold FLOAT;
-  v_margin_threshold FLOAT;
-  v_entropy_threshold FLOAT;
 BEGIN
-  -- Get configuration from game_logic.config (FAIL if missing)
+  -- Get configuration from game_logic.config (NO FALLBACKS - fail visibly if missing)
   v_max_turns := get_max_turns();
-  
   v_softmax_temperature := get_config_float('scoring.temperature');
-  
-  v_top_prob_threshold := get_config_float('confidence.top_prob_threshold');
-  
-  v_margin_threshold := get_config_float('confidence.margin_threshold');
-  
-  v_entropy_threshold := get_config_float('confidence.entropy_threshold');
 
   -- Get current turn count
   SELECT COUNT(*) INTO v_total_turns
@@ -2127,16 +2117,20 @@ BEGIN
   v_candidates := apply_softmax_to_candidates(v_candidates, v_softmax_temperature);
   
   -- Calculate confidence metrics (top_prob, margin, normalized_entropy)
-  SELECT * INTO v_confidence_metrics
+  -- Note: Select specific columns to avoid TupleDesc resource leak
+  SELECT top_prob, margin, normalized_entropy INTO v_confidence_metrics
   FROM calculate_confidence_metrics(v_probabilities);
   
-  -- Make guess decision using algorithm function
-  v_should_guess := should_guess(
-    v_probabilities,
-    v_top_prob_threshold,
-    v_margin_threshold,
-    v_entropy_threshold
+  -- Calculate dynamic threshold based on turn progress, candidate count, and margin
+  v_dynamic_threshold := calculate_dynamic_threshold(
+    v_total_turns,
+    v_max_turns,
+    v_candidate_count,
+    v_confidence_metrics.margin
   );
+  
+  -- Make guess decision using algorithm function with dynamic threshold
+  v_should_guess := should_guess(v_probabilities, v_dynamic_threshold);
   
   -- Get top candidate for guess
   SELECT elem INTO v_top_candidate
@@ -2154,7 +2148,9 @@ BEGIN
     v_next_turn := build_guess_turn(v_top_candidate, v_candidates);
   ELSE
     -- Ask a question: call get_question with candidates
-    SELECT * INTO v_question_record
+    -- Note: Select specific columns to avoid TupleDesc resource leak
+    SELECT question_type, trait_id, geographic_region_id, question_text, question_reasoning 
+    INTO v_question_record
     FROM get_question(p_session_id, v_candidates)
     LIMIT 1;
     
@@ -2197,16 +2193,20 @@ Responsibilities (SRP - Orchestration only):
 1. Get/validate candidates
 2. Extract confidence scores and convert to probabilities using softmax_probabilities()
 3. Calculate confidence metrics using calculate_confidence_metrics()
-4. Make guess decision using should_guess() with proper thresholds
-5. Call get_question() if asking question (delegates to question domain)
-6. Call build_guess_turn() or build_question_turn() for formatting (pure functions)
-7. Update database with next_turn
+4. Calculate dynamic threshold using calculate_dynamic_threshold()
+5. Make guess decision using should_guess() with dynamic threshold
+6. Call get_question() if asking question (delegates to question domain)
+7. Call build_guess_turn() or build_question_turn() for formatting (pure functions)
+8. Update database with next_turn
 
 Algorithm Integration:
 - Uses softmax_probabilities() to convert scores to probability distribution
 - Uses calculate_confidence_metrics() for top_prob, margin, normalized_entropy
-- Uses should_guess() for evidence-based guess decisions
-- Replaces hardcoded confidence thresholds with algorithmic approach
+- Uses calculate_dynamic_threshold() for adaptive guess threshold based on:
+  * Turn progress (more aggressive as game progresses)
+  * Candidate count (bonus when few candidates remain)
+  * Margin between top candidates (bonus when clear leader)
+- Uses should_guess() with dynamic threshold for decision
 
 Returns next_turn JSONB structure:
 - {"action": "guess", "place_id": "...", "place_name": "...", "candidates": [...]}
@@ -2218,8 +2218,11 @@ Called by:
 - handle_question() after user answers question (passes candidates)
 - handle_guess() after wrong guess (passes candidates)
 
-Configuration (from app_settings):
-- max_turns, softmax_temperature, top_prob_threshold, margin_threshold, entropy_threshold
+Configuration (from game_logic.config):
+- game.max_turns, scoring.temperature
+- confidence.guess_threshold_max/min, threshold_floor/ceiling
+- confidence.candidate_low_threshold, candidate_bonus
+- confidence.margin_high_threshold, margin_bonus
 
 Returns: VOID (side-effect only)';
 
@@ -4158,6 +4161,14 @@ DECLARE
   v_format TEXT;
   v_primary_error TEXT;
 BEGIN
+  -- ============================================================================
+  -- pgTAP TEST SHORT-CIRCUIT
+  -- ============================================================================
+  IF current_setting('pgtap.version', true) IS NOT NULL THEN
+    -- Return stub response for tests - avoids external HTTP calls
+    RETURN 'Is it a test question';
+  END IF;
+
   -- Increase statement timeout for slower LLM responses
   PERFORM set_config('statement_timeout', '60s', true);
   PERFORM extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '60000');
@@ -6062,7 +6073,7 @@ INSERT INTO game_logic.config (key, value, description) VALUES
   }
 }'::jsonb, 'JSON schema for structured output'),
 ('llm.trait_extraction.max_traits', '20'::jsonb, 'Maximum traits per place'),
-('llm.trait_extraction.prompt', '"You are updating a geographic guessing game database with traits for a place.\n\nPlace: {place_name}\nLocation: ({lat}, {lng})\nCountry: {country}\nType: {place_type}\n\nNominatim data:\n{nominatim_json}\n\nExisting traits:\n{existing_traits}\n\nUser descriptions from gameplay:\n{session_descriptions}\n\nGame answers (yes/no responses about this place):\n{game_answers}\n\nTask: Return the BEST 10-{max_traits} traits for this place.\n- Use your WORLD KNOWLEDGE combined with the data above\n- Keep useful existing traits, add new specific ones, drop generic/redundant ones\n- Focus on SPECIFIC FACTS: dimensions, dates, materials, architects, historical events, records\n- Clause should be a short human-readable description\n- Do NOT mention the place name in clauses\n- Prefer specific over generic (\"324 meters tall\" > \"Is tall\")"'::jsonb, 'Unified prompt for trait extraction/update'),
+('llm.trait_extraction.prompt', '"You are updating a geographic guessing game database with traits for a place.\n\nPlace: {place_name}\nLocation: ({lat}, {lng})\nCountry: {country}\nType: {place_type}\n\nNominatim data:\n{nominatim_json}\n\nExisting traits:\n{existing_traits}\n\nUser descriptions from gameplay:\n{session_descriptions}\n\nGame answers (yes/no responses about this place):\n{game_answers}\n\nTask: Write a set of traits that best describe this place for a geography guessing game.\n- Use your WORLD KNOWLEDGE combined with the data above.\n- Focus on SPECIFIC FACTS: dimensions, dates, materials, architects, historical events, records, uses, environment, and other concrete properties.\n- Each trait should be a single short human-readable clause (about 5-20 words).\n- Do NOT mention the place name or precise coordinates in clauses.\n- Do NOT include traits that are only generic adjectives (historic, famous, beautiful, old, large, tourist attraction, important place, etc.).\n- Do NOT include traits that are only geographic or administrative labels (countries, continents, regions, cities, districts; for example: Polska, France, Europe, in Warsaw).\n- Do NOT include traits that are mainly about visitor logistics or amenities (opening hours, ticketing or reservation rules, where to buy tickets, guided tour schedules, Wi-Fi or internet access, parking details, restrooms or toilets, gift shops, cafés, or similar facilities).\n- Avoid traits that are only technical codes, IDs, raw URLs, reference numbers, or color hex values (for example: #706550). If color matters, translate it into simple words (for example: brownish metal structure) instead of using the code.\n- Avoid creating many traits that say the same thing in different words; prefer one strong trait per underlying idea.\n- Aim for enough traits to cover all important aspects of the place; you do not need to hit any specific number."'::jsonb, 'Unified prompt for trait extraction/update'),
 
 -- LLM Question Generation
 ('llm.question.model', '"mistralai/mistral-7b-instruct:free"'::jsonb, 'OpenRouter model ID'),
