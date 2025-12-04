@@ -1,24 +1,162 @@
 [
   {
-    "id": "10000000-0000-0000-0000-000000000015",
+    "osm_id": "way/1113380295",
+    "name": "Angkor Wat"
+  },
+  {
+    "osm_id": "relation/14705359",
+    "name": "Białowieża Forest"
+  },
+  {
+    "osm_id": "way/201611261",
+    "name": "Cathedral of Notre Dame"
+  },
+  {
+    "osm_id": "way/476702262",
+    "name": "Centennial Hall"
+  },
+  {
+    "osm_id": "way/49475802",
+    "name": "Chichen-Itza"
+  },
+  {
+    "osm_id": "node/4919986733",
+    "name": "Christ the Redeemer"
+  },
+  {
+    "osm_id": "way/23256528",
+    "name": "Cloth Hall"
+  },
+  {
+    "osm_id": "way/469420341",
+    "name": "Crooked Forest"
+  },
+  {
+    "osm_id": "way/1329470087",
+    "name": "Czocha Castle"
+  },
+  {
+    "osm_id": "way/5013364",
+    "name": "Eiffel Tower"
+  },
+  {
+    "osm_id": "way/123557148",
+    "name": "Elizabeth Tower"
+  },
+  {
+    "osm_id": "way/27952583",
+    "name": "Eye of the Sea"
+  },
+  {
+    "osm_id": "relation/2838555",
+    "name": "Zakopane"
+  },
+  {
+    "osm_id": "node/150980731",
+    "name": "Grand Canyon"
+  },
+  {
+    "osm_id": "way/4420397",
+    "name": "Great Pyramid of Giza"
+  },
+  {
+    "osm_id": "way/109862851",
+    "name": "Hagia Sophia"
+  },
+  {
+    "osm_id": "relation/13236692",
+    "name": "Jasna Góra"
+  },
+  {
     "osm_id": "relation/12982355",
     "name": "Leaning Tower of Pisa"
   },
-  { "id": "10000000-0000-0000-0000-000000000016", "osm_id": "way/201611261", "name": "Notre Dame" },
   {
-    "id": "10000000-0000-0000-0000-000000000017",
-    "osm_id": "way/49475802",
-    "name": "Chichen Itza"
+    "osm_id": "way/157376572",
+    "name": "Machu Picchu"
   },
-  { "id": "10000000-0000-0000-0000-000000000018", "osm_id": "way/32639987", "name": "Uluru" },
   {
-    "id": "10000000-0000-0000-0000-000000000019",
+    "osm_id": "relation/6436433",
+    "name": "Malbork Castle"
+  },
+  {
+    "osm_id": "node/164979149",
+    "name": "Mount Everest"
+  },
+  {
     "osm_id": "way/221601969",
     "name": "Neuschwanstein Castle"
   },
   {
-    "id": "10000000-0000-0000-0000-000000000020",
-    "osm_id": "node/150980731",
-    "name": "Grand Canyon"
+    "osm_id": "relation/11191573",
+    "name": "Old Town"
+  },
+  {
+    "osm_id": "relation/1319250",
+    "name": "Palace of Culture and Science"
+  },
+  {
+    "osm_id": "relation/41485",
+    "name": "Rome"
+  },
+  {
+    "osm_id": "relation/64436",
+    "name": "Royal Castle"
+  },
+  {
+    "osm_id": "relation/9194723",
+    "name": "Sagrada Família"
+  },
+  {
+    "osm_id": "relation/2924964",
+    "name": "Słowiński National Park"
+  },
+  {
+    "osm_id": "way/26195267",
+    "name": "St. Mary's Basilica"
+  },
+  {
+    "osm_id": "way/32965412",
+    "name": "Statue of Liberty"
+  },
+  {
+    "osm_id": "way/37118074",
+    "name": "Stonehenge"
+  },
+  {
+    "osm_id": "relation/9596872",
+    "name": "Sydney Opera House"
+  },
+  {
+    "osm_id": "way/375257537",
+    "name": "Taj Mahal"
+  },
+  {
+    "osm_id": "way/32639987",
+    "name": "Uluṟu"
+  },
+  {
+    "osm_id": "relation/2270819",
+    "name": "Wawel Castle"
+  },
+  {
+    "osm_id": "way/148464891",
+    "name": "Wieliczka Salt Mine"
+  },
+  {
+    "osm_id": "way/8106732",
+    "name": "Wilanow Palace"
+  },
+  {
+    "osm_id": "relation/2962269",
+    "name": "Kazimierz Dolny"
+  },
+  {
+    "osm_id": "node/1340071411",
+    "name": "Westerplatte"
+  },
+  {
+    "osm_id": "relation/3229503",
+    "name": "Lancut Castle"
   }
 ]
