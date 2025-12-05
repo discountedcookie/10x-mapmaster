@@ -29,6 +29,7 @@ tools:
   exa_*: true
   webfetch: true
   sequential-thinking_*: false
+  game_*: false
   # Execution and UI skills
   skills_*: false
   skills_testing: true

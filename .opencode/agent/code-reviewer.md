@@ -32,6 +32,7 @@ tools:
   webfetch: false
   exa_*: false
   sequential-thinking_*: true
+  game_*: false
   # Only code-review skill
   skills_*: false
   skills_code_review: true
