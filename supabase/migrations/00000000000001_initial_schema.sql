@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-05T11:40:25.458Z
+-- Generated: 2025-12-05T14:51:45.941Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -3226,10 +3226,11 @@ DECLARE
   v_trait_clauses TEXT[];
   v_trait_embedding_id UUID;
   v_max_traits INT;
-  v_extratags JSONB;
-  v_filtered_extratags JSONB := '{}'::jsonb;
-  v_address JSONB;
-  v_key TEXT;
+   v_extratags JSONB;
+   v_filtered_extratags JSONB := '{}'::jsonb;
+   v_nominatim_text TEXT := '';
+   v_address JSONB;
+   v_key TEXT;
   v_extratags_exclude TEXT[] := ARRAY[
     'wikidata', 'wikipedia', 'wikimedia_commons', 'website', 'url', 'image',
     'phone', 'fax', 'email', 'opening_hours', 'check_date', 'fee',
@@ -3296,16 +3297,23 @@ BEGIN
     ) THEN
       v_filtered_extratags := v_filtered_extratags || jsonb_build_object(v_key, v_extratags->v_key);
     END IF;
-  END LOOP;
+   END LOOP;
 
-  v_address := COALESCE(v_nominatim_data->'address', '{}'::jsonb);
+   -- Build nominatim text for LLM (human-readable format)
+   v_nominatim_text := 'category: ' || COALESCE(v_nominatim_data->>'class', 'unknown') || '/' || COALESCE(v_nominatim_data->>'type', 'unknown') || E'\n';
+   FOR v_key IN SELECT jsonb_object_keys(v_filtered_extratags)
+   LOOP
+     v_nominatim_text := v_nominatim_text || v_key || ': ' || (v_filtered_extratags->>v_key) || E'\n';
+   END LOOP;
 
-  -- Build nominatim summary for LLM
-  v_nominatim_summary := jsonb_build_object(
-    'class', v_nominatim_data->>'class',
-    'type', v_nominatim_data->>'type',
-    'extratags', v_filtered_extratags
-  );
+   v_address := COALESCE(v_nominatim_data->'address', '{}'::jsonb);
+
+   -- Build nominatim summary for LLM (kept for potential future use)
+   v_nominatim_summary := jsonb_build_object(
+     'class', v_nominatim_data->>'class',
+     'type', v_nominatim_data->>'type',
+     'extratags', v_filtered_extratags
+   );
 
   -- ============================================================================
   -- GATHER CONTEXT
@@ -3348,12 +3356,12 @@ BEGIN
   -- BUILD LLM PROMPT
   -- ============================================================================
   v_llm_prompt := get_config_text('llm.trait_extraction.prompt');
-  v_llm_prompt := replace(v_llm_prompt, '{place_name}', COALESCE(v_place.name, 'Unknown'));
-  v_llm_prompt := replace(v_llm_prompt, '{lat}', round(v_place.lat::numeric, 4)::text);
-  v_llm_prompt := replace(v_llm_prompt, '{lng}', round(v_place.lng::numeric, 4)::text);
-  v_llm_prompt := replace(v_llm_prompt, '{country}', COALESCE(v_address->>'country', 'Unknown'));
-  v_llm_prompt := replace(v_llm_prompt, '{place_type}', COALESCE(v_nominatim_data->>'type', 'Unknown'));
-  v_llm_prompt := replace(v_llm_prompt, '{nominatim_json}', COALESCE(v_nominatim_summary::text, 'None'));
+   v_llm_prompt := replace(v_llm_prompt, '{place_name}', COALESCE(v_place.name, 'Unknown'));
+   v_llm_prompt := replace(v_llm_prompt, '{lat}', round(v_place.lat::numeric, 4)::text);
+   v_llm_prompt := replace(v_llm_prompt, '{lng}', round(v_place.lng::numeric, 4)::text);
+   v_llm_prompt := replace(v_llm_prompt, '{country}', COALESCE(v_address->>'country', 'Unknown'));
+   v_llm_prompt := replace(v_llm_prompt, '{place_type}', COALESCE(v_nominatim_data->>'type', 'Unknown'));
+   v_llm_prompt := replace(v_llm_prompt, '{nominatim_text}', COALESCE(v_nominatim_text, 'None'));
   v_llm_prompt := replace(v_llm_prompt, '{existing_traits}', COALESCE(array_to_string(v_existing_traits, E'\n'), 'None'));
   v_llm_prompt := replace(v_llm_prompt, '{session_descriptions}', COALESCE(array_to_string(v_session_descriptions, E'\n'), 'None'));
   v_llm_prompt := replace(v_llm_prompt, '{game_answers}', COALESCE(array_to_string(v_game_answers, E'\n'), 'None'));
@@ -3369,31 +3377,39 @@ BEGIN
   
   RAISE NOTICE 'LLM trait response: %', left(v_llm_response, 500);
 
-  -- ============================================================================
-  -- PARSE RESPONSE
-  -- ============================================================================
-  BEGIN
-    v_traits_json := v_llm_response::jsonb;
-    
-    IF jsonb_typeof(v_traits_json) = 'object' AND v_traits_json ? 'traits' THEN
-      v_traits_json := v_traits_json->'traits';
-    ELSIF jsonb_typeof(v_traits_json) != 'array' THEN
-      RAISE EXCEPTION 'LLM response must be {"traits": [...]} or an array';
-    END IF;
-  EXCEPTION
-    WHEN others THEN
-      RAISE WARNING 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
-      RETURN;
-  END;
+   -- ============================================================================
+   -- PARSE RESPONSE
+   -- ============================================================================
+   BEGIN
+     v_traits_json := v_llm_response::jsonb;
+     
+     -- Handle new format: {"traits": [...], "changes": "..."}
+     IF jsonb_typeof(v_traits_json) = 'object' THEN
+       -- Log changes field if present (for debugging)
+       IF v_traits_json ? 'changes' THEN
+         RAISE NOTICE 'Trait changes: %', v_traits_json->>'changes';
+       END IF;
+       -- Extract traits array
+       IF v_traits_json ? 'traits' THEN
+         v_traits_json := v_traits_json->'traits';
+       ELSE
+         RAISE EXCEPTION 'Response object must have "traits" array';
+       END IF;
+     ELSIF jsonb_typeof(v_traits_json) != 'array' THEN
+       -- Backward compatibility: if it's not an array and not an object, fail
+       RAISE EXCEPTION 'Response must be {"traits": [...]} or an array';
+     END IF;
+   EXCEPTION
+     WHEN others THEN
+       RAISE WARNING 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
+       RETURN;
+   END;
 
-  -- ============================================================================
-  -- REPLACE TRAITS (delete old, insert new)
-  -- ============================================================================
-  
-  -- Delete existing place_traits links (traits themselves are kept for other places)
-  DELETE FROM place_traits WHERE place_id = p_place_id;
-
-  -- Insert new traits (array of strings)
+   -- ============================================================================
+   -- INSERT NEW TRAITS (accumulate, do not delete old ones)
+   -- ============================================================================
+   
+   -- Insert new traits (array of strings)
   FOR v_trait IN
     SELECT t AS clause
     FROM jsonb_array_elements_text(v_traits_json) AS t
@@ -3461,8 +3477,9 @@ Gathers all available context:
 - Session descriptions from gameplay
 - Game answers (yes/no responses)
 
-Calls LLM to produce the best 10-20 traits, then REPLACES all traits for the place.
-The LLM decides what to keep, add, or drop based on all available information.
+Calls LLM to curate and accumulate the best traits for the place (up to max_traits).
+The LLM reviews existing traits, adds new facts from source data and gameplay,
+and removes duplicates/generic information. Traits accumulate over time rather than being replaced.
 
 Called by:
 - create_place_with_traits (initial creation)
@@ -6093,8 +6110,8 @@ INSERT INTO game_logic.config (key, value, description) VALUES
     "additionalProperties": false
   }
 }'::jsonb, 'JSON schema for structured output'),
-('llm.trait_extraction.max_traits', '20'::jsonb, 'Maximum traits per place'),
-('llm.trait_extraction.prompt', '"You are updating a geographic guessing game database with traits for a place.\n\nPlace: {place_name}\nLocation: ({lat}, {lng})\nCountry: {country}\nType: {place_type}\n\nNominatim data:\n{nominatim_json}\n\nExisting traits:\n{existing_traits}\n\nUser descriptions from gameplay:\n{session_descriptions}\n\nGame answers (yes/no responses about this place):\n{game_answers}\n\nTask: Write a set of traits that best describe this place for a geography guessing game.\n- Use your WORLD KNOWLEDGE combined with the data above.\n- Focus on SPECIFIC FACTS: dimensions, dates, materials, architects, historical events, records, uses, environment, and other concrete properties.\n- Each trait should be a single short human-readable clause (about 5-20 words).\n- Do NOT mention the place name or precise coordinates in clauses.\n- Do NOT include traits that are only generic adjectives (historic, famous, beautiful, old, large, tourist attraction, important place, etc.).\n- Do NOT include traits that are only geographic or administrative labels (countries, continents, regions, cities, districts; for example: Polska, France, Europe, in Warsaw).\n- Do NOT include traits that are mainly about visitor logistics or amenities (opening hours, ticketing or reservation rules, where to buy tickets, guided tour schedules, Wi-Fi or internet access, parking details, restrooms or toilets, gift shops, cafés, or similar facilities).\n- Avoid traits that are only technical codes, IDs, raw URLs, reference numbers, or color hex values (for example: #706550). If color matters, translate it into simple words (for example: brownish metal structure) instead of using the code.\n- Avoid creating many traits that say the same thing in different words; prefer one strong trait per underlying idea.\n- Aim for enough traits to cover all important aspects of the place; you do not need to hit any specific number."'::jsonb, 'Unified prompt for trait extraction/update'),
+('llm.trait_extraction.max_traits', '30'::jsonb, 'Maximum traits per place'),
+('llm.trait_extraction.prompt', '"You are curating a knowledge base for a geographic guessing game.\n\nPLACE: {place_name}\nLOCATION: ({lat}, {lng}) in {country}\nTYPE: {place_type}\n\nSOURCE DATA:\n{nominatim_text}\n\nCURRENT KNOWLEDGE:\n{existing_traits}\n\nNEW INFORMATION:\nUser descriptions: {session_descriptions}\nConfirmed facts: {game_answers}\n\nTASK: Update the knowledge base for this place.\n- Review existing traits and keep valuable ones\n- Add new facts from source data or user sessions\n- Remove duplicates or generic information\n- Consolidate similar traits into one stronger statement\n- Stay within {max_traits} traits total\n\nTRAIT REQUIREMENTS:\n- Each trait is a complete, naturally readable statement\n- Include specific facts: measurements, dates, materials, architects, historical events\n- Write as if explaining to a curious traveler (displayed as \"What I know about this place\")\n- No place names, no generic adjectives like \"famous\" or \"beautiful\"\n- No visitor logistics (tickets, hours, parking)\n\nOUTPUT FORMAT (JSON):\n{\n  \"traits\": [\"trait 1\", \"trait 2\", ...],\n  \"changes\": \"Brief note about what was added/removed and why\"\n}"'::jsonb, 'Unified prompt for trait extraction/update'),
 
 -- LLM Question Generation
 ('llm.question.model', '"mistralai/mistral-7b-instruct:free"'::jsonb, 'OpenRouter model ID'),

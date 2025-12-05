@@ -22,10 +22,11 @@ DECLARE
   v_trait_clauses TEXT[];
   v_trait_embedding_id UUID;
   v_max_traits INT;
-  v_extratags JSONB;
-  v_filtered_extratags JSONB := '{}'::jsonb;
-  v_address JSONB;
-  v_key TEXT;
+   v_extratags JSONB;
+   v_filtered_extratags JSONB := '{}'::jsonb;
+   v_nominatim_text TEXT := '';
+   v_address JSONB;
+   v_key TEXT;
   v_extratags_exclude TEXT[] := ARRAY[
     'wikidata', 'wikipedia', 'wikimedia_commons', 'website', 'url', 'image',
     'phone', 'fax', 'email', 'opening_hours', 'check_date', 'fee',
@@ -92,16 +93,23 @@ BEGIN
     ) THEN
       v_filtered_extratags := v_filtered_extratags || jsonb_build_object(v_key, v_extratags->v_key);
     END IF;
-  END LOOP;
+   END LOOP;
 
-  v_address := COALESCE(v_nominatim_data->'address', '{}'::jsonb);
+   -- Build nominatim text for LLM (human-readable format)
+   v_nominatim_text := 'category: ' || COALESCE(v_nominatim_data->>'class', 'unknown') || '/' || COALESCE(v_nominatim_data->>'type', 'unknown') || E'\n';
+   FOR v_key IN SELECT jsonb_object_keys(v_filtered_extratags)
+   LOOP
+     v_nominatim_text := v_nominatim_text || v_key || ': ' || (v_filtered_extratags->>v_key) || E'\n';
+   END LOOP;
 
-  -- Build nominatim summary for LLM
-  v_nominatim_summary := jsonb_build_object(
-    'class', v_nominatim_data->>'class',
-    'type', v_nominatim_data->>'type',
-    'extratags', v_filtered_extratags
-  );
+   v_address := COALESCE(v_nominatim_data->'address', '{}'::jsonb);
+
+   -- Build nominatim summary for LLM (kept for potential future use)
+   v_nominatim_summary := jsonb_build_object(
+     'class', v_nominatim_data->>'class',
+     'type', v_nominatim_data->>'type',
+     'extratags', v_filtered_extratags
+   );
 
   -- ============================================================================
   -- GATHER CONTEXT
@@ -144,12 +152,12 @@ BEGIN
   -- BUILD LLM PROMPT
   -- ============================================================================
   v_llm_prompt := get_config_text('llm.trait_extraction.prompt');
-  v_llm_prompt := replace(v_llm_prompt, '{place_name}', COALESCE(v_place.name, 'Unknown'));
-  v_llm_prompt := replace(v_llm_prompt, '{lat}', round(v_place.lat::numeric, 4)::text);
-  v_llm_prompt := replace(v_llm_prompt, '{lng}', round(v_place.lng::numeric, 4)::text);
-  v_llm_prompt := replace(v_llm_prompt, '{country}', COALESCE(v_address->>'country', 'Unknown'));
-  v_llm_prompt := replace(v_llm_prompt, '{place_type}', COALESCE(v_nominatim_data->>'type', 'Unknown'));
-  v_llm_prompt := replace(v_llm_prompt, '{nominatim_json}', COALESCE(v_nominatim_summary::text, 'None'));
+   v_llm_prompt := replace(v_llm_prompt, '{place_name}', COALESCE(v_place.name, 'Unknown'));
+   v_llm_prompt := replace(v_llm_prompt, '{lat}', round(v_place.lat::numeric, 4)::text);
+   v_llm_prompt := replace(v_llm_prompt, '{lng}', round(v_place.lng::numeric, 4)::text);
+   v_llm_prompt := replace(v_llm_prompt, '{country}', COALESCE(v_address->>'country', 'Unknown'));
+   v_llm_prompt := replace(v_llm_prompt, '{place_type}', COALESCE(v_nominatim_data->>'type', 'Unknown'));
+   v_llm_prompt := replace(v_llm_prompt, '{nominatim_text}', COALESCE(v_nominatim_text, 'None'));
   v_llm_prompt := replace(v_llm_prompt, '{existing_traits}', COALESCE(array_to_string(v_existing_traits, E'\n'), 'None'));
   v_llm_prompt := replace(v_llm_prompt, '{session_descriptions}', COALESCE(array_to_string(v_session_descriptions, E'\n'), 'None'));
   v_llm_prompt := replace(v_llm_prompt, '{game_answers}', COALESCE(array_to_string(v_game_answers, E'\n'), 'None'));
@@ -165,31 +173,39 @@ BEGIN
   
   RAISE NOTICE 'LLM trait response: %', left(v_llm_response, 500);
 
-  -- ============================================================================
-  -- PARSE RESPONSE
-  -- ============================================================================
-  BEGIN
-    v_traits_json := v_llm_response::jsonb;
-    
-    IF jsonb_typeof(v_traits_json) = 'object' AND v_traits_json ? 'traits' THEN
-      v_traits_json := v_traits_json->'traits';
-    ELSIF jsonb_typeof(v_traits_json) != 'array' THEN
-      RAISE EXCEPTION 'LLM response must be {"traits": [...]} or an array';
-    END IF;
-  EXCEPTION
-    WHEN others THEN
-      RAISE WARNING 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
-      RETURN;
-  END;
+   -- ============================================================================
+   -- PARSE RESPONSE
+   -- ============================================================================
+   BEGIN
+     v_traits_json := v_llm_response::jsonb;
+     
+     -- Handle new format: {"traits": [...], "changes": "..."}
+     IF jsonb_typeof(v_traits_json) = 'object' THEN
+       -- Log changes field if present (for debugging)
+       IF v_traits_json ? 'changes' THEN
+         RAISE NOTICE 'Trait changes: %', v_traits_json->>'changes';
+       END IF;
+       -- Extract traits array
+       IF v_traits_json ? 'traits' THEN
+         v_traits_json := v_traits_json->'traits';
+       ELSE
+         RAISE EXCEPTION 'Response object must have "traits" array';
+       END IF;
+     ELSIF jsonb_typeof(v_traits_json) != 'array' THEN
+       -- Backward compatibility: if it's not an array and not an object, fail
+       RAISE EXCEPTION 'Response must be {"traits": [...]} or an array';
+     END IF;
+   EXCEPTION
+     WHEN others THEN
+       RAISE WARNING 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
+       RETURN;
+   END;
 
-  -- ============================================================================
-  -- REPLACE TRAITS (delete old, insert new)
-  -- ============================================================================
-  
-  -- Delete existing place_traits links (traits themselves are kept for other places)
-  DELETE FROM place_traits WHERE place_id = p_place_id;
-
-  -- Insert new traits (array of strings)
+   -- ============================================================================
+   -- INSERT NEW TRAITS (accumulate, do not delete old ones)
+   -- ============================================================================
+   
+   -- Insert new traits (array of strings)
   FOR v_trait IN
     SELECT t AS clause
     FROM jsonb_array_elements_text(v_traits_json) AS t
@@ -257,8 +273,9 @@ Gathers all available context:
 - Session descriptions from gameplay
 - Game answers (yes/no responses)
 
-Calls LLM to produce the best 10-20 traits, then REPLACES all traits for the place.
-The LLM decides what to keep, add, or drop based on all available information.
+Calls LLM to curate and accumulate the best traits for the place (up to max_traits).
+The LLM reviews existing traits, adds new facts from source data and gameplay,
+and removes duplicates/generic information. Traits accumulate over time rather than being replaced.
 
 Called by:
 - create_place_with_traits (initial creation)
