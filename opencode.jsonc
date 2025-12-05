@@ -90,11 +90,11 @@
       // ask by default
       "*": "ask",
       // prefer OpenCode Read, Grep, List
-      "cat": "deny",
       "find": "deny",
       "ls": "deny",
       // allow
       "bun run": "allow",
+      "cat": "allow",
       "git": "allow",
       "grep": "allow",
       "head": "allow",
@@ -104,6 +104,7 @@
       "rg": "allow",
       "supabase": "allow",
       "tail": "allow",
+      "timeout": "allow",
       "wc": "allow",
     },
   },

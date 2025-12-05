@@ -171,7 +171,7 @@ BEGIN
   -- ============================================================================
   v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
   
-  RAISE NOTICE 'LLM trait response: %', left(v_llm_response, 500);
+  RAISE NOTICE 'LLM trait response: %', v_llm_response;
 
    -- ============================================================================
    -- PARSE RESPONSE
@@ -182,9 +182,7 @@ BEGIN
      -- Handle new format: {"traits": [...], "changes": "..."}
      IF jsonb_typeof(v_traits_json) = 'object' THEN
        -- Log changes field if present (for debugging)
-       IF v_traits_json ? 'changes' THEN
-         RAISE NOTICE 'Trait changes: %', v_traits_json->>'changes';
-       END IF;
+
        -- Extract traits array
        IF v_traits_json ? 'traits' THEN
          v_traits_json := v_traits_json->'traits';
@@ -202,10 +200,13 @@ BEGIN
    END;
 
    -- ============================================================================
-   -- INSERT NEW TRAITS (accumulate, do not delete old ones)
+   -- REPLACE TRAITS (LLM curates the full list)
    -- ============================================================================
    
-   -- Insert new traits (array of strings)
+   -- Delete existing traits for this place (LLM output is authoritative)
+   DELETE FROM place_traits WHERE place_id = p_place_id;
+   
+   -- Insert curated traits
   FOR v_trait IN
     SELECT t AS clause
     FROM jsonb_array_elements_text(v_traits_json) AS t
@@ -273,9 +274,9 @@ Gathers all available context:
 - Session descriptions from gameplay
 - Game answers (yes/no responses)
 
-Calls LLM to curate and accumulate the best traits for the place (up to max_traits).
-The LLM reviews existing traits, adds new facts from source data and gameplay,
-and removes duplicates/generic information. Traits accumulate over time rather than being replaced.
+Calls LLM to curate the best traits for the place (up to max_traits).
+The LLM reviews existing traits, adds new facts, removes generic/duplicate info,
+and returns the authoritative list. Existing traits are replaced with LLM output.
 
 Called by:
 - create_place_with_traits (initial creation)

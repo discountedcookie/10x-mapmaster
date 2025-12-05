@@ -107,8 +107,6 @@ async function updateConfig(key: string, value: string) {
 }
 
 async function testTraitExtraction(placeName: string) {
-  console.log(`\n🔍 Testing trait extraction for: ${placeName}\n`)
-
   // Find place
   const { data: places, error: findError } = await supabase
     .from('places')
@@ -124,63 +122,15 @@ async function testTraitExtraction(placeName: string) {
   const place = places[0]
   console.log(`Found place: ${place.name} (${place.id})\n`)
 
-  // Get current traits
-  const { data: currentTraits } = await supabase
-    .from('place_traits')
-    .select('traits(clause)')
-    .eq('place_id', place.id)
-
-  console.log('📋 Current traits:')
-  for (const t of currentTraits || []) {
-    const traits = t.traits as unknown as { clause: string } | null
-    if (traits) console.log(`  - ${traits.clause}`)
-  }
-  console.log()
-
-  // Call update_place_traits via psql (game_logic schema not exposed via PostgREST)
-  console.log('🤖 Calling LLM for trait extraction...\n')
-
   const psqlUrl = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-  const sql = `SELECT game_logic.update_place_traits('${place.id}'::uuid);`
+  const sql = `SET client_min_messages TO notice; SELECT game_logic.update_place_traits('${place.id}'::uuid);`
 
   const proc = Bun.spawn(['psql', psqlUrl, '-c', sql], {
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdout: 'inherit',
+    stderr: 'inherit',
   })
 
-  const exitCode = await proc.exited
-  const stderr = await new Response(proc.stderr).text()
-
-  if (exitCode !== 0) {
-    console.error('Error:', stderr)
-    return
-  }
-
-  // Show NOTICE messages (contains trait changes reasoning)
-  if (stderr) {
-    const notices = stderr.split('\n').filter((line) => line.includes('NOTICE:'))
-    if (notices.length > 0) {
-      console.log('📝 LLM Processing Notes:')
-      for (const notice of notices) {
-        // Clean up the notice output
-        const msg = notice.replace(/^.*NOTICE:\s*/, '  ')
-        console.log(msg)
-      }
-      console.log()
-    }
-  }
-
-  // Get new traits
-  const { data: newTraits } = await supabase
-    .from('place_traits')
-    .select('traits(clause)')
-    .eq('place_id', place.id)
-
-  console.log('✨ New traits:')
-  for (const t of newTraits || []) {
-    const traits = t.traits as unknown as { clause: string } | null
-    if (traits) console.log(`  - ${traits.clause}`)
-  }
+  await proc.exited
 }
 
 async function testQuestionGeneration(traitClause: string, description?: string) {

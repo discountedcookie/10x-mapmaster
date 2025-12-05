@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-05T15:08:26.852Z
+-- Generated: 2025-12-05T17:32:23.456Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -3375,7 +3375,7 @@ BEGIN
   -- ============================================================================
   v_llm_response := game_logic.call_llm_api(v_llm_prompt, 'json', 'llm.trait_extraction');
   
-  RAISE NOTICE 'LLM trait response: %', left(v_llm_response, 500);
+  RAISE NOTICE 'LLM trait response: %', v_llm_response;
 
    -- ============================================================================
    -- PARSE RESPONSE
@@ -3386,9 +3386,7 @@ BEGIN
      -- Handle new format: {"traits": [...], "changes": "..."}
      IF jsonb_typeof(v_traits_json) = 'object' THEN
        -- Log changes field if present (for debugging)
-       IF v_traits_json ? 'changes' THEN
-         RAISE NOTICE 'Trait changes: %', v_traits_json->>'changes';
-       END IF;
+
        -- Extract traits array
        IF v_traits_json ? 'traits' THEN
          v_traits_json := v_traits_json->'traits';
@@ -3406,10 +3404,13 @@ BEGIN
    END;
 
    -- ============================================================================
-   -- INSERT NEW TRAITS (accumulate, do not delete old ones)
+   -- REPLACE TRAITS (LLM curates the full list)
    -- ============================================================================
    
-   -- Insert new traits (array of strings)
+   -- Delete existing traits for this place (LLM output is authoritative)
+   DELETE FROM place_traits WHERE place_id = p_place_id;
+   
+   -- Insert curated traits
   FOR v_trait IN
     SELECT t AS clause
     FROM jsonb_array_elements_text(v_traits_json) AS t
@@ -3477,9 +3478,9 @@ Gathers all available context:
 - Session descriptions from gameplay
 - Game answers (yes/no responses)
 
-Calls LLM to curate and accumulate the best traits for the place (up to max_traits).
-The LLM reviews existing traits, adds new facts from source data and gameplay,
-and removes duplicates/generic information. Traits accumulate over time rather than being replaced.
+Calls LLM to curate the best traits for the place (up to max_traits).
+The LLM reviews existing traits, adds new facts, removes generic/duplicate info,
+and returns the authoritative list. Existing traits are replaced with LLM output.
 
 Called by:
 - create_place_with_traits (initial creation)
@@ -4251,7 +4252,6 @@ BEGIN
     SELECT status, content INTO v_status, v_content FROM extensions.http((
       'POST', v_edge_function_url,
       ARRAY[
-        extensions.http_header('Content-Type', 'application/json'),
         extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
       ],
       'application/json', v_request_body::text
@@ -4273,7 +4273,6 @@ BEGIN
       SELECT status, content INTO v_status, v_content FROM extensions.http((
         'POST', v_edge_function_url,
         ARRAY[
-          extensions.http_header('Content-Type', 'application/json'),
           extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
         ],
         'application/json', v_request_body::text
@@ -4950,7 +4949,7 @@ BEGIN
     RAISE EXCEPTION 'Missing configuration: app.supabase_anon_key or runtime.supabase_anon_key';
   END IF;
 
-  RAISE NOTICE 'Calling generate-embedding at: %', edge_function_url;
+
 
   -- ============================================================================
   -- EDGE FUNCTION CALL (SYNCHRONOUS HTTP)
@@ -4962,14 +4961,11 @@ BEGIN
     'POST',
     edge_function_url,
     ARRAY[
-      extensions.http_header('Content-Type', 'application/json'),
       extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
     ],
     'application/json',
     jsonb_build_object('text', validated_text, 'inputType', v_input_type)::text
   )::extensions.http_request);
-
-  RAISE NOTICE 'Response status: %', v_status;
 
   -- ============================================================================
   -- RESPONSE HANDLING
@@ -6078,6 +6074,7 @@ SELECT
 -- Game configuration required for production
 -- These are inserted during migration, not seeds
 -- Runtime keys (runtime.*) are NOT included here - they go in dev-only seeds
+-- Description should describe the field, not the value
 
 INSERT INTO game_logic.config (key, value, description) VALUES
 -- Game settings
@@ -6090,11 +6087,12 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('llm.trait_extraction.model', '"meituan/longcat-flash-chat:free"'::jsonb, 'OpenRouter model ID'),
 ('llm.trait_extraction.fallback_model', '"cognitivecomputations/dolphin-mistral-24b-venice-edition:free"'::jsonb, 'Fallback model'),
 ('llm.trait_extraction.temperature', '0.15'::jsonb, 'Randomness (lower = more deterministic)'),
-('llm.trait_extraction.max_tokens', '1000'::jsonb, 'Max tokens'),
+('llm.trait_extraction.max_tokens', '1500'::jsonb, 'Max tokens'),
 ('llm.trait_extraction.top_p', '0.85'::jsonb, 'Top-p sampling'),
 ('llm.trait_extraction.stop', '[]'::jsonb, 'Stop sequences'),
 ('llm.trait_extraction.frequency_penalty', '0.3'::jsonb, 'Frequency penalty'),
 ('llm.trait_extraction.presence_penalty', '0.3'::jsonb, 'Presence penalty'),
+('llm.trait_extraction.repetition_penalty', '1.2'::jsonb, 'Penalizes repeated tokens to reduce semantic duplication'),
 ('llm.trait_extraction.json_schema', '{
   "name": "traits",
   "strict": true,
@@ -6104,14 +6102,18 @@ INSERT INTO game_logic.config (key, value, description) VALUES
       "traits": {
         "type": "array",
         "items": {"type": "string"}
+      },
+      "reasoning": {
+        "type": "string",
+        "maxLength": 160
       }
     },
-    "required": ["traits"],
+    "required": ["traits", "reasoning"],
     "additionalProperties": false
   }
 }'::jsonb, 'JSON schema for structured output'),
-('llm.trait_extraction.max_traits', '30'::jsonb, 'Maximum traits per place'),
-('llm.trait_extraction.prompt', '"You are curating a knowledge base for a geographic guessing game.\n\nPLACE: {place_name}\nLOCATION: ({lat}, {lng}) in {country}\nTYPE: {place_type}\n\nSOURCE DATA:\n{nominatim_text}\n\nCURRENT KNOWLEDGE:\n{existing_traits}\n\nNEW INFORMATION:\nUser descriptions: {session_descriptions}\nConfirmed facts: {game_answers}\n\nTASK: Curate the knowledge base. Stay within {max_traits} traits total.\n\nKEY PRINCIPLES:\n- PRESERVE existing traits exactly as written. Do not rephrase or reword them.\n- ADD new facts ONLY if substantively different from existing traits.\n- CONSOLIDATE only truly similar traits into one. If uncertain, keep both.\n- REMOVE outdated, generic, or unverifiable information.\n\nTRAIT REQUIREMENTS:\n- Each trait: complete, naturally readable statement (5-25 words)\n- Include specifics: measurements, dates, materials, architects, events\n- Write as facts a curious traveler would find interesting\n- NO hex color codes like #787878. Use words: dark gray stone, tan stucco.\n- ENGLISH ONLY. No Cyrillic, Arabic, CJK, Khmer, or other non-Latin scripts.\n- No place names, no generic adjectives (famous, beautiful), no visitor logistics.\n\nOUTPUT FORMAT (JSON):\n{\n  \"traits\": [\"trait 1\", \"trait 2\", ...],\n  \"changes\": \"Brief note about what was added/removed and why\"\n}"'::jsonb, 'Unified prompt for trait extraction/update'),
+('llm.trait_extraction.max_traits', '20'::jsonb, 'Maximum traits per place'),
+('llm.trait_extraction.prompt', '"CONTEXT: Geographic guessing game. You generate facts that become yes/no questions to identify places.\n\nPLACE: {place_name}\nLOCATION: ({lat}, {lng}) in {country}\nTYPE: {place_type}\n\nSOURCE DATA (from Nominatim):\n{nominatim_text}\n\nCURRENT TRAITS:\n{existing_traits}\n\nSESSION LEARNINGS (from players - TRUST THESE):\nDescriptions: {session_descriptions}\nAnswers: {game_answers}\n\nGenerate 5-8 short facts. Each fact must test a DIFFERENT property (year, height, material, architect, color, heritage, structure, etc).\n\nOUTPUT FORMAT - plain facts only:\n- Built 1889\n- Over 300 meters tall\n- Made of iron\n- Has a lattice structure\n- Designed by Gustave Eiffel\n- Gray exterior\n- UNESCO World Heritage since 1991\n\nBAD FACTS - DO NOT OUTPUT THESE:\n\nREDUNDANT (same property twice):\n- Built 1889 + Late 19th century construction (BOTH TEST: construction year - pick one)\n- Over 300m tall + One of the tallest structures (BOTH TEST: height - pick one)\n- UNESCO site + World Heritage listed (BOTH TEST: heritage status - pick one)\n- Gray roof + Roof is grayish in color (BOTH TEST: roof color - pick one)\n\nRAW DATA (convert or skip):\n- roof:colour #787878 (CONVERT TO: Gray roof)\n- building:colour #FBF2D7 (CONVERT TO: Cream-colored exterior)\n- website: example.com (SKIP: URLs are useless)\n- wikidata: Q12345 (SKIP: IDs are useless)\n\nUSELESS FOR THE GAME:\n- Building has 3 levels (floor count rarely distinctive)\n- Wheelchair accessible (accessibility not distinctive)\n- Open 24 hours (operating hours not distinctive)\n- Has parking (amenities not distinctive)\n\nTOO GENERIC:\n- Tourism attraction (applies to everything)\n- Historic landmark (meaningless without specifics)\n- Famous building (empty adjective)\n- Cultural site (too vague)\n\nRAW CATEGORIES (skip entirely):\n- Place / Locality / Amenity / Boundary / Node / Way\n\nBEFORE OUTPUTTING each fact, verify:\n1. Does this test a property not already covered?\n2. Is this specific enough to distinguish this place?\n3. Did I convert any hex colors to words?\n\nRULES:\n1. Prefer SOURCE DATA and SESSION LEARNINGS. If sparse, use well-known facts about the place.\n2. Session answers: + means confirmed true, - means confirmed false\n3. Quality over quantity - 5 unique facts beats 8 redundant ones\n4. Reasoning must be under 160 chars - just list properties covered"'::jsonb, 'Prompt for trait extraction with detailed examples'),
 
 -- LLM Question Generation
 ('llm.question.model', '"mistralai/mistral-7b-instruct:free"'::jsonb, 'OpenRouter model ID'),

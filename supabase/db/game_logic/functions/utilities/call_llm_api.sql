@@ -98,7 +98,6 @@ BEGIN
     SELECT status, content INTO v_status, v_content FROM extensions.http((
       'POST', v_edge_function_url,
       ARRAY[
-        extensions.http_header('Content-Type', 'application/json'),
         extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
       ],
       'application/json', v_request_body::text
@@ -120,7 +119,6 @@ BEGIN
       SELECT status, content INTO v_status, v_content FROM extensions.http((
         'POST', v_edge_function_url,
         ARRAY[
-          extensions.http_header('Content-Type', 'application/json'),
           extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
         ],
         'application/json', v_request_body::text

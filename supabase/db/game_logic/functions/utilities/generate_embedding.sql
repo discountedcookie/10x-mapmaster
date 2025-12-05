@@ -64,7 +64,7 @@ BEGIN
     RAISE EXCEPTION 'Missing configuration: app.supabase_anon_key or runtime.supabase_anon_key';
   END IF;
 
-  RAISE NOTICE 'Calling generate-embedding at: %', edge_function_url;
+
 
   -- ============================================================================
   -- EDGE FUNCTION CALL (SYNCHRONOUS HTTP)
@@ -76,14 +76,11 @@ BEGIN
     'POST',
     edge_function_url,
     ARRAY[
-      extensions.http_header('Content-Type', 'application/json'),
       extensions.http_header('Authorization', 'Bearer ' || v_anon_key)
     ],
     'application/json',
     jsonb_build_object('text', validated_text, 'inputType', v_input_type)::text
   )::extensions.http_request);
-
-  RAISE NOTICE 'Response status: %', v_status;
 
   -- ============================================================================
   -- RESPONSE HANDLING
