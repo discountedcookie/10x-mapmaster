@@ -106,6 +106,40 @@ Evidence: [Z]
 - All other tests pass
 - Issue actually resolved
 
+## Async/Queue System Investigation
+
+When debugging async systems (pgmq, triggers, edge functions):
+
+**1. Don't assume the queue is broken**
+```sql
+-- Check if queue exists and has messages
+SELECT * FROM pgmq.list_queues();
+SELECT * FROM pgmq.read('queue_name', 30, 10);
+
+-- Check ARCHIVED messages (already processed!)
+SELECT * FROM pgmq.a_queue_name ORDER BY archived_at DESC LIMIT 10;
+```
+
+**2. Verify triggers are attached**
+```sql
+SELECT tgname, tgenabled, pg_get_triggerdef(oid)
+FROM pg_trigger
+WHERE tgrelid = 'schema.table'::regclass
+  AND NOT tgisinternal;
+```
+
+**3. Check for race conditions**
+- Multiple triggers firing for same entity?
+- Concurrent executions overwriting each other?
+- Look for DELETE statements that might cause data loss
+
+**4. Trace the actual code path**
+- Read the trigger function source
+- Read the queue handler source
+- Identify WHERE data is deleted/replaced
+
+**Common pitfall:** "Inconsistent results" often means concurrent execution, not queue failure.
+
 ## When 3+ Fixes Fail
 
 This indicates an architectural problem, not a bug:

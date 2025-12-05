@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-04T12:52:25.613Z
+-- Generated: 2025-12-05T11:40:25.458Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -5671,7 +5671,28 @@ SELECT
       wp.lng
     )
   END AS place,
-  coalesce(gs.next_turn -> 'candidates', '[]'::JSONB) AS candidates,
+  -- Filter candidates above threshold and renormalize probabilities to sum to 100%
+  coalesce(
+    (
+      WITH threshold AS (
+        SELECT (value)::float as min_prob FROM game_logic.config WHERE key = 'scoring.min_display_probability'
+      ),
+      filtered AS (
+        SELECT c, (c->>'probability')::float as prob
+        FROM jsonb_array_elements(gs.next_turn -> 'candidates') c, threshold
+        WHERE (c->>'probability')::float >= threshold.min_prob
+      ),
+      total AS (
+        SELECT sum(prob) as sum_prob FROM filtered
+      )
+      SELECT jsonb_agg(
+        jsonb_set(filtered.c, '{probability}', to_jsonb(filtered.prob / total.sum_prob))
+        ORDER BY filtered.prob DESC
+      )
+      FROM filtered, total
+    ),
+    '[]'::JSONB
+  ) AS candidates,
   -- Metadata
   (
     SELECT
@@ -6100,14 +6121,15 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('confidence.margin_bonus', '0.10'::jsonb, 'Reduction in threshold when margin is high'),
 
 -- Scoring configuration
-('scoring.temperature', '1.0'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
+('scoring.temperature', '0.2'::jsonb, 'Temperature for probability softmax. Lower = sharper distribution'),
 ('scoring.trait_aggregation_temperature', '0.1'::jsonb, 'Temperature for trait similarity aggregation. Lower = best traits dominate'),
 ('scoring.initial_candidate_threshold', '0.3'::jsonb, 'Minimum aggregated trait score to become a candidate'),
 ('scoring.max_initial_candidates', '100'::jsonb, 'Maximum number of initial candidates'),
+('scoring.min_display_probability', '0.1'::jsonb, 'Minimum probability to display candidate in UI (filters noise)'),
 
 -- Trait matching (binary via place_traits, multiplicative adjustments)
 ('traits.boost_factor', '1.5'::jsonb, 'Score multiplier when trait ownership matches answer'),
-('traits.penalty_factor', '0.6'::jsonb, 'Score multiplier when trait ownership contradicts answer'),
+('traits.penalty_factor', '0.4'::jsonb, 'Score multiplier when trait ownership contradicts answer'),
 
 -- Question selection
 ('questions.min_split_quality', '0.3'::jsonb, 'Minimum acceptable split quality for questions'),

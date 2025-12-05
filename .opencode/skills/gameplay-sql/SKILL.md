@@ -1,77 +1,140 @@
 ---
 name: gameplay-sql
 description: >-
-  Test game mechanics via SQL. Use psql to call start_game(), play_turn(),
-  and check game_session_state view.
+  Test game mechanics via SQL. Use game_* tools for gameplay flow.
+allowed-tools:
+  - game_start
+  - game_state
+  - game_turn
+  - game_submit
+  - game_find_place
+  - game_summary
 ---
 
 # SQL Gameplay
 
-Test game logic directly via SQL without UI.
+Test the game through database tools.
 
 > **Announce:** "I'm using gameplay-sql to test via database."
 
-## Connect
+## Game Tools
 
-```bash
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+| Tool | Purpose |
+|------|---------|
+| `game_start` | Start a new game |
+| `game_state` | See current question/guess/candidates |
+| `game_turn` | Answer yes/no/not_sure |
+| `game_submit` | Submit correct place (give up) |
+| `game_find_place` | Search places by name |
+| `game_summary` | Review completed session (history + result) |
+
+## Complete Game Flow
+
+### 1. Start a Game
+
+```
+game_start(description: "A medieval castle on a hilltop in Poland")
 ```
 
-## Auth Setup (Required)
+Returns: session_id, initial question, top candidates
 
-```sql
-SET request.jwt.claim.sub = 'a1b2c3d4-e5f6-4321-abcd-1234567890ab';
-SET request.jwt.claim.role = 'authenticated';
-SET ROLE authenticated;
+### 2. Check State (optional)
+
+```
+game_state(session_id: "abc123...")
 ```
 
-## Game Flow
+Returns: current status, question or guess, top candidates
 
-```sql
--- 1. Start game
-SELECT start_game('A famous tower in Paris', 'en');
--- Returns session_id UUID
+### 3. Answer Questions
 
--- 2. Check state
-SELECT status, question->>'text', guess->>'place_name'
-FROM game_session_state WHERE session_id = 'SESSION_ID';
-
--- 3. Answer question or confirm/deny guess
-SELECT play_turn('SESSION_ID'::uuid, 'yes'::answer_value);
--- Answers: 'yes', 'no', 'not_sure'
-
--- 4. If status = 'needs_submission', submit correct place
-SELECT submit_place('SESSION_ID'::uuid, 'way/5013364');
+```
+game_turn(session_id: "abc123...", answer: "yes")
+game_turn(session_id: "abc123...", answer: "no")
+game_turn(session_id: "abc123...", answer: "not_sure")
 ```
 
-## Query Candidates
+Returns: new state after answer
 
-View candidate places with their probabilities from `game_session_state`:
+### 4a. If Game Guesses Correctly
 
-```sql
-SELECT 
-    c->>'name' as place_name,
-    (c->>'probability')::numeric(5,3) as probability,
-    (c->>'confidence')::numeric(5,3) as confidence
-FROM game_session_state gss, 
-     jsonb_array_elements(gss.candidates) as c
-WHERE session_id = 'SESSION_ID'
-ORDER BY (c->>'probability')::numeric DESC;
+```
+game_turn(session_id: "abc123...", answer: "yes")
 ```
 
-Available candidate fields: `id`, `name`, `lat`, `lng`, `probability`, `confidence`, `geographic_distance`, `description_similarity`.
+Game ends with status: won
 
-## Key Views/Functions
+### 4b. If Game Gives Up or Guesses Wrong
 
-| Function | Purpose |
-|----------|---------|
-| `start_game(description, lang)` | Start new game, returns session_id |
-| `play_turn(session_id, answer)` | Answer question or confirm/deny guess |
-| `submit_place(session_id, osm_id)` | Submit correct place when giving up |
-| `game_session_state` view | Current game state with candidates |
+First, find the correct place:
+```
+game_find_place(name: "Wawel")
+```
 
-## Common Issues
+Then submit it:
+```
+game_submit(session_id: "abc123...", osm_id: "way/123456")
+```
 
-- **"Authentication required"** → Run auth setup commands first
-- **`auth.uid()` returns NULL** → Missing `SET ROLE authenticated`
-- **Empty results** → RLS filtering, check auth.uid() matches user_id
+## Example Session
+
+```
+> game_start(description: "A famous tower in Paris")
+
+SESSION: 7f3a2b1c-...
+
+status   | question                          | candidate_count
+---------+-----------------------------------+----------------
+active   | Is this place in Western Europe?  | 15
+
+TOP CANDIDATES:
+place           | confidence
+----------------+-----------
+Eiffel Tower    | 45%
+Notre-Dame      | 22%
+Arc de Triomphe | 12%
+
+> game_turn(session_id: "7f3a2b1c-...", answer: "yes")
+
+status | question                    | guess
+-------+-----------------------------+------
+active | Is it a metal structure?    | 
+
+TOP CANDIDATES:
+place           | confidence
+----------------+-----------
+Eiffel Tower    | 68%
+Notre-Dame      | 15%
+
+> game_turn(session_id: "7f3a2b1c-...", answer: "yes")
+
+status | question | guess        | guess_confidence
+-------+----------+--------------+-----------------
+active |          | Eiffel Tower | 89%
+
+> game_turn(session_id: "7f3a2b1c-...", answer: "yes")
+
+status | 
+-------+
+won    |
+```
+
+## Status Values
+
+- `active` - Game in progress
+- `won` - Correct guess confirmed
+- `ended` - Game over (gave up or max turns)
+
+## Answer Values
+
+- `yes` - Confirm question or guess
+- `no` - Deny question or guess  
+- `not_sure` - Skip question (only for questions, not guesses)
+
+## Review Completed Game
+
+```
+game_summary(session_id: "abc123...")
+```
+
+Returns: description, result (won/lost), place name, trait count, and full question history.
