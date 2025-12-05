@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-05T14:51:45.941Z
+-- Generated: 2025-12-05T15:08:26.852Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -6089,7 +6089,7 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 -- LLM Trait Extraction (unified flow)
 ('llm.trait_extraction.model', '"meituan/longcat-flash-chat:free"'::jsonb, 'OpenRouter model ID'),
 ('llm.trait_extraction.fallback_model', '"cognitivecomputations/dolphin-mistral-24b-venice-edition:free"'::jsonb, 'Fallback model'),
-('llm.trait_extraction.temperature', '0.1'::jsonb, 'Low temperature for factual responses'),
+('llm.trait_extraction.temperature', '0.15'::jsonb, 'Randomness (lower = more deterministic)'),
 ('llm.trait_extraction.max_tokens', '1000'::jsonb, 'Max tokens'),
 ('llm.trait_extraction.top_p', '0.85'::jsonb, 'Top-p sampling'),
 ('llm.trait_extraction.stop', '[]'::jsonb, 'Stop sequences'),
@@ -6111,7 +6111,7 @@ INSERT INTO game_logic.config (key, value, description) VALUES
   }
 }'::jsonb, 'JSON schema for structured output'),
 ('llm.trait_extraction.max_traits', '30'::jsonb, 'Maximum traits per place'),
-('llm.trait_extraction.prompt', '"You are curating a knowledge base for a geographic guessing game.\n\nPLACE: {place_name}\nLOCATION: ({lat}, {lng}) in {country}\nTYPE: {place_type}\n\nSOURCE DATA:\n{nominatim_text}\n\nCURRENT KNOWLEDGE:\n{existing_traits}\n\nNEW INFORMATION:\nUser descriptions: {session_descriptions}\nConfirmed facts: {game_answers}\n\nTASK: Update the knowledge base for this place.\n- Review existing traits and keep valuable ones\n- Add new facts from source data or user sessions\n- Remove duplicates or generic information\n- Consolidate similar traits into one stronger statement\n- Stay within {max_traits} traits total\n\nTRAIT REQUIREMENTS:\n- Each trait is a complete, naturally readable statement\n- Include specific facts: measurements, dates, materials, architects, historical events\n- Write as if explaining to a curious traveler (displayed as \"What I know about this place\")\n- No place names, no generic adjectives like \"famous\" or \"beautiful\"\n- No visitor logistics (tickets, hours, parking)\n\nOUTPUT FORMAT (JSON):\n{\n  \"traits\": [\"trait 1\", \"trait 2\", ...],\n  \"changes\": \"Brief note about what was added/removed and why\"\n}"'::jsonb, 'Unified prompt for trait extraction/update'),
+('llm.trait_extraction.prompt', '"You are curating a knowledge base for a geographic guessing game.\n\nPLACE: {place_name}\nLOCATION: ({lat}, {lng}) in {country}\nTYPE: {place_type}\n\nSOURCE DATA:\n{nominatim_text}\n\nCURRENT KNOWLEDGE:\n{existing_traits}\n\nNEW INFORMATION:\nUser descriptions: {session_descriptions}\nConfirmed facts: {game_answers}\n\nTASK: Curate the knowledge base. Stay within {max_traits} traits total.\n\nKEY PRINCIPLES:\n- PRESERVE existing traits exactly as written. Do not rephrase or reword them.\n- ADD new facts ONLY if substantively different from existing traits.\n- CONSOLIDATE only truly similar traits into one. If uncertain, keep both.\n- REMOVE outdated, generic, or unverifiable information.\n\nTRAIT REQUIREMENTS:\n- Each trait: complete, naturally readable statement (5-25 words)\n- Include specifics: measurements, dates, materials, architects, events\n- Write as facts a curious traveler would find interesting\n- NO hex color codes like #787878. Use words: dark gray stone, tan stucco.\n- ENGLISH ONLY. No Cyrillic, Arabic, CJK, Khmer, or other non-Latin scripts.\n- No place names, no generic adjectives (famous, beautiful), no visitor logistics.\n\nOUTPUT FORMAT (JSON):\n{\n  \"traits\": [\"trait 1\", \"trait 2\", ...],\n  \"changes\": \"Brief note about what was added/removed and why\"\n}"'::jsonb, 'Unified prompt for trait extraction/update'),
 
 -- LLM Question Generation
 ('llm.question.model', '"mistralai/mistral-7b-instruct:free"'::jsonb, 'OpenRouter model ID'),
