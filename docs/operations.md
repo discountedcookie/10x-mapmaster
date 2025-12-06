@@ -221,7 +221,7 @@ All admin workflows are performed through Supabase Studio or direct SQL access o
 ### Automated Security Scans
 
 - **CodeQL** - GitHub's default code scanning
-- **NPM Audit** - Dependency vulnerability checking
+- **Bun Audit** - Dependency vulnerability checking
 - **Semgrep** - Security pattern scanning (security-audit, secrets, typescript, vue)
 - **Trufflehog** - Secret detection in commits
 - **OSSF Scorecard** - Security best practices scoring (weekly on main)
@@ -282,7 +282,7 @@ Simple logging strategy with light external error tracking where it adds value.
 ### Dependency Management
 
 - **Dependabot** - Weekly automated updates (Mondays)
-  - NPM dependencies: Groups minor/patch, separates major
+  - Bun dependencies: Groups minor/patch, separates major
   - GitHub Actions: Weekly updates
   - Auto-labeled and scoped commits
 
