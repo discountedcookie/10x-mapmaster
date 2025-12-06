@@ -4,7 +4,6 @@
  */
 
 export { useGameSessionStore } from './gameSession'
-export { useGameUIStore } from './gameUI'
 export { useGameSearchStore } from './gameSearch'
 export { useAuthStore } from './auth'
 export { usePlacesStore } from './places'
