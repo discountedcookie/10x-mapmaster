@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-06T13:48:27.426Z
+-- Generated: 2025-12-06T14:34:19.714Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -258,9 +258,9 @@ comment ON schema game_logic IS 'Server-only game logic, functions, and private 
 
 
 -- Grant usage on game_logic schema
+-- Only postgres and service_role can access game_logic schema
+-- Authenticated/anon users access game logic via SECURITY DEFINER functions
 GRANT usage ON schema game_logic TO postgres,
-authenticated,
-anon,
 service_role;
 
 -- ============================================================================

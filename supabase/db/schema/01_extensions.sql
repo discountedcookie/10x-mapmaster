@@ -245,7 +245,7 @@ comment ON schema game_logic IS 'Server-only game logic, functions, and private 
 
 
 -- Grant usage on game_logic schema
+-- Only postgres and service_role can access game_logic schema
+-- Authenticated/anon users access game logic via SECURITY DEFINER functions
 GRANT usage ON schema game_logic TO postgres,
-authenticated,
-anon,
 service_role;
