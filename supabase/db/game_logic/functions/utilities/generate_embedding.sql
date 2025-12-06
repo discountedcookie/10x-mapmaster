@@ -95,7 +95,7 @@ BEGIN
   embedding_vector := (v_content::jsonb->>'embedding')::vector(384);
 
   IF embedding_vector IS NULL THEN
-    RAISE EXCEPTION 'Response did not contain valid embedding: %', response.content;
+    RAISE EXCEPTION 'Response did not contain valid embedding: %', v_content;
   END IF;
 
   RETURN embedding_vector;

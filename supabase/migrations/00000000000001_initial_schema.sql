@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-05T17:32:23.456Z
+-- Generated: 2025-12-06T03:25:54.776Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -37,8 +37,7 @@ SET
   standard_conforming_strings = ON;
 
 
-SELECT
-  pg_catalog.set_config ('search_path', 'public', FALSE);
+SET search_path TO public;
 
 
 SET
@@ -159,6 +158,8 @@ WITH
 
 comment ON schema "public" IS 'standard public schema';
 
+-- Reset search_path after extensions (some extensions modify it)
+SET search_path TO public;
 
 -- ============================================================================
 -- Custom Types
@@ -4980,7 +4981,7 @@ BEGIN
   embedding_vector := (v_content::jsonb->>'embedding')::vector(384);
 
   IF embedding_vector IS NULL THEN
-    RAISE EXCEPTION 'Response did not contain valid embedding: %', response.content;
+    RAISE EXCEPTION 'Response did not contain valid embedding: %', v_content;
   END IF;
 
   RETURN embedding_vector;

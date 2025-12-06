@@ -24,8 +24,7 @@ SET
   standard_conforming_strings = ON;
 
 
-SELECT
-  pg_catalog.set_config ('search_path', 'public', FALSE);
+SET search_path TO public;
 
 
 SET
@@ -146,6 +145,8 @@ WITH
 
 comment ON schema "public" IS 'standard public schema';
 
+-- Reset search_path after extensions (some extensions modify it)
+SET search_path TO public;
 
 -- ============================================================================
 -- Custom Types
