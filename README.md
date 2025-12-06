@@ -13,7 +13,7 @@ An intelligent geography guessing game where players describe a place, and the s
 
 | Layer      | Technology                                                  |
 | ---------- | ----------------------------------------------------------- |
-| Frontend   | Vue 3, Pinia, MapLibre GL JS, deck.gl, shadcn-vue           |
+| Frontend   | Vue 3, Pinia, MapLibre GL JS, shadcn-vue                    |
 | Backend    | Supabase (PostgreSQL + pgvector + PostGIS + Edge Functions) |
 | Embeddings | 384-dimensional vectors (gte-small)                         |
 | Hosting    | GitHub Pages                                                |
@@ -69,7 +69,7 @@ bun run dev          # Start dev server
 bun run lint         # Run linters
 bun run type-check   # TypeScript check
 bun run test:unit    # Unit tests (Vitest)
-bun run test:e2e     # E2E tests (Playwright)
+bun run test:db      # Database tests (pgTAP)
 bun run db:rebuild   # Rebuild database from source
 supabase test db     # Database tests (pgTAP)
 ```
