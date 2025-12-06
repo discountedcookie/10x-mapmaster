@@ -1,7 +1,6 @@
 /**
- * @deprecated This file is for documentation only.
- * Seed data is now managed in SQL migrations (supabase/migrations/000002_seed_data.sql)
- * Use the generate-places-seed.ts script to enrich and generate embeddings.
+ * Seed data for places.
+ * Used by generate-test-seed.ts to create SQL seed files with embeddings.
  */
 export const seedPlaces = [
   {

@@ -1,7 +1,6 @@
 /**
- * @deprecated This file is for documentation only.
- * Seed data is now managed in SQL migrations (supabase/migrations/000002_seed_data.sql)
- * Use the generate-questions-seed.ts script to generate embeddings for semantic questions.
+ * Seed data for questions.
+ * Used by generate-test-seed.ts to create SQL seed files with embeddings.
  */
 export const seedQuestions = [
   {

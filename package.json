@@ -28,12 +28,7 @@
     "db:build-migration": "bun run scripts/build-migration.ts --prod"
   },
   "dependencies": {
-    "@deck.gl/aggregation-layers": "^9.2.2",
-    "@deck.gl/core": "^9.2.2",
-    "@deck.gl/layers": "^9.2.2",
-    "@deck.gl/mapbox": "^9.2.2",
     "@indoorequal/vue-maplibre-gl": "^8.4.2",
-    "@popperjs/core": "^2.11.8",
     "@supabase/supabase-js": "^2.86.0",
     "@tailwindcss/vite": "^4.1.16",
     "@vee-validate/zod": "^4.15.1",
@@ -52,12 +47,10 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.14",
     "vee-validate": "^4.15.1",
-    "visionscarto-world-atlas": "^1.0.0",
     "vue": "^3.5.25",
     "vue-i18n": "^11.2.2",
     "vue-router": "^4.6.3",
     "vue-sonner": "^2.0.9",
-    "wikipedia": "^2.2.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {

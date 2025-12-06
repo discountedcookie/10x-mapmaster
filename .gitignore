@@ -26,9 +26,6 @@ dist-ssr
 .temp
 
 # Testing
-test-results/
-playwright-report/
-playwright/.cache/
 coverage/
 
 # Editor directories and files

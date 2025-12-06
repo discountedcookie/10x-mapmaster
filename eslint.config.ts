@@ -35,7 +35,6 @@ export default [
   {
     files: [
       'src/types/database.ts',
-      'src/data/seedPlaces.ts',
       'src/composables/map/useMapCamera.ts',
       'src/views/LoginView.vue',
       'src/views/SignupView.vue',
@@ -46,7 +45,7 @@ export default [
     },
   },
   {
-    files: ['e2e/**/*.ts', 'src/__tests__/**/*.ts'],
+    files: ['src/__tests__/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off', // Tests need flexible mocking
     },

@@ -7,7 +7,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: 'jsdom',
-      exclude: [...configDefaults.exclude, 'e2e/**'],
+      exclude: [...configDefaults.exclude],
       root: fileURLToPath(new URL('./', import.meta.url)),
       setupFiles: ['./src/__tests__/setup.ts'],
       coverage: {
@@ -15,7 +15,6 @@ export default mergeConfig(
         reporter: ['text', 'json', 'html', 'lcov'],
         exclude: [
           ...configDefaults.exclude,
-          'e2e/**',
           'src/__tests__/**',
           '**/*.spec.ts',
           '**/*.test.ts',
