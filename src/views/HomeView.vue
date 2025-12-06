@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const router = useRouter()
-const { locale } = useI18n()
+const { locale, t } = useI18n({ useScope: 'global' })
 const gameSessionStore = useGameSessionStore()
 const placesStore = usePlaces()
 const mapLayersStore = useMapLayersStore()
@@ -137,12 +137,12 @@ async function handleStartGame() {
   <div class="relative flex justify-center items-end h-full pb-4 px-4 pointer-events-none">
     <Card class="w-full md:max-w-md pointer-events-auto">
       <CardHeader>
-        <CardTitle class="text-center">Describe a place</CardTitle>
+        <CardTitle class="text-center">{{ t('game.describe_place_title') }}</CardTitle>
       </CardHeader>
       <CardContent class="space-y-4">
         <Input
           v-model="description"
-          placeholder="e.g., A famous tower in Paris"
+          :placeholder="t('game.description_placeholder')"
           @keyup.enter="handleStartGame"
         />
         <Button
@@ -150,7 +150,7 @@ async function handleStartGame() {
           :disabled="!description.trim() || gameSessionStore.loading"
           @click="handleStartGame"
         >
-          {{ gameSessionStore.loading ? 'Starting...' : 'Start Game' }}
+          {{ gameSessionStore.loading ? t('game.starting') : t('game.start_game') }}
         </Button>
       </CardContent>
     </Card>

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useGameSearchStore } from '@/stores/gameSearch'
 import { useGameMap } from '@/composables/game/useGameMap'
 import { usePlacePresentation } from '@/composables/map/usePlacePresentation'
+
+const { t } = useI18n({ useScope: 'global' })
 
 interface Properties {
   title?: string
@@ -60,14 +63,14 @@ onUnmounted(() => {
         {{ title }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="space-y-4">
-      <div class="text-center space-y-4">
-        <p class="text-2xl">Thank you!</p>
-        <p class="text-muted-foreground">
-          Your submission is pending review. Once approved, this place will help me learn!
-        </p>
-        <Button class="w-full" @click="router.push('/')">New Game</Button>
-      </div>
-    </CardContent>
+     <CardContent class="space-y-4">
+       <div class="text-center space-y-4">
+         <p class="text-2xl">{{ t('game.thank_you') }}</p>
+         <p class="text-muted-foreground">
+           {{ t('game.submission_pending') }}
+         </p>
+         <Button class="w-full" @click="router.push('/')">{{ t('game.new_game') }}</Button>
+       </div>
+     </CardContent>
   </div>
 </template>

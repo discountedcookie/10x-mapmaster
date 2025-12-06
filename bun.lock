@@ -18,6 +18,7 @@
         "mitt": "^3.0.1",
         "nominatim-ts": "^0.1.4",
         "pinia": "^3.0.3",
+        "postgres": "^3.4.7",
         "reka-ui": "^2.6.1",
         "tailwind-merge": "^3.3.1",
         "tailwindcss": "^4.1.14",
@@ -1281,6 +1282,8 @@
     "postcss-selector-parser": ["postcss-selector-parser@7.1.1", "", { "dependencies": { "cssesc": "^3.0.0", "util-deprecate": "^1.0.2" } }, "sha512-orRsuYpJVw8LdAwqqLykBj9ecS5/cRHlI5+nvTo8LcCKmzDmqVORXtOIYEEQuL9D4BxtA1lm5isAqzQZCoQ6Eg=="],
 
     "postcss-styl": ["postcss-styl@0.12.3", "", { "dependencies": { "debug": "^4.1.1", "fast-diff": "^1.2.0", "lodash.sortedlastindex": "^4.1.0", "postcss": "^7.0.27 || ^8.0.0", "stylus": "^0.57.0" } }, "sha512-8I7Cd8sxiEITIp32xBK4K/Aj1ukX6vuWnx8oY/oAH35NfQI4OZaY5nd68Yx8HeN5S49uhQ6DL0rNk0ZBu/TaLg=="],
+
+    "postgres": ["postgres@3.4.7", "", {}, "sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw=="],
 
     "potpack": ["potpack@2.1.0", "", {}, "sha512-pcaShQc1Shq0y+E7GqJqvZj8DTthWV1KeHGdi0Z6IAin2Oi3JnLCOfwnCo84qc+HAp52wT9nK9H7FAJp5a44GQ=="],
 

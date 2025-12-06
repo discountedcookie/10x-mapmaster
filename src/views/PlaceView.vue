@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onUnmounted, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useMediaQuery, breakpointsTailwind } from '@vueuse/core'
 import { logger } from '@/lib/logger'
 import { useMapCamera, MAP_KEY } from '@/composables/map/useMapCamera'
@@ -14,6 +15,8 @@ import { supabase } from '@/lib/supabase'
 import { X } from 'lucide-vue-next'
 import PlacesLayer from '@/components/map/PlacesLayer.vue'
 import type { Tables } from '@/types/database'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const route = useRoute()
 const router = useRouter()
@@ -468,32 +471,31 @@ function close() {
         style="max-height: 50vh"
       >
         <CardHeader class="flex-row items-start justify-between space-y-0 pb-3">
-          <div class="space-y-1 flex-1 min-w-0">
-            <Skeleton v-if="loading" class="h-6 w-3/4" />
-            <CardTitle v-else class="text-lg truncate">{{ place?.name }}</CardTitle>
+           <div class="space-y-1 flex-1 min-w-0">
+             <Skeleton v-if="loading" class="h-6 w-3/4" />
+             <CardTitle v-else class="text-lg truncate">{{ place?.name }}</CardTitle>
 
-            <Skeleton v-if="loading" class="h-4 w-1/2" />
-            <p v-else-if="place?.times_encountered" class="text-xs text-muted-foreground">
-              Played {{ place.times_encountered }}
-              {{ place.times_encountered === 1 ? 'time' : 'times' }}
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" class="shrink-0 -mr-2 -mt-2" @click="close">
-            <X class="h-4 w-4" />
-          </Button>
-        </CardHeader>
+             <Skeleton v-if="loading" class="h-4 w-1/2" />
+             <p v-else-if="place?.times_encountered" class="text-xs text-muted-foreground">
+               {{ t('map.played', { count: place.times_encountered }) }}
+             </p>
+           </div>
+           <Button variant="ghost" size="icon" class="shrink-0 -mr-2 -mt-2" @click="close">
+             <X class="h-4 w-4" />
+           </Button>
+         </CardHeader>
 
-        <CardContent class="flex-1 overflow-y-auto space-y-4">
-          <div v-if="loading" class="space-y-2">
-            <Skeleton class="h-4 w-full" />
-            <Skeleton class="h-4 w-5/6" />
-            <Skeleton class="h-4 w-4/6" />
-          </div>
+         <CardContent class="flex-1 overflow-y-auto space-y-4">
+           <div v-if="loading" class="space-y-2">
+             <Skeleton class="h-4 w-full" />
+             <Skeleton class="h-4 w-5/6" />
+             <Skeleton class="h-4 w-4/6" />
+           </div>
 
-          <div v-else-if="traits.length > 0" class="space-y-3">
-            <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              What I know about this place
-            </p>
+           <div v-else-if="traits.length > 0" class="space-y-3">
+             <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+               {{ t('place.what_i_know') }}
+             </p>
             <ul class="space-y-2">
               <li v-for="trait in traits" :key="trait" class="text-sm flex items-start gap-2">
                 <span class="text-primary mt-0.5">•</span>
@@ -502,45 +504,44 @@ function close() {
             </ul>
           </div>
 
-          <p v-else class="text-sm text-muted-foreground italic">
-            I don't know anything about this place yet.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+           <p v-else class="text-sm text-muted-foreground italic">
+             {{ t('place.no_knowledge') }}
+           </p>
+         </CardContent>
+       </Card>
+     </div>
 
-    <!-- Mobile: Bottom card, 1/3 height -->
-    <div class="fixed left-4 right-4 bottom-4 z-20 pointer-events-none md:hidden">
-      <Card
-        class="pointer-events-auto shadow-xl overflow-hidden flex flex-col"
-        style="max-height: 33vh"
-      >
-        <CardHeader class="flex-row items-start justify-between space-y-0 pb-3">
-          <div class="space-y-1 flex-1 min-w-0">
-            <Skeleton v-if="loading" class="h-6 w-3/4" />
-            <CardTitle v-else class="text-lg truncate">{{ place?.name }}</CardTitle>
+     <!-- Mobile: Bottom card, 1/3 height -->
+     <div class="fixed left-4 right-4 bottom-4 z-20 pointer-events-none md:hidden">
+       <Card
+         class="pointer-events-auto shadow-xl overflow-hidden flex flex-col"
+         style="max-height: 33vh"
+       >
+         <CardHeader class="flex-row items-start justify-between space-y-0 pb-3">
+           <div class="space-y-1 flex-1 min-w-0">
+             <Skeleton v-if="loading" class="h-6 w-3/4" />
+             <CardTitle v-else class="text-lg truncate">{{ place?.name }}</CardTitle>
 
-            <Skeleton v-if="loading" class="h-4 w-1/2" />
-            <p v-else-if="place?.times_encountered" class="text-xs text-muted-foreground">
-              Played {{ place.times_encountered }}
-              {{ place.times_encountered === 1 ? 'time' : 'times' }}
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" class="shrink-0 -mr-2 -mt-2" @click="close">
-            <X class="h-4 w-4" />
-          </Button>
-        </CardHeader>
+             <Skeleton v-if="loading" class="h-4 w-1/2" />
+             <p v-else-if="place?.times_encountered" class="text-xs text-muted-foreground">
+               {{ t('map.played', { count: place.times_encountered }) }}
+             </p>
+           </div>
+           <Button variant="ghost" size="icon" class="shrink-0 -mr-2 -mt-2" @click="close">
+             <X class="h-4 w-4" />
+           </Button>
+         </CardHeader>
 
-        <CardContent class="flex-1 overflow-y-auto space-y-4">
-          <div v-if="loading" class="space-y-2">
-            <Skeleton class="h-4 w-full" />
-            <Skeleton class="h-4 w-5/6" />
-          </div>
+         <CardContent class="flex-1 overflow-y-auto space-y-4">
+           <div v-if="loading" class="space-y-2">
+             <Skeleton class="h-4 w-full" />
+             <Skeleton class="h-4 w-5/6" />
+           </div>
 
-          <div v-else-if="traits.length > 0" class="space-y-3">
-            <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              What I know about this place
-            </p>
+           <div v-else-if="traits.length > 0" class="space-y-3">
+             <p class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+               {{ t('place.what_i_know') }}
+             </p>
             <ul class="space-y-2">
               <li v-for="trait in traits" :key="trait" class="text-sm flex items-start gap-2">
                 <span class="text-primary mt-0.5">•</span>
@@ -549,11 +550,11 @@ function close() {
             </ul>
           </div>
 
-          <p v-else class="text-sm text-muted-foreground italic">
-            I don't know anything about this place yet.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  </div>
-</template>
+           <p v-else class="text-sm text-muted-foreground italic">
+             {{ t('place.no_knowledge') }}
+           </p>
+         </CardContent>
+       </Card>
+     </div>
+   </div>
+ </template>

@@ -42,6 +42,7 @@
     "mitt": "^3.0.1",
     "nominatim-ts": "^0.1.4",
     "pinia": "^3.0.3",
+    "postgres": "^3.4.7",
     "reka-ui": "^2.6.1",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.14",

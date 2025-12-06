@@ -4,7 +4,7 @@ import type en from './locales/en'
 export type MessageSchema = typeof en
 
 // Supported locale codes (short form)
-export type SupportedLocale = 'en' | 'es' | 'pl'
+export type SupportedLocale = 'en'
 
 // Extend vue-i18n module declarations for type safety
 declare module 'vue-i18n' {

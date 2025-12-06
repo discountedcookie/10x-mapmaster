@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Card } from '@/components/ui/card'
 import { logger } from '@/lib/logger'
 import { useGameSessionStore } from '@/stores/gameSession'
@@ -14,6 +15,7 @@ import GameSubmissionPending from '@/components/game/states/GameSubmissionPendin
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n({ useScope: 'global' })
 const gameSessionStore = useGameSessionStore()
 const { displayCandidates, hideCircles, registerCandidatesLayer } = useGameMap()
 
@@ -64,29 +66,29 @@ watch(
 )
 
 onMounted(async () => {
-  const sessionId = route.params.sessionId as string
+   const sessionId = route.params.sessionId as string
 
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (!sessionId || !uuidRegex.test(sessionId)) {
-    loadError.value = 'Invalid session ID'
-    await router.push('/')
-    return
-  }
+   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+   if (!sessionId || !uuidRegex.test(sessionId)) {
+     loadError.value = t('common.invalid_session_id')
+     await router.push('/')
+     return
+   }
 
-  if (gameSessionStore.session?.session_id === sessionId) {
-    return
-  }
+   if (gameSessionStore.session?.session_id === sessionId) {
+     return
+   }
 
-  try {
-    await gameSessionStore.refresh(sessionId)
-  } catch (error) {
-    logger.error('Failed to load game:', error)
-    loadError.value = error instanceof Error ? error.message : 'Failed to load game'
-    setTimeout(() => {
-      router.push('/')
-    }, 2000)
-  }
-})
+   try {
+     await gameSessionStore.refresh(sessionId)
+   } catch (error) {
+     logger.error('Failed to load game:', error)
+     loadError.value = error instanceof Error ? error.message : t('common.failed_to_load_game')
+     setTimeout(() => {
+       router.push('/')
+     }, 2000)
+   }
+ })
 </script>
 
 <template>

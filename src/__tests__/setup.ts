@@ -1,8 +1,6 @@
 import { beforeEach, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
 import en from '../i18n/locales/en'
-import es from '../i18n/locales/es'
-import pl from '../i18n/locales/pl'
 import { messageCompiler } from '../i18n/compiler'
 
 // Mock localStorage
@@ -62,15 +60,13 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 export const i18n = createI18n({
-  legacy: false,
-  locale: 'en',
-  messageCompiler, // Use ICU MessageFormat for advanced formatting
-  messages: {
-    en,
-    es,
-    pl,
-  },
-})
+   legacy: false,
+   locale: 'en',
+   messageCompiler, // Use ICU MessageFormat for advanced formatting
+   messages: {
+     en,
+   },
+ })
 
 // Suppress Vue warnings in tests (they're often intentional for testing edge cases)
 const originalConsoleWarn = console.warn

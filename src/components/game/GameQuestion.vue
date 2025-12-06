@@ -1,28 +1,30 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 
 interface Properties {
-  question: string
-  loading?: boolean
-}
+   question: string
+   loading?: boolean
+ }
 
-interface Emits {
-  (e: 'answer', value: boolean): void
-}
+ interface Emits {
+   (e: 'answer', value: boolean): void
+ }
 
-defineProps<Properties>()
-const emit = defineEmits<Emits>()
+ defineProps<Properties>()
+ const emit = defineEmits<Emits>()
+ const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <template>
-  <div class="space-y-4">
-    <p class="text-lg text-center">{{ question }}</p>
+   <div class="space-y-4">
+     <p class="text-lg text-center">{{ question }}</p>
 
-    <div class="flex gap-3">
-      <Button class="flex-1" :disabled="loading" @click="emit('answer', true)"> Yes </Button>
-      <Button class="flex-1" variant="outline" :disabled="loading" @click="emit('answer', false)">
-        No
-      </Button>
-    </div>
-  </div>
+     <div class="flex gap-3">
+       <Button class="flex-1" :disabled="loading" @click="emit('answer', true)"> {{ t('game.yes') }} </Button>
+       <Button class="flex-1" variant="outline" :disabled="loading" @click="emit('answer', false)">
+         {{ t('game.no') }}
+       </Button>
+     </div>
+   </div>
 </template>

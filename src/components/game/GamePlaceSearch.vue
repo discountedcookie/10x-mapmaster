@@ -76,21 +76,21 @@ function parseDisplayName(displayName: string): { name: string; details: string 
 
 // Get OSM type badge variant
 function getOsmTypeBadge(osmType: string): string {
-  switch (osmType) {
-    case 'way': {
-      return 'Building'
-    }
-    case 'relation': {
-      return 'Area'
-    }
-    case 'node': {
-      return 'Point'
-    }
-    default: {
-      return osmType
-    }
-  }
-}
+   switch (osmType) {
+     case 'way': {
+       return t('game.place_search.osm_type_building')
+     }
+     case 'relation': {
+       return t('game.place_search.osm_type_area')
+     }
+     case 'node': {
+       return t('game.place_search.osm_type_point')
+     }
+     default: {
+       return osmType
+     }
+   }
+ }
 </script>
 
 <template>
@@ -127,11 +127,11 @@ function getOsmTypeBadge(osmType: string): string {
       <p class="text-sm text-destructive">{{ placesStore.searchError }}</p>
     </div>
 
-    <!-- Results -->
-    <div v-else-if="results.length > 0" class="space-y-2">
-      <p class="text-xs text-muted-foreground uppercase tracking-wide font-medium px-1">
-        {{ results.length }} result{{ results.length === 1 ? '' : 's' }} found
-      </p>
+     <!-- Results -->
+     <div v-else-if="results.length > 0" class="space-y-2">
+       <p class="text-xs text-muted-foreground uppercase tracking-wide font-medium px-1">
+         {{ t('game.place_search.results_found', { count: results.length }) }}
+       </p>
 
       <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
         <button
@@ -186,17 +186,17 @@ function getOsmTypeBadge(osmType: string): string {
       </div>
     </div>
 
-    <!-- Empty state -->
-    <div v-else-if="query && !placesStore.searchLoading" class="text-center py-8">
-      <MapPin class="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-      <p class="text-sm text-muted-foreground">No places found. Try a different search term.</p>
-    </div>
+     <!-- Empty state -->
+     <div v-else-if="query && !placesStore.searchLoading" class="text-center py-8">
+       <MapPin class="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+       <p class="text-sm text-muted-foreground">{{ t('game.place_search.no_results') }}</p>
+     </div>
 
-    <!-- Initial state -->
-    <div v-else class="text-center py-8">
-      <Search class="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-      <p class="text-sm text-muted-foreground">Search for a place by name</p>
-    </div>
+     <!-- Initial state -->
+     <div v-else class="text-center py-8">
+       <Search class="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+       <p class="text-sm text-muted-foreground">{{ t('game.place_search.search_placeholder') }}</p>
+     </div>
 
     <Separator />
 

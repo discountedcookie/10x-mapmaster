@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { CardContent } from '@/components/ui/card'
 import { logger } from '@/lib/logger'
 import { useGameSessionStore } from '@/stores/gameSession'
@@ -8,6 +9,8 @@ import { useGameMap } from '@/composables/game/useGameMap'
 import { calculateBounds } from '@/lib/map-utils'
 import GamePlaceSearch from '@/components/game/GamePlaceSearch.vue'
 import type { NominatimPlace } from '@/composables/usePlaces'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const router = useRouter()
 const gameSessionStore = useGameSessionStore()
@@ -57,11 +60,11 @@ function handlePlaceHover(place: NominatimPlace | undefined) {
 </script>
 
 <template>
-  <CardContent class="space-y-4 pt-6">
-    <div class="text-center space-y-2">
-      <p class="text-xl font-semibold">I give up!</p>
-      <p class="text-muted-foreground">Help me learn - what place were you thinking of?</p>
-    </div>
+   <CardContent class="space-y-4 pt-6">
+     <div class="text-center space-y-2">
+       <p class="text-xl font-semibold">{{ t('game.i_give_up') }}</p>
+       <p class="text-muted-foreground">{{ t('game.help_me_learn') }}</p>
+     </div>
 
     <GamePlaceSearch
       @select="handlePlaceSubmit"

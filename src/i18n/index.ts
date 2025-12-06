@@ -1,12 +1,10 @@
 import { createI18n } from 'vue-i18n'
 import en from './locales/en'
-import es from './locales/es'
-import pl from './locales/pl'
 import { messageCompiler } from './compiler'
 import type { MessageSchema, SupportedLocale } from './types'
 
 // Supported locale codes (short form)
-const supportedLocales: SupportedLocale[] = ['en', 'es', 'pl']
+const supportedLocales: SupportedLocale[] = ['en']
 
 /**
  * Maps a browser locale (e.g., 'en-US', 'es-ES') to our supported short codes.
@@ -33,15 +31,13 @@ const defaultLocale: SupportedLocale =
   (savedLocale && mapToSupportedLocale(savedLocale)) || mapToSupportedLocale(browserLocale) || 'en'
 
 const i18n = createI18n<[MessageSchema], SupportedLocale>({
-  legacy: false, // Enable Composition API mode
-  locale: defaultLocale,
-  fallbackLocale: 'en',
-  messageCompiler, // Use ICU MessageFormat for advanced formatting
-  messages: {
-    en,
-    es,
-    pl,
-  },
-})
+   legacy: false, // Enable Composition API mode
+   locale: defaultLocale,
+   fallbackLocale: 'en',
+   messageCompiler, // Use ICU MessageFormat for advanced formatting
+   messages: {
+     en,
+   },
+ })
 
 export default i18n
