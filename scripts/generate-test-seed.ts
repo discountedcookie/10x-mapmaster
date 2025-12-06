@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 
 const PSQL = 'psql "postgresql://postgres:postgres@localhost:54322/postgres"'
@@ -13,10 +13,6 @@ function psql(query: string) {
   })
     .toString()
     .trim()
-}
-
-function escape(s: string) {
-  return s.replace(/'/g, "''")
 }
 
 // DUMP_ONLY=1 skips creation, just dumps

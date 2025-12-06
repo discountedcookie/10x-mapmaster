@@ -39,6 +39,7 @@ export default [
       'src/views/LoginView.vue',
       'src/views/SignupView.vue',
       'src/views/PlaceView.vue',
+      'src/i18n/locales/en.ts',
     ],
     rules: {
       'max-lines': 'off',
