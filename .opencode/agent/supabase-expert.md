@@ -28,7 +28,7 @@ tools:
   patch: true
   read: true
   write: true
-  task: false
+  task: true
   todoread: false
   todowrite: false
   exa_*: true
@@ -86,6 +86,12 @@ supabase/db/
 - pgvector embedding operations
 
 If frontend code contains game logic, flag it for migration to database.
+
+## OpenSpec Contract
+
+- When given a change ID and tasks from `openspec/changes/<id>/tasks.md`, implement ONLY those database/game-logic tasks and say which ones you finished and how you tested.
+- For non-trivial behavior changes without a change ID (and not obviously a bugfix), reply:
+  > "This looks like a behavior change. I need an OpenSpec change ID or confirmation it's just a bugfix."
 
 ## Output Format
 

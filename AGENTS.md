@@ -57,8 +57,8 @@ Never guess parameters.
 - Mark todos done immediately after completion, not in batches.
 - If blocked, say why and propose alternatives.
 
-<skill_awareness>
-Before starting any non-trivial task, check your available skills (skills_*).
+<skill*awareness>
+Before starting any non-trivial task, check your available skills (skills*\*).
 LOAD the skill when you see its trigger:
 
 | Trigger                         | Skill to Load                 |
@@ -77,8 +77,11 @@ Skills are proven workflows. Use them proactively, not just when reminded.
 
 ## Session Start
 
-1. Check `openspec list` for active changes
-2. Check `openspec list --specs` for existing capabilities
+Do NOT automatically run OpenSpec commands in every session.
+
+- For research or exploration (e.g. using the researcher agent): avoid OpenSpec unless the user asks about capabilities or specs.
+- For debugging: use OpenSpec only as needed to confirm intended behavior.
+- For feature or behavior changes: use the plan/build agents with `skills_openspec_check` to discover relevant specs and active changes.
 
 ## Domain Documentation
 

@@ -451,3 +451,13 @@ The algorithms require these indexes for efficient operation:
 - `spec/gameplay.md` - Game flow and user experience
 - `supabase/seeds/00_static_data.sql` - Configuration values
 - `supabase/db/functions/game/` - Implementation
+
+## Future Improvements
+
+### Lost Games Could Contribute to Learning
+
+Currently, the `update_place_traits` function filters game sessions with `was_correct = TRUE` when building LLM context (line ~139). This means player answers from lost games are excluded from trait learning.
+
+**Potential enhancement**: Include answers from lost games where the player got close (e.g., guessed a place in the same region) or where YES answers to semantic questions could still be valuable for the correct place.
+
+**Status**: Out of scope for now. Noted 2025-12-06.

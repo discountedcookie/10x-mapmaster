@@ -23,7 +23,7 @@ tools:
   patch: true
   read: true
   write: true
-  task: false
+  task: true
   todoread: false
   todowrite: false
   exa_*: true
@@ -76,6 +76,12 @@ If asked to implement these, **STOP and report back** - they belong in PostgreSQ
 - Direct database queries (SELECT/INSERT/UPDATE)
 
 Report: "This requires database work. Pausing for @supabase-expert."
+
+## OpenSpec Contract
+
+- If you are given a change ID and specific tasks from `openspec/changes/<id>/tasks.md`, implement ONLY those tasks and state which ones you completed.
+- For non-trivial UI changes without a change ID (and not clearly a trivial bugfix), reply:
+  > "I need an OpenSpec change ID or explicit confirmation this is a trivial bugfix before proceeding."
 
 ## Output Format
 

@@ -26,7 +26,7 @@ tools:
   edit: false
   write: false
   patch: false
-  task: false
+  task: true
   todoread: false
   todowrite: false
   webfetch: false

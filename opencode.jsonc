@@ -19,38 +19,8 @@
     "session_child_cycle_reverse": "<leader>[",
   },
 
-  // Built-in agents with skill access
+  // Built-in agents
   "agent": {
-    "build": {
-      "disabled": false,
-      "tools": {
-        "skills_*": true,
-      },
-      "thinking": {
-        "type": "enabled",
-        "budgetTokens": 16000,
-      },
-    },
-    "plan": {
-      "disable": false,
-      "thinking": {
-        "type": "enabled",
-        "budgetTokens": 16000,
-      },
-      "tools": {
-        "skills_*": false,
-        // Planning skills only - no execution
-        "skills_using_skills": true,
-        "skills_brainstorming": true,
-        "skills_openspec_check": true,
-        "skills_openspec_propose": true,
-        "skills_task_planning": true,
-        "skills_systematic_debugging": true,
-        "skills_code_review": true,
-        "skills_subagent_workflow": true,
-        "skills_config_tuning": true,
-      },
-    },
     // Disable general, we use specialized agents instead
     "general": { "disable": true },
   },

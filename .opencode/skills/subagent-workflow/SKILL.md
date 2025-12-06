@@ -225,6 +225,17 @@ After subagent returns:
    - Summarize what was done
    - Don't just pass through raw output
 
+4. **Collect feedback (optional but valuable):**
+   - If the task was complex or the agent struggled, recall and ask:
+   ```
+   STOP - Don't read any more files. Just reflect briefly:
+   - What context was missing that would have helped?
+   - What would have made this task easier?
+   - Any suggestions for improving the task description?
+   ```
+   - Use this feedback to improve future task scoping and context
+   - Consider updating skills or documentation based on patterns
+
 ## Red Flags - STOP
 
 If you:
@@ -243,3 +254,38 @@ STOP. Follow the workflow.
 | Forgetting session_id | Can't recall for follow-ups | Always note it |
 | Fresh session for fix | Agent loses context | Recall original session |
 | Trusting blindly | Subagents have blind spots | Verify with @code-reviewer |
+
+## Anti-Pattern: Rewriting OpenSpec as Instructions
+
+When an openspec change exists, do NOT rewrite its content as task instructions.
+
+**WRONG:**
+```
+TASK: Update trigger to fire on INSERT OR UPDATE...
+Change RAISE WARNING to RAISE EXCEPTION in these files...
+[rewrites entire tasks.md content]
+```
+
+**RIGHT:**
+```
+Implement the approved openspec change: fix-learning-trigger-errors
+
+Run `openspec show fix-learning-trigger-errors` to see the proposal and tasks.
+Load skills_openspec_apply and follow the task list.
+Report back when complete.
+```
+
+**Why this matters:**
+- OpenSpec is the single source of truth
+- Rewriting bypasses the agent's skill loading
+- You're doing the agent's work, treating them as code-execution proxies
+- Any discrepancy between your rewrite and openspec causes confusion
+
+**When to provide detailed context:**
+- Ad-hoc tasks with no openspec change
+- Quick fixes that don't warrant a full proposal
+- Exploratory investigation tasks
+
+**When to just point to openspec:**
+- Approved changes with tasks.md
+- Any task that has formal specification
