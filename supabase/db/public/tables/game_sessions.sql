@@ -31,6 +31,10 @@ ADD CONSTRAINT "game_sessions_pkey" PRIMARY KEY ("id");
 
 -- Foreign Keys
 ALTER TABLE ONLY "public"."game_sessions"
+ADD CONSTRAINT "game_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users" ("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."game_sessions"
 ADD CONSTRAINT "game_sessions_place_id_fkey" FOREIGN key ("place_id") REFERENCES "public"."places" ("id") ON DELETE SET NULL;
 
 
@@ -106,6 +110,12 @@ CREATE POLICY "Users can delete their own game sessions" ON "public"."game_sessi
 
 
 -- Comments
+COMMENT ON CONSTRAINT "game_sessions_user_id_fkey" ON "public"."game_sessions" IS 
+'Foreign key to auth.users with ON DELETE SET NULL to preserve game sessions for analytics.
+When a user is deleted, their sessions are retained with user_id = NULL for historical data.
+This ensures analytics and game history remain intact even after user account deletion.';
+
+
 comment ON COLUMN "public"."game_sessions"."next_turn" IS 'Cached next turn for the game session. Stores one of:
 - {"action": "question", "question_id": "uuid", "question_text": "...", "candidates": [...]}
 - {"action": "guess", "place_id": "uuid", "place_name": "...", "candidates": [...]}

@@ -43,6 +43,18 @@ VALUES
     'authenticated',
     'authenticated',
     'test2@example.com'
+  ),
+  (
+    '550e8400-e29b-41d4-a716-446655440003',
+    'authenticated',
+    'authenticated',
+    'test3@example.com'
+  ),
+  (
+    '550e8400-e29b-41d4-a716-446655440004',
+    'authenticated',
+    'authenticated',
+    'test4@example.com'
   );
 
 
