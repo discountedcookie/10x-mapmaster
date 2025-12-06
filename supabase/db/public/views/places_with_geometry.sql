@@ -2,7 +2,9 @@
 -- Schema: public
 -- Description: Places with geometry as GeoJSON for map rendering
 -- Note: Large geometries (>500 points) are simplified for performance
-CREATE OR REPLACE VIEW "public"."places_with_geometry" AS
+-- Security: Uses security_invoker for best practices (places table is public)
+CREATE OR REPLACE VIEW "public"."places_with_geometry"
+WITH (security_invoker = on) AS
 SELECT
   p.id,
   p.name,

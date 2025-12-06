@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-06T03:25:54.776Z
+-- Generated: 2025-12-06T07:16:09.376Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -5632,7 +5632,10 @@ comment ON trigger "on_session_approval_regenerate_traits_trigger" ON "public"."
 -- Schema: public
 -- Description: Exposes all game state data needed by frontend UI in a single query
 -- Calculates derived status from session state (was_correct, next_turn)
--- RLS is inherited from game_sessions table - view only shows rows user can access
+--
+-- Security: CANNOT use security_invoker because this view accesses game_logic.config
+-- which authenticated users don't have SELECT permission on. The WHERE clause
+-- `gs.user_id = auth.uid()` provides equivalent security to RLS.
 --
 -- Status Derivation Logic:
 -- - 'won': User guessed correctly (was_correct = TRUE)
@@ -5736,7 +5739,11 @@ ALTER VIEW "public"."game_session_state" owner TO "postgres";
 -- View: global_stats
 -- Schema: public
 -- Description: Provides global game statistics for analytics and leaderboards
--- Only accessible to service_role for privacy
+--
+-- Security: CANNOT use security_invoker for two reasons:
+-- 1. Accesses game_logic.embeddings which authenticated users can't SELECT
+-- 2. Intentionally aggregates ALL sessions across users for global stats
+-- Access is restricted via GRANT to authenticated and service_role only.
 CREATE OR REPLACE VIEW "public"."global_stats" AS
 SELECT
   -- Global session counts
@@ -5920,7 +5927,9 @@ SELECT
 -- Schema: public
 -- Description: Places with geometry as GeoJSON for map rendering
 -- Note: Large geometries (>500 points) are simplified for performance
-CREATE OR REPLACE VIEW "public"."places_with_geometry" AS
+-- Security: Uses security_invoker for best practices (places table is public)
+CREATE OR REPLACE VIEW "public"."places_with_geometry"
+WITH (security_invoker = on) AS
 SELECT
   p.id,
   p.name,
@@ -5966,8 +5975,10 @@ SELECT
 -- Schema: public
 -- Description: Provides user-specific game statistics per spec
 -- Spec columns: games_played, games_won, win_rate, avg_turns_to_win, places_added, last_played_at
--- RLS is inherited from game_sessions table - view only shows rows user can access
-CREATE OR REPLACE VIEW "public"."user_stats" AS
+-- Security: Uses security_invoker so RLS on game_sessions is respected
+-- The WHERE user_id = auth.uid() provides defense-in-depth filtering
+CREATE OR REPLACE VIEW "public"."user_stats"
+WITH (security_invoker = on) AS
 SELECT
   -- games_played: Total completed games (won or lost, not active)
   count(

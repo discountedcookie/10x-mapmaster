@@ -2,7 +2,10 @@
 -- Schema: public
 -- Description: Exposes all game state data needed by frontend UI in a single query
 -- Calculates derived status from session state (was_correct, next_turn)
--- RLS is inherited from game_sessions table - view only shows rows user can access
+--
+-- Security: CANNOT use security_invoker because this view accesses game_logic.config
+-- which authenticated users don't have SELECT permission on. The WHERE clause
+-- `gs.user_id = auth.uid()` provides equivalent security to RLS.
 --
 -- Status Derivation Logic:
 -- - 'won': User guessed correctly (was_correct = TRUE)

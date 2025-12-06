@@ -1,7 +1,11 @@
 -- View: global_stats
 -- Schema: public
 -- Description: Provides global game statistics for analytics and leaderboards
--- Only accessible to service_role for privacy
+--
+-- Security: CANNOT use security_invoker for two reasons:
+-- 1. Accesses game_logic.embeddings which authenticated users can't SELECT
+-- 2. Intentionally aggregates ALL sessions across users for global stats
+-- Access is restricted via GRANT to authenticated and service_role only.
 CREATE OR REPLACE VIEW "public"."global_stats" AS
 SELECT
   -- Global session counts

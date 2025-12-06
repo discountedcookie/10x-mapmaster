@@ -2,8 +2,10 @@
 -- Schema: public
 -- Description: Provides user-specific game statistics per spec
 -- Spec columns: games_played, games_won, win_rate, avg_turns_to_win, places_added, last_played_at
--- RLS is inherited from game_sessions table - view only shows rows user can access
-CREATE OR REPLACE VIEW "public"."user_stats" AS
+-- Security: Uses security_invoker so RLS on game_sessions is respected
+-- The WHERE user_id = auth.uid() provides defense-in-depth filtering
+CREATE OR REPLACE VIEW "public"."user_stats"
+WITH (security_invoker = on) AS
 SELECT
   -- games_played: Total completed games (won or lost, not active)
   count(
