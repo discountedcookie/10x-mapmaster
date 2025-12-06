@@ -45,8 +45,7 @@ BEGIN
   );
   
   IF v_url IS NULL THEN
-    RAISE WARNING 'Missing configuration: app.supabase_url or runtime.supabase_url. Trait extraction will be skipped.';
-    RETURN;
+    RAISE EXCEPTION 'Missing configuration: app.supabase_url or runtime.supabase_url. Trait extraction will be skipped.';
   END IF;
   
   v_url := v_url || '/functions/v1/process-trait-extraction';
@@ -58,8 +57,7 @@ BEGIN
   );
   
   IF v_auth_token IS NULL OR v_auth_token = '' THEN
-    RAISE WARNING 'Missing configuration: app.service_role_key or runtime.supabase_service_role_key. Trait extraction will be skipped.';
-    RETURN;
+    RAISE EXCEPTION 'Missing configuration: app.service_role_key or runtime.supabase_service_role_key. Trait extraction will be skipped.';
   END IF;
   
   -- Build request headers
@@ -88,7 +86,7 @@ BEGIN
 EXCEPTION
   WHEN others THEN
     -- Log error but don't fail - async processing is best-effort
-    RAISE WARNING 'enqueue_trait_extraction failed for place %: %', p_place_id, SQLERRM;
+    RAISE EXCEPTION 'enqueue_trait_extraction failed for place %: %', p_place_id, SQLERRM;
 END;
 $$;
 

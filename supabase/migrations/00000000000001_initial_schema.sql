@@ -1,5 +1,5 @@
 -- Migration: Initial Schema and Functions
--- Generated: 2025-12-06T07:16:09.376Z
+-- Generated: 2025-12-06T13:48:27.426Z
 -- Mode: DEV (clean rebuild)
 -- Schema: 1, Tables: 10, Functions: 47, Triggers: 1, Views: 4, Data: 2
 
@@ -581,6 +581,10 @@ ADD CONSTRAINT "game_sessions_pkey" PRIMARY KEY ("id");
 
 -- Foreign Keys
 ALTER TABLE ONLY "public"."game_sessions"
+ADD CONSTRAINT "game_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users" ("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."game_sessions"
 ADD CONSTRAINT "game_sessions_place_id_fkey" FOREIGN key ("place_id") REFERENCES "public"."places" ("id") ON DELETE SET NULL;
 
 
@@ -656,6 +660,12 @@ CREATE POLICY "Users can delete their own game sessions" ON "public"."game_sessi
 
 
 -- Comments
+COMMENT ON CONSTRAINT "game_sessions_user_id_fkey" ON "public"."game_sessions" IS 
+'Foreign key to auth.users with ON DELETE SET NULL to preserve game sessions for analytics.
+When a user is deleted, their sessions are retained with user_id = NULL for historical data.
+This ensures analytics and game history remain intact even after user account deletion.';
+
+
 comment ON COLUMN "public"."game_sessions"."next_turn" IS 'Cached next turn for the game session. Stores one of:
 - {"action": "question", "question_id": "uuid", "question_text": "...", "candidates": [...]}
 - {"action": "guess", "place_id": "uuid", "place_name": "...", "candidates": [...]}
@@ -3398,11 +3408,10 @@ BEGIN
        -- Backward compatibility: if it's not an array and not an object, fail
        RAISE EXCEPTION 'Response must be {"traits": [...]} or an array';
      END IF;
-   EXCEPTION
-     WHEN others THEN
-       RAISE WARNING 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
-       RETURN;
-   END;
+    EXCEPTION
+      WHEN others THEN
+        RAISE EXCEPTION 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
+    END;
 
    -- ============================================================================
    -- REPLACE TRAITS (LLM curates the full list)
@@ -3450,20 +3459,20 @@ BEGIN
       updated_at = NOW()
     WHERE id = p_place_id;
 
-    RAISE NOTICE 'Updated % traits for place %', array_length(v_trait_clauses, 1), v_place.name;
-  ELSE
-    UPDATE places
-    SET 
-      pending_review = FALSE,
-      updated_at = NOW()
-    WHERE id = p_place_id;
+     RAISE NOTICE 'Updated % traits for place %', array_length(v_trait_clauses, 1), v_place.name;
+   ELSE
+     UPDATE places
+     SET 
+       pending_review = FALSE,
+       updated_at = NOW()
+     WHERE id = p_place_id;
 
-    RAISE WARNING 'No traits extracted for place %', v_place.name;
-  END IF;
+     RAISE EXCEPTION 'No traits extracted for place %', v_place.name;
+   END IF;
 
 EXCEPTION
   WHEN others THEN
-    RAISE WARNING 'update_place_traits failed for place %: %', p_place_id, SQLERRM;
+    RAISE EXCEPTION 'update_place_traits failed for place %: %', p_place_id, SQLERRM;
 END;
 $$;
 
@@ -4647,8 +4656,7 @@ BEGIN
   );
   
   IF v_url IS NULL THEN
-    RAISE WARNING 'Missing configuration: app.supabase_url or runtime.supabase_url. Trait extraction will be skipped.';
-    RETURN;
+    RAISE EXCEPTION 'Missing configuration: app.supabase_url or runtime.supabase_url. Trait extraction will be skipped.';
   END IF;
   
   v_url := v_url || '/functions/v1/process-trait-extraction';
@@ -4660,8 +4668,7 @@ BEGIN
   );
   
   IF v_auth_token IS NULL OR v_auth_token = '' THEN
-    RAISE WARNING 'Missing configuration: app.service_role_key or runtime.supabase_service_role_key. Trait extraction will be skipped.';
-    RETURN;
+    RAISE EXCEPTION 'Missing configuration: app.service_role_key or runtime.supabase_service_role_key. Trait extraction will be skipped.';
   END IF;
   
   -- Build request headers
@@ -4690,7 +4697,7 @@ BEGIN
 EXCEPTION
   WHEN others THEN
     -- Log error but don't fail - async processing is best-effort
-    RAISE WARNING 'enqueue_trait_extraction failed for place %: %', p_place_id, SQLERRM;
+    RAISE EXCEPTION 'enqueue_trait_extraction failed for place %: %', p_place_id, SQLERRM;
 END;
 $$;
 
@@ -5599,7 +5606,10 @@ DROP TRIGGER if EXISTS "enrich_place_on_session_complete_trigger" ON "public"."g
 
 CREATE TRIGGER "enrich_place_on_session_complete_trigger"
 AFTER
-UPDATE ON "public"."game_sessions" FOR each ROW
+INSERT OR UPDATE ON "public"."game_sessions" FOR each ROW WHEN (
+  NEW.was_correct = TRUE
+  AND NEW.place_id IS NOT NULL
+)
 EXECUTE function "game_logic"."enrich_place_on_session_complete" ();
 
 
@@ -6136,10 +6146,10 @@ INSERT INTO game_logic.config (key, value, description) VALUES
 ('llm.question.top_k', '40'::jsonb, 'Only consider top K tokens (0=disabled)'),
 ('llm.question.min_p', '0.05'::jsonb, 'Minimum probability threshold relative to top token'),
 ('llm.question.stop', '["?"]'::jsonb, 'Stop on question mark to avoid duplication'),
-('llm.question.trait_prompt', '"<trait>{trait_clause}</trait>\n<language>{language_code}</language>\n\nAsk a short yes/no question about this trait for a geography guessing game.\n\nRules:\n- Always ask about \\\"it\\\" (the place), not about the trait text.\n- If the trait contains a number (height, length, year, population, capacity, etc.), turn it into an approximate threshold or category question, not a vague one.\n- Never use specific names of places, people, events, or organizations.\n- Keep the meaning of the trait but use simple, everyday words.\n\nExamples:\n- \"Height is 330 meters including antenna\" \\u2192 \"Is it over 300 meters tall?\"\n- \"Built between 1910 and 1915\" \\u2192 \"Was it built in the early 20th century?\"\n- \"Can hold 60,000 spectators\" \\u2192 \"Can it hold over 50,000 people?\"\n\nOutput only the question text, ending with a single question mark."'::jsonb, 'Trait question prompt (turn 2+) - simplifies technical traits'),
-('llm.question.region_prompt', '"<region>{region_name}</region>\n<language>{language_code}</language>\n\nAsk: Is it in {region_name}?\nOutput only the question."'::jsonb, 'Region question prompt (turn 2+) - uses "it" as subject'),
-('llm.question.trait_prompt_turn1', '"<description>{user_description}</description>\n<trait>{trait_clause}</trait>\n<language>{language_code}</language>\n\nAsk a short yes/no question about this trait for a geography guessing game. Use the main noun phrase from the description (for example this tower, this church, this castle) as the subject instead of it.\n\nRules:\n- Use the subject from the description naturally (this tower, this castle, this building, etc.).\n- If the trait contains a number (height, length, year, population, capacity, etc.), convert it into an approximate threshold or category question, not a vague one.\n- Never use specific names of places, people, events, or organizations.\n- The question must be understandable to non-experts.\n\nExamples:\n- \"Height is 330 meters including antenna\" \\u2192 \"Is this tower over 300 meters tall?\"\n- \"Built between 1910 and 1915\" \\u2192 \"Was this building constructed in the early 20th century?\"\n- \"Can hold 60,000 spectators\" \\u2192 \"Can this venue hold over 50,000 people?\"\n\nOutput only the question text, ending with a single question mark."'::jsonb, 'Trait question prompt (turn 1) - simplifies technical traits, extracts noun'),
-('llm.question.region_prompt_turn1', '"<description>{user_description}</description>\n<region>{region_name}</region>\n<language>{language_code}</language>\n\nAsk whether the thing in the description is located in the region.\nUse the subject from the description naturally (e.g. Is this tower in Europe?).\nNever mention specific place names.\nOutput only the question."'::jsonb, 'Region question prompt (turn 1) - extracts noun from user description'),
+('llm.question.trait_prompt', '"CRITICAL: OUTPUT PLAIN ENGLISH ONLY. NO TAGS OR SPECIAL MARKERS.\n\n<trait>{trait_clause}</trait>\n<language>{language_code}</language>\n\nAsk a short yes/no question about this trait for a geography guessing game.\n\nRules:\n- Always ask about \\\"it\\\" (the place), not about the trait text.\n- If the trait contains a number (height, length, year, population, capacity, etc.), turn it into an approximate threshold or category question, not a vague one.\n- Never use specific names of places, people, events, or organizations.\n- Keep the meaning of the trait but use simple, everyday words.\n\nExamples:\n- \"Height is 330 meters including antenna\" \\u2192 \"Is it over 300 meters tall?\"\n- \"Built between 1910 and 1915\" \\u2192 \"Was it built in the early 20th century?\"\n- \"Can hold 60,000 spectators\" \\u2192 \"Can it hold over 50,000 people?\"\n\nOutput only the question text, ending with a single question mark."'::jsonb, 'Trait question prompt (turn 2+) - simplifies technical traits'),
+('llm.question.region_prompt', '"CRITICAL: OUTPUT PLAIN ENGLISH ONLY. NO TAGS OR SPECIAL MARKERS.\n\n<region>{region_name}</region>\n<language>{language_code}</language>\n\nAsk: Is it in {region_name}?\nOutput only the question."'::jsonb, 'Region question prompt (turn 2+) - uses "it" as subject'),
+('llm.question.trait_prompt_turn1', '"CRITICAL: OUTPUT PLAIN ENGLISH ONLY. NO TAGS OR SPECIAL MARKERS.\n\n<description>{user_description}</description>\n<trait>{trait_clause}</trait>\n<language>{language_code}</language>\n\nAsk a short yes/no question about this trait for a geography guessing game. Use the main noun phrase from the description (for example this tower, this church, this castle) as the subject instead of it.\n\nRules:\n- Use the subject from the description naturally (this tower, this castle, this building, etc.).\n- If the trait contains a number (height, length, year, population, capacity, etc.), convert it into an approximate threshold or category question, not a vague one.\n- Never use specific names of places, people, events, or organizations.\n- The question must be understandable to non-experts.\n\nExamples:\n- \"Height is 330 meters including antenna\" \\u2192 \"Is this tower over 300 meters tall?\"\n- \"Built between 1910 and 1915\" \\u2192 \"Was this building constructed in the early 20th century?\"\n- \"Can hold 60,000 spectators\" \\u2192 \"Can this venue hold over 50,000 people?\"\n\nOutput only the question text, ending with a single question mark."'::jsonb, 'Trait question prompt (turn 1) - simplifies technical traits, extracts noun'),
+('llm.question.region_prompt_turn1', '"CRITICAL: OUTPUT PLAIN ENGLISH ONLY. NO TAGS OR SPECIAL MARKERS.\n\n<description>{user_description}</description>\n<region>{region_name}</region>\n<language>{language_code}</language>\n\nAsk whether the thing in the description is located in the region.\nUse the subject from the description naturally (e.g. Is this tower in Europe?).\nNever mention specific place names.\nOutput only the question."'::jsonb, 'Region question prompt (turn 1) - extracts noun from user description'),
 
 -- Confidence decision thresholds (dynamic system)
 ('confidence.guess_threshold_max', '0.90'::jsonb, 'Maximum threshold at turn 0 (conservative)'),

@@ -12,7 +12,10 @@ DROP TRIGGER if EXISTS "enrich_place_on_session_complete_trigger" ON "public"."g
 
 CREATE TRIGGER "enrich_place_on_session_complete_trigger"
 AFTER
-UPDATE ON "public"."game_sessions" FOR each ROW
+INSERT OR UPDATE ON "public"."game_sessions" FOR each ROW WHEN (
+  NEW.was_correct = TRUE
+  AND NEW.place_id IS NOT NULL
+)
 EXECUTE function "game_logic"."enrich_place_on_session_complete" ();
 
 

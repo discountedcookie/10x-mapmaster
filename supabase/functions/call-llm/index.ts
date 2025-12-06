@@ -3,6 +3,57 @@ import { CallLlmRequest, CallLlmRequestType } from '../types/schemas.ts'
 
 console.log('✓ call-llm module loading started')
 
+/**
+ * Sanitize LLM output by removing HTML tags, artifacts, and normalizing whitespace
+ */
+function sanitizeOutput(text: string): string {
+  if (!text) return ''
+
+  // Remove HTML tags (e.g., <s>, </s>, <br>, etc.)
+  let result = text.replace(/<[^>]*>/g, '')
+
+  // Remove common LLM artifacts
+  const artifacts = [
+    /\[OUT\]/g,
+    /\[\/OUT\]/g,
+    /\[INST\]/g,
+    /\[\/INST\]/g,
+    /<\|im_start\|>/g,
+    /<\|im_end\|>/g,
+    /<\|endoftext\|>/g,
+  ]
+
+  for (const pattern of artifacts) {
+    result = result.replace(pattern, '')
+  }
+
+  // Normalize whitespace: collapse multiple spaces and newlines
+  result = result.replace(/\s+/g, ' ')
+
+  // Trim leading/trailing whitespace
+  result = result.trim()
+
+  return result
+}
+
+/**
+ * Recursively sanitize string values in a JSON object
+ */
+function sanitizeJsonObject(obj: unknown): unknown {
+  if (typeof obj === 'string') {
+    return sanitizeOutput(obj)
+  } else if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeJsonObject(item))
+  } else if (obj !== null && typeof obj === 'object') {
+    const sanitized: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj)) {
+      sanitized[key] = sanitizeJsonObject(value)
+    }
+    return sanitized
+  }
+  return obj
+}
+
 Deno.serve(async (request: Request) => {
   console.log('✓ Handler invoked')
   try {
@@ -137,9 +188,31 @@ Deno.serve(async (request: Request) => {
     console.log(content)
     console.log('=== END RESPONSE ===')
 
+    // Sanitize the response based on format
+    let sanitized = content
+    if (format === 'json' || jsonSchema) {
+      // For JSON responses, sanitize the entire JSON string first, then parse and re-stringify
+      try {
+        const parsed = JSON.parse(content)
+        // Recursively sanitize string values in the JSON object
+        const sanitizedJson = sanitizeJsonObject(parsed)
+        sanitized = JSON.stringify(sanitizedJson)
+      } catch {
+        // If JSON parsing fails, just sanitize as text
+        sanitized = sanitizeOutput(content)
+      }
+    } else {
+      // For text responses, apply standard sanitization
+      sanitized = sanitizeOutput(content)
+    }
+
+    console.log('=== SANITIZED RESPONSE ===')
+    console.log(sanitized)
+    console.log('=== END SANITIZED RESPONSE ===')
+
     return new Response(
       JSON.stringify({
-        response: content,
+        response: sanitized,
         model: response.model,
       }),
       {

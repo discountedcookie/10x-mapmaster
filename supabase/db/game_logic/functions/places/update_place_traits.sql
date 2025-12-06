@@ -193,11 +193,10 @@ BEGIN
        -- Backward compatibility: if it's not an array and not an object, fail
        RAISE EXCEPTION 'Response must be {"traits": [...]} or an array';
      END IF;
-   EXCEPTION
-     WHEN others THEN
-       RAISE WARNING 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
-       RETURN;
-   END;
+    EXCEPTION
+      WHEN others THEN
+        RAISE EXCEPTION 'Failed to parse LLM trait response: %. Response: %', SQLERRM, left(v_llm_response, 200);
+    END;
 
    -- ============================================================================
    -- REPLACE TRAITS (LLM curates the full list)
@@ -245,20 +244,20 @@ BEGIN
       updated_at = NOW()
     WHERE id = p_place_id;
 
-    RAISE NOTICE 'Updated % traits for place %', array_length(v_trait_clauses, 1), v_place.name;
-  ELSE
-    UPDATE places
-    SET 
-      pending_review = FALSE,
-      updated_at = NOW()
-    WHERE id = p_place_id;
+     RAISE NOTICE 'Updated % traits for place %', array_length(v_trait_clauses, 1), v_place.name;
+   ELSE
+     UPDATE places
+     SET 
+       pending_review = FALSE,
+       updated_at = NOW()
+     WHERE id = p_place_id;
 
-    RAISE WARNING 'No traits extracted for place %', v_place.name;
-  END IF;
+     RAISE EXCEPTION 'No traits extracted for place %', v_place.name;
+   END IF;
 
 EXCEPTION
   WHEN others THEN
-    RAISE WARNING 'update_place_traits failed for place %: %', p_place_id, SQLERRM;
+    RAISE EXCEPTION 'update_place_traits failed for place %: %', p_place_id, SQLERRM;
 END;
 $$;
 
