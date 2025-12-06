@@ -50,7 +50,6 @@ jobs:
             p/security-audit
             p/secrets
             p/typescript
-            p/vue
 
   secret-scan:
     name: Secret Detection
