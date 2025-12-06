@@ -1,0 +1,19 @@
+# act configuration for local GitHub Actions testing
+# Requires: act, Docker (or Colima on macOS)
+
+# Use Ubuntu 22.04 image with Node 22 support
+-P ubuntu-latest=catthehacker/ubuntu:act-22.04
+
+# Required for Apple Silicon (M-series) Macs
+--container-architecture linux/amd64
+
+# Fix Docker socket mounting issues with Colima
+--container-daemon-socket -
+
+# Usage:
+#   act -j lint          # Run lint job
+#   act -j build         # Run build job
+#   act -l               # List all jobs
+#   act -n               # Dry run
+#
+# Note: db-test and deploy jobs require GitHub/Supabase infrastructure
