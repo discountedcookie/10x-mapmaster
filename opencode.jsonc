@@ -1,11 +1,18 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md"],
-  "plugin": ["opencode-skills@0.1.1"],
+  "instructions": ["AGENTS.md", "openspec/project.md"],
+  "plugin": ["opencode-skills@0.1.1", "@tarquinen/opencode-dcp@0.4.2"],
+  "experimental": {
+    "primary_tools": ["prune"],
+  },
 
   // Models
   "model": "anthropic/claude-opus-4-5",
   "small_model": "anthropic/claude-haiku-4-5",
+
+  // Global defaults
+  "autoupdate": "notify",
+  "share": "manual",
 
   "keybinds": {
     "session_child_cycle": "<leader>]",
@@ -41,8 +48,10 @@
         "skills_systematic_debugging": true,
         "skills_code_review": true,
         "skills_subagent_workflow": true,
+        "skills_config_tuning": true,
       },
     },
+    // Disable general, we use specialized agents instead
     "general": { "disable": true },
   },
 
