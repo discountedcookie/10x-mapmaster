@@ -36,7 +36,7 @@
     "clsx": "^2.1.1",
     "consola": "^3.4.2",
     "intl-messageformat": "^10.7.18",
-    "lucide-vue-next": "^0.555.0",
+    "lucide-vue-next": "^0.556.0",
     "maplibre-gl": "^5.13.0",
     "mitt": "^3.0.1",
     "nominatim-ts": "^0.1.4",
